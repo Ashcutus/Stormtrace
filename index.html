@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#09080d" />
+    <meta name="description" content="A local, real-time global lightning monitor for Omarchy." />
+    <title>Stormtrace</title>
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin=""
+    />
+    <link rel="stylesheet" href="/styles.css?v=1.0.1" />
+  </head>
+  <body>
+    <noscript>Stormtrace requires JavaScript to render its live map.</noscript>
+
+    <main class="shell">
+      <header class="topbar">
+        <div class="brand-block">
+          <img class="brand-mark" src="/icon.svg" alt="" />
+          <div>
+            <div class="brand-line">
+              <h1>Stormtrace</h1>
+              <span class="version">v1.1</span>
+            </div>
+            <p>Global lightning intelligence</p>
+          </div>
+        </div>
+
+        <div class="status-cluster" aria-label="Data connection status">
+          <span class="pulse-dot" id="statusDot"></span>
+          <div>
+            <strong id="statusLabel">CONNECTING</strong>
+            <span id="statusDetail">Opening global stream…</span>
+          </div>
+        </div>
+
+        <div class="header-actions">
+          <button class="icon-button" id="themeButton" title="Theme and colours" aria-label="Theme and colours">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18h1.5a1.8 1.8 0 0 0 0-3.6h-1a1.8 1.8 0 0 1 0-3.6H16A5 5 0 0 0 21 9c0-3.3-4-6-9-6Z"/><circle cx="7.5" cy="10" r=".7"/><circle cx="10" cy="6.8" r=".7"/><circle cx="15" cy="7" r=".7"/></svg>
+          </button>
+          <button class="icon-button" id="refreshButton" title="Reconnect data feed (R)" aria-label="Reconnect data feed">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7" /></svg>
+          </button>
+          <button class="icon-button" id="infoButton" title="About the data" aria-label="About the data">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/></svg>
+          </button>
+        </div>
+      </header>
+
+      <section class="toolbar" aria-label="Map filters">
+        <div class="search-wrap">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m16 16 4 4"/></svg>
+          <label class="sr-only" for="placeSearch">Find a place or coordinates</label>
+          <input id="placeSearch" type="search" autocomplete="off" placeholder="Find a place or 51.50, -0.12" />
+          <kbd>/</kbd>
+          <div class="search-results" id="searchResults" role="listbox" hidden></div>
+        </div>
+
+        <div class="time-filter" role="group" aria-label="Strike age filter">
+          <button class="segment active" data-window="live">Live</button>
+          <button class="segment" data-window="60">1h</button>
+          <button class="segment" data-window="360">6h</button>
+          <button class="segment" data-window="1440" title="Rolling history collected on this device">24h</button>
+        </div>
+
+        <button class="text-button" id="locationButton">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 21s6-5 6-11a6 6 0 1 0-12 0c0 6 6 11 6 11Z"/><circle cx="12" cy="10" r="2"/></svg>
+          <span>Set location</span>
+          <kbd>G</kbd>
+        </button>
+      </section>
+
+      <div class="workspace">
+        <section class="map-panel" aria-label="Global lightning map">
+          <div id="map"></div>
+          <div class="map-shade" aria-hidden="true"></div>
+
+          <div class="map-overlay top-left">
+            <span class="eyebrow">Visible area</span>
+            <strong id="mapRegion">WORLD VIEW</strong>
+            <span id="coordinates">20.000° N / 5.000° E</span>
+          </div>
+
+          <div class="map-overlay legend" aria-label="Strike age legend">
+            <span class="eyebrow">Strike age</span>
+            <div class="legend-row"><i class="age-now"></i><span>&lt; 5 min</span></div>
+            <div class="legend-row"><i class="age-recent"></i><span>5–60 min</span></div>
+            <div class="legend-row"><i class="age-old"></i><span>1–24 hr</span></div>
+          </div>
+
+          <div class="map-controls" aria-label="Map controls">
+            <button id="zoomIn" aria-label="Zoom in">+</button>
+            <button id="zoomOut" aria-label="Zoom out">−</button>
+            <button id="worldView" aria-label="Reset to world view" title="World view">
+              <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4c2.5 2.2 3.5 4.9 3.5 8S14.5 17.8 12 20M12 4c-2.5 2.2-3.5 4.9-3.5 8s1 5.8 3.5 8"/></svg>
+            </button>
+          </div>
+
+          <a class="map-credit" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap</a>
+
+          <div class="map-message" id="mapMessage" hidden>
+            <span class="message-icon">!</span>
+            <div>
+              <strong id="mapMessageTitle">Map unavailable</strong>
+              <span id="mapMessageBody">Check your connection and retry.</span>
+            </div>
+            <button id="mapMessageAction">Retry</button>
+          </div>
+
+          <div class="latest-strip">
+            <div class="latest-icon">ϟ</div>
+            <div>
+              <span class="eyebrow">Latest strike</span>
+              <strong id="latestLocation">Waiting for the live network</strong>
+            </div>
+            <div class="latest-meta">
+              <strong id="latestAge">—</strong>
+              <span id="latestDistance">No position yet</span>
+            </div>
+          </div>
+        </section>
+
+        <aside class="sidebar">
+          <section class="stats-grid" aria-label="Lightning statistics">
+            <article class="stat-card accent">
+              <span class="eyebrow">Visible strikes</span>
+              <strong id="visibleCount">000</strong>
+              <span id="visibleWindow">Live · map bounds</span>
+            </article>
+            <article class="stat-card">
+              <span class="eyebrow">Global rate</span>
+              <strong><span id="globalRate">0</span><small>/min</small></strong>
+              <span id="rateTrend">Collecting baseline</span>
+            </article>
+          </section>
+
+          <section class="panel hotspots-panel">
+            <div class="panel-heading">
+              <div>
+                <span class="eyebrow">Activity index</span>
+                <h2>Hot spots</h2>
+              </div>
+              <button class="mini-button" id="hotspotFocus" title="Focus the leading hot spot">Focus</button>
+            </div>
+            <div class="hotspot-list" id="hotspotList">
+              <div class="empty-state">Waiting for enough strikes to identify active cells…</div>
+            </div>
+          </section>
+
+          <section class="panel proximity-panel">
+            <div class="panel-heading">
+              <div>
+                <span class="eyebrow">Safety radius</span>
+                <h2>Near me</h2>
+              </div>
+              <label class="switch" title="Toggle desktop notifications">
+                <input id="notificationToggle" type="checkbox" />
+                <span class="switch-track"><span class="switch-thumb"></span></span>
+                <span class="sr-only">Desktop notifications</span>
+              </label>
+            </div>
+
+            <div class="location-state" id="locationState">
+              <span class="target-icon">⌾</span>
+              <div>
+                <strong>Location not set</strong>
+                <span>Set it once to monitor nearby strikes.</span>
+              </div>
+            </div>
+
+            <div class="radius-control">
+              <div class="range-labels">
+                <label for="radiusRange">Alert radius</label>
+                <strong><span id="radiusValue">20</span> mi</strong>
+              </div>
+              <input id="radiusRange" type="range" min="5" max="50" step="5" value="20" />
+              <div class="range-ticks"><span>5</span><span>20</span><span>35</span><span>50</span></div>
+            </div>
+
+            <div class="proximity-stats">
+              <div><span>Last hour</span><strong id="nearbyCount">—</strong></div>
+              <div><span>Closest</span><strong id="closestStrike">—</strong></div>
+            </div>
+
+            <button class="wide-button" id="enableLocationButton">Use my current location</button>
+            <p class="permission-note" id="permissionNote">Notifications remain on this device. Location is never uploaded.</p>
+          </section>
+
+          <section class="source-note">
+            <div class="source-line"><span>Source</span><strong>Blitzortung community network</strong></div>
+            <div class="source-line"><span>History</span><strong id="historyState">Local rolling archive</strong></div>
+            <p>Private, non-commercial viewer. Coverage and detection latency vary by region.</p>
+          </section>
+        </aside>
+      </div>
+
+      <footer class="footerbar">
+        <span><kbd>Drag</kbd> move map</span>
+        <span><kbd>Scroll</kbd> zoom</span>
+        <span><kbd>L</kbd> live view</span>
+        <span><kbd>N</kbd> notifications</span>
+        <span class="footer-right" id="clock">UTC 00:00:00</span>
+      </footer>
+    </main>
+
+    <dialog id="infoDialog">
+      <form method="dialog" class="dialog-card">
+        <div class="dialog-icon">ϟ</div>
+        <span class="eyebrow">About the signal</span>
+        <h2>Real strikes, local history</h2>
+        <p>Stormtrace listens to a viewport-aware community lightning feed and keeps a rolling 24-hour cache in this browser. On a new install, the older time filters fill up as the app runs.</p>
+        <p>The live interface is unofficial and may change. Data is provided for private, non-commercial use and must not be treated as a safety-critical warning system.</p>
+        <div class="dialog-actions">
+          <button value="close" class="wide-button">Understood</button>
+          <a href="https://www.blitzortung.org/" target="_blank" rel="noreferrer">Project source ↗</a>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="themeDialog">
+      <form method="dialog" class="dialog-card theme-dialog-card">
+        <div class="dialog-icon theme-preview-icon">◈</div>
+        <span class="eyebrow">Appearance</span>
+        <h2>Theme & colours</h2>
+        <p class="theme-intro">Stormtrace follows your active Omarchy palette by default. Choose a custom palette to override it only for this app.</p>
+
+        <div class="theme-source" role="group" aria-label="Theme source">
+          <button type="button" class="theme-source-button active" data-theme-source="system">
+            <span>Omarchy</span><small id="currentThemeName">Current system theme</small>
+          </button>
+          <button type="button" class="theme-source-button" data-theme-source="custom">
+            <span>Custom</span><small>Saved in this browser</small>
+          </button>
+        </div>
+
+        <div class="palette-grid" id="paletteGrid">
+          <label><span>App background</span><span class="color-field"><input type="color" data-palette-key="bg"/><output></output></span></label>
+          <label><span>Base surface</span><span class="color-field"><input type="color" data-palette-key="surface"/><output></output></span></label>
+          <label><span>Panel surface</span><span class="color-field"><input type="color" data-palette-key="surface2"/><output></output></span></label>
+          <label><span>Raised surface</span><span class="color-field"><input type="color" data-palette-key="surface3"/><output></output></span></label>
+          <label><span>Primary text</span><span class="color-field"><input type="color" data-palette-key="text"/><output></output></span></label>
+          <label><span>Muted text</span><span class="color-field"><input type="color" data-palette-key="muted"/><output></output></span></label>
+          <label><span>Interface accent</span><span class="color-field"><input type="color" data-palette-key="violet"/><output></output></span></label>
+          <label><span>Fresh strikes</span><span class="color-field"><input type="color" data-palette-key="magenta"/><output></output></span></label>
+          <label><span>Live / safe</span><span class="color-field"><input type="color" data-palette-key="cyan"/><output></output></span></label>
+          <label><span>Warning</span><span class="color-field"><input type="color" data-palette-key="yellow"/><output></output></span></label>
+        </div>
+
+        <div class="theme-actions">
+          <button type="button" class="mini-button" id="resetCustomTheme">Copy Omarchy colours</button>
+          <button type="button" class="wide-button" id="applyCustomTheme">Apply custom palette</button>
+          <button value="close" class="mini-button">Close</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div class="toast-stack" id="toastStack" aria-live="polite"></div>
+
+    <script
+      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+      crossorigin=""
+    ></script>
+    <script src="/app.js?v=1.0.1" defer></script>
+  </body>
+</html>
