@@ -1,5 +1,6 @@
 import QtQuick
 import Quickshell.Io
+import qs.Commons
 import qs.Ui
 
 BarWidget {
@@ -14,7 +15,7 @@ BarWidget {
 
   function launch() {
     if (!root.bar || !root.sourceDir) return
-    root.bar.run(root.bar.shellQuote(root.sourceDir + "/start-app.sh"))
+    root.bar.run(Util.shellQuote(root.sourceDir + "/start-app.sh"))
     launchRefresh.restart()
   }
 
