@@ -24,4 +24,4 @@ if ! curl -fsS --max-time 1 "$APP_URL/api/health" >/dev/null 2>&1; then
   done
 fi
 
-exec omarchy launch or focus webapp "Stormtrace" "$APP_URL"
+exec omarchy launch or focus webapp "^Stormtrace$" "$APP_URL"
