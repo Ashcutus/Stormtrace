@@ -6,13 +6,22 @@ Stormtrace is structurally ready for the Omarchy plugin marketplace. This releas
 2. Keep `manifest.json` at the repository root.
 3. Replace `Stormtrace Contributors` in `manifest.json` and `LICENSE` with the maintainer's preferred display name if desired.
 4. Run `omarchy plugin validate .` at the release commit.
-5. Test the public installation path:
+5. Verify the native runtime and project checks:
+
+   ```bash
+   omarchy pkg add python-gobject gtk3 webkit2gtk-4.1
+   npm run check
+   bash -n start.sh start-app.sh install-omarchy.sh uninstall-omarchy.sh
+   ```
+
+6. Test the public installation path:
 
    ```bash
    omarchy plugin add https://github.com/Ashcutus/Stormtrace.git --enable
    ```
 
-6. Open the [Omarchy marketplace submission form](https://plugins.omarchy.org/publish.html) and provide the repository URL, category, and tags.
+7. Select the bar icon twice and confirm there is one `org.omarchy.Stormtrace` window which is focused on the second selection. Confirm `stormtrace-receiver.service` remains active after the launcher exits. Also run the installed plugin's `install-omarchy.sh` and launch Stormtrace from `SUPER + SPACE`.
+8. Open the [Omarchy marketplace submission form](https://plugins.omarchy.org/publish.html) and provide the repository URL, category, and tags.
 
 Suggested listing metadata:
 

@@ -755,7 +755,7 @@
 
   async function requestLocation() {
     if (!navigator.geolocation) {
-      toast("Location unavailable", "This browser does not provide geolocation.");
+      toast("Location unavailable", "This app does not provide geolocation.");
       return false;
     }
     els.enableLocationButton.disabled = true;
@@ -776,7 +776,7 @@
         (error) => {
           els.enableLocationButton.disabled = false;
           els.enableLocationButton.textContent = "Try location again";
-          els.permissionNote.textContent = error.code === 1 ? "Location permission was declined. You can enable it in browser settings." : "Your position could not be determined. Try again in a moment.";
+          els.permissionNote.textContent = error.code === 1 ? "Location permission was declined. Check your system privacy settings." : "Your position could not be determined. Try again in a moment.";
           toast("Location not set", els.permissionNote.textContent);
           resolve(false);
         },
@@ -830,7 +830,7 @@
     }
     if (!("Notification" in window)) {
       els.notificationToggle.checked = false;
-      toast("Notifications unavailable", "This browser does not support desktop notifications.");
+      toast("Notifications unavailable", "This app does not support desktop notifications.");
       return;
     }
     const permission = Notification.permission === "granted" ? "granted" : await Notification.requestPermission();
@@ -838,14 +838,14 @@
     updateNotificationUI();
     saveSettings();
     if (state.notificationsEnabled) toast("Proximity alerts armed", `You’ll be notified about strikes within ${state.radiusMiles} miles.`);
-    else toast("Permission needed", "Enable notifications for Stormtrace in browser settings.");
+    else toast("Permission needed", "Enable desktop notifications for Stormtrace.");
   }
 
   function updateNotificationUI() {
     els.notificationToggle.checked = state.notificationsEnabled;
     const permission = "Notification" in window ? Notification.permission : "unsupported";
     if (permission === "denied") {
-      els.permissionNote.textContent = "Notifications are blocked in browser settings. Location stays on this device.";
+      els.permissionNote.textContent = "Desktop notifications are blocked. Location stays on this device.";
     } else if (state.notificationsEnabled) {
       els.permissionNote.textContent = `Armed with a 2-minute cooldown. Location and alerts remain on this device.`;
     } else {
