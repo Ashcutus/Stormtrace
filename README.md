@@ -1,13 +1,14 @@
 # Stormtrace for Omarchy
 
-Stormtrace is a theme-aware Omarchy bar widget and local lightning monitor. It displays a draggable, zoomable global map; receives near-real-time lightning strikes; keeps a rolling on-device history; identifies activity hotspots; and can notify you about strikes inside a configurable radius.
+Stormtrace is a theme-aware Omarchy bar widget and native desktop lightning monitor. It displays a draggable, zoomable global map; receives near-real-time lightning strikes; keeps a rolling on-device history; identifies activity hotspots; and can notify you about strikes inside a configurable radius.
 
 ## Features
 
 - Global live strike map with live, 1-hour, 6-hour, and rolling 24-hour views.
 - Hover a strike for a quick summary; click one for persistent extended details including detection time, coordinates, uncertainty, and polarity when available.
 - Activity hotspots, latest-strike summary, global strike rate, and proximity statistics.
-- Optional browser geolocation and desktop notifications, with a configurable 5–50 mile radius.
+- Dedicated GTK/WebKitGTK application window with single-instance focus behavior.
+- Optional geolocation and desktop notifications, with a configurable 5–50 mile radius.
 - Automatic Omarchy dark/light theme inheritance or a saved custom palette.
 - Manual map brightness, map opacity, and edge-shade controls.
 - Local IndexedDB history with an optional server-side historical backfill provider.
@@ -37,15 +38,25 @@ Hovering a strike shows its quick summary; clicking one opens the persistent ext
 
 ## Install as an Omarchy plugin
 
-Install and enable the public plugin with:
+Install the native desktop runtime once, then add and enable the public plugin:
+
+```bash
+omarchy pkg add python-gobject gtk3 webkit2gtk-4.1
+```
 
 ```bash
 omarchy plugin add https://github.com/Ashcutus/Stormtrace.git --enable
 ```
 
-The lightning icon appears on the right side of the Omarchy bar. Select it to start the local server and open or focus Stormtrace. The widget lights up while the receiver is running.
+The lightning icon appears on the right side of the Omarchy bar. Select it to start the local server and open or focus the dedicated Stormtrace desktop app. The widget lights up while the receiver is running.
 
-The plugin does not use install hooks, `sudo`, or a background system service. Its server starts only when requested.
+To also register Stormtrace in the `SUPER + SPACE` app launcher, run:
+
+```bash
+~/.config/omarchy/plugins/stormtrace.lightning/install-omarchy.sh
+```
+
+The plugin itself does not use install hooks, `sudo`, or a boot-enabled system service. Its receiver starts only when requested and runs in an Omarchy-managed user service for the rest of the session. The separate `omarchy pkg add` command uses Omarchy's normal package installation flow.
 
 ## Update to the latest version
 
@@ -55,7 +66,9 @@ For an existing git-managed installation, run:
 omarchy plugin update stormtrace.lightning --yes
 ```
 
-Then select the Stormtrace bar icon again. If the app was already open, refresh or close and reopen its web-app window so the updated JavaScript and styles are loaded.
+Then select the Stormtrace bar icon again. If the app was already open, close and reopen it so updated application code, JavaScript, and styles are loaded.
+
+Version 1.2 replaces the old Chromium web-app window with a dedicated GTK application. The native app has its own local profile, so settings and rolling history from the old Chromium profile are not migrated.
 
 To check the installed plugin:
 
@@ -70,33 +83,34 @@ git pull
 ./start.sh
 ```
 
-Remove the plugin cleanly with:
+Close the app, stop its receiver, remove the launcher entry, and then remove the plugin with:
 
 ```bash
+~/.config/omarchy/plugins/stormtrace.lightning/uninstall-omarchy.sh
 omarchy plugin remove stormtrace.lightning
 ```
 
 ## Run without the plugin
 
-The launcher uses Node.js 20+ when available and falls back to Python 3:
+The local server uses Node.js 20+ when available and falls back to Python 3. The desktop shell requires Python, GTK 3, and WebKitGTK 4.1:
 
 ```bash
 ./start.sh
 ```
 
-Open [http://127.0.0.1:4177](http://127.0.0.1:4177), or use the Omarchy web-app launcher:
+Open [http://127.0.0.1:4177](http://127.0.0.1:4177) for browser-based development, or launch the native app:
 
 ```bash
 ./start-app.sh
 ```
 
-To install an optional standalone launcher entry:
+To install the native app in the Omarchy launcher:
 
 ```bash
 ./install-omarchy.sh
 ```
 
-Then press `SUPER + SPACE` and search for **Stormtrace**. The project has no package-manager dependencies.
+Then press `SUPER + SPACE` and search for **Stormtrace**. The server has no npm dependencies; the native shell uses the GTK packages listed above.
 
 ## Using the app
 
@@ -117,7 +131,7 @@ Then press `SUPER + SPACE` and search for **Stormtrace**. The project has no pac
 | --- | --- |
 | Live / 1h / 6h / 24h | Change the strike-age window. |
 | Set location | Request or update the local monitoring position. |
-| Near me switch | Enable or disable browser notifications. |
+| Near me switch | Enable or disable desktop notifications. |
 | Alert radius | Set the proximity radius from 5 to 50 miles. |
 | Focus | Fly to the leading hotspot. |
 | `L` | Return to the live time window. |
@@ -133,14 +147,14 @@ Open the palette button in the app header and use **Manual map controls**:
 - **Map opacity** adjusts tile opacity from 55% to 100%.
 - **Edge shade** controls the map’s edge vignette from 0% to 60%.
 
-These values are stored in the current browser profile. The same dialog can switch between automatic Omarchy colours and a saved custom palette. Custom colours are also stored only in that browser profile.
+These values are stored in Stormtrace's local app profile. The same dialog can switch between automatic Omarchy colours and a saved custom palette. Custom colours remain local to that profile.
 
 ## Data, privacy, and limitations
 
 - Live strikes use the unofficial, unauthenticated LightningMaps/Blitzortung WebSocket feed. The connection is worldwide and reconnects with exponential backoff.
-- The last 24 hours are retained locally in IndexedDB, capped at 30,000 strikes. A new installation builds its older time windows as the app runs.
+- The last 24 hours are retained locally in the app's IndexedDB storage, capped at 30,000 strikes. A new installation builds its older time windows as the app runs.
 - Optional historical backfill requires a `LIGHTNING_API_KEY`. Copy `.env.example` to `.env`, add the key, and restart the server. The key remains server-side, and the provider plan must support a 1,440-minute window.
-- Geolocation, the alert radius, map appearance settings, and custom colours are stored only in the local browser profile.
+- Geolocation, the alert radius, map appearance settings, and custom colours are stored only in the local Stormtrace profile.
 - Notifications use a two-minute cooldown to avoid alert storms. Location is never uploaded by Stormtrace.
 - Coverage and detection latency vary by region. This app is situational-awareness software, not a safety-critical warning system.
 
@@ -166,6 +180,25 @@ Check that the local receiver is healthy:
 curl http://127.0.0.1:4177/api/health
 ```
 
+Inspect the Omarchy-managed receiver if it failed to start:
+
+```bash
+systemctl --user status stormtrace-receiver.service
+journalctl --user -u stormtrace-receiver.service
+```
+
+Check that the native desktop runtime is available:
+
+```bash
+python3 -c 'import gi; gi.require_version("Gtk", "3.0"); gi.require_version("WebKit2", "4.1"); from gi.repository import Gtk, WebKit2'
+```
+
+Install a missing native runtime with:
+
+```bash
+omarchy pkg add python-gobject gtk3 webkit2gtk-4.1
+```
+
 If another process is using port `4177`, stop that process or choose a different port for a direct server run:
 
 ```bash
@@ -180,7 +213,7 @@ The map needs network access to load Leaflet, OpenStreetMap tiles, and the live 
 
 ### Historical views are empty
 
-The rolling archive is local to the browser and starts filling when the app first runs. Full 24-hour backfill is optional and requires the provider configuration described above.
+The rolling archive is local to the app and starts filling when it first runs. Full 24-hour backfill is optional and requires the provider configuration described above.
 
 ### Theme colours are not updating
 
@@ -204,7 +237,7 @@ npm run check
 git diff --check
 ```
 
-The repository includes the marketplace `manifest.json`, QML bar entry point, MIT licence, safe launcher scripts, and a [publishing checklist](PUBLISHING.md). Validate a release with:
+The repository includes the marketplace `manifest.json`, QML bar entry point, native GTK application shell, MIT licence, safe launcher scripts, and a [publishing checklist](PUBLISHING.md). Validate a release with:
 
 ```bash
 omarchy plugin validate .

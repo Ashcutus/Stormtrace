@@ -22,7 +22,14 @@ const server = createServer(async (request, response) => {
   const url = new URL(request.url || "/", `http://${request.headers.host || `${HOST}:${PORT}`}`);
 
   if (url.pathname === "/api/health") {
-    return json(response, 200, { ok: true, historyProvider: Boolean(API_KEY) });
+    return json(response, 200, {
+      ok: true,
+      app: "stormtrace",
+      version: "1.2.0",
+      root: ROOT,
+      pid: process.pid,
+      historyProvider: Boolean(API_KEY),
+    });
   }
 
   if (url.pathname === "/api/history") {

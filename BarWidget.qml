@@ -40,7 +40,7 @@ BarWidget {
 
   Process {
     id: healthProc
-    command: ["curl", "-fsS", "--max-time", "1", "http://127.0.0.1:4177/api/health"]
+    command: [root.sourceDir + "/start-app.sh", "--health"]
     onExited: function(exitCode) { root.serverReady = exitCode === 0 }
   }
 

@@ -38,7 +38,14 @@ class Handler(SimpleHTTPRequestHandler):
     def do_GET(self):
         parsed = urlparse(self.path)
         if parsed.path == "/api/health":
-            return self.send_json(200, {"ok": True, "historyProvider": bool(API_KEY)})
+            return self.send_json(200, {
+                "ok": True,
+                "app": "stormtrace",
+                "version": "1.2.0",
+                "root": str(ROOT),
+                "pid": os.getpid(),
+                "historyProvider": bool(API_KEY),
+            })
         if parsed.path == "/api/theme":
             return self.send_json(200, read_omarchy_theme())
         if parsed.path == "/api/history":

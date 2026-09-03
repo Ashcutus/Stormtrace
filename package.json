@@ -1,12 +1,12 @@
 {
   "name": "stormtrace",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "type": "module",
   "description": "A local, real-time global lightning monitor for Omarchy.",
   "scripts": {
     "start": "node server.js",
-    "check": "node --check server.js && node --check app.js"
+    "check": "node --check server.js && node --check app.js && python3 -c \"import ast, pathlib; [ast.parse(pathlib.Path(name).read_text()) for name in ('server.py', 'stormtrace_app.py')]\""
   },
   "engines": {
     "node": ">=20"
