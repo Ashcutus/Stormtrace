@@ -82,6 +82,8 @@
     userLocation: persisted.userLocation || null,
     lastAlertAt: 0,
     lastStrike: null,
+    selectedStrikeId: null,
+    renderingStrikes: false,
     renderTimer: null,
     hotspots: [],
     db: null,
@@ -491,9 +493,14 @@
     const visible = inWindow.filter((strike) => bounds.contains([strike.lat, strike.lon]));
     const toRender = visible.sort((a, b) => b.time - a.time).slice(0, MAX_RENDERED_STRIKES);
 
+    const selectedStrikeId = state.selectedStrikeId;
+    state.renderingStrikes = true;
+    state.map.closePopup();
     state.strikeLayer.clearLayers();
+    state.renderingStrikes = false;
     const now = Date.now();
     const palette = state.activePalette;
+    let selectedMarker = null;
     for (const strike of toRender) {
       const ageMinutes = (now - strike.time) / 60000;
       const style = ageMinutes < 5
@@ -502,11 +509,39 @@
           ? { color: palette.violet, fillColor: palette.violet, radius: 3, opacity: 0.8, fillOpacity: 0.56 }
           : { color: palette.blue, fillColor: palette.blue, radius: 2.5, opacity: 0.58, fillOpacity: 0.38 };
       const liveClass = now - strike.time < 18000 ? " strike-live" : "";
-      L.circleMarker([strike.lat, strike.lon], {
+      const marker = L.circleMarker([strike.lat, strike.lon], {
         ...style,
         weight: 1,
         className: `strike-marker${liveClass}`,
-      }).bindPopup(strikePopup(strike), { className: "storm-popup", closeButton: false }).addTo(state.strikeLayer);
+      })
+        .bindTooltip(strikeTooltip(strike), {
+          className: "strike-tooltip",
+          direction: "top",
+          sticky: true,
+          offset: [0, -6],
+          opacity: 1,
+        })
+        .bindPopup(strikePopup(strike), {
+          className: "storm-popup",
+          closeButton: true,
+          closeOnClick: false,
+          maxWidth: 280,
+        })
+        .on("click", () => {
+          state.selectedStrikeId = strike.id;
+          marker.closeTooltip();
+        })
+        .on("popupclose", () => {
+          if (!state.renderingStrikes && state.selectedStrikeId === strike.id) state.selectedStrikeId = null;
+        })
+        .addTo(state.strikeLayer);
+      if (strike.id === selectedStrikeId) selectedMarker = marker;
+    }
+
+    if (selectedMarker) {
+      selectedMarker.openPopup();
+    } else if (selectedStrikeId) {
+      state.selectedStrikeId = null;
     }
 
     els.visibleCount.textContent = String(visible.length).padStart(3, "0");
@@ -519,10 +554,28 @@
 
   function strikePopup(strike) {
     const age = relativeAge(strike.time);
-    return `<div style="min-width:150px;background:var(--surface-2);color:var(--text);padding:9px;border:1px solid var(--line-bright);font:10px ui-monospace,monospace">
-      <strong style="color:var(--violet-bright)">ϟ LIGHTNING STRIKE</strong><br>
-      <span style="color:var(--muted)">${age} · ${formatCoordinates(strike.lat, strike.lon)}</span>
+    const deviation = strike.deviation > 0 ? `${Math.round(strike.deviation).toLocaleString()} m` : "Not reported";
+    const polarity = strike.polarity > 0 ? "Positive" : strike.polarity < 0 ? "Negative" : "Unknown";
+    const distance = state.userLocation
+      ? `<div class="strike-detail"><span>Distance</span><strong>${formatMiles(haversineMiles(state.userLocation.lat, state.userLocation.lon, strike.lat, strike.lon))}</strong></div>`
+      : "";
+    return `<div class="strike-popup-content">
+      <div class="strike-popup-heading"><span class="strike-popup-icon">ϟ</span><div><strong>LIGHTNING STRIKE</strong><span>${escapeHtml(describeRegion(strike.lat, strike.lon))}</span></div></div>
+      <div class="strike-detail"><span>Detected</span><strong>${age}</strong></div>
+      <div class="strike-detail"><span>Time (UTC)</span><strong>${formatStrikeTime(strike.time)}</strong></div>
+      <div class="strike-detail"><span>Coordinates</span><strong>${formatCoordinates(strike.lat, strike.lon)}</strong></div>
+      <div class="strike-detail"><span>Location uncertainty</span><strong>${deviation}</strong></div>
+      <div class="strike-detail"><span>Polarity</span><strong>${polarity}</strong></div>
+      ${distance}
     </div>`;
+  }
+
+  function strikeTooltip(strike) {
+    return `<div class="strike-tooltip-content"><strong>ϟ ${escapeHtml(describeRegion(strike.lat, strike.lon))}</strong><span>${relativeAge(strike.time)} · ${formatCoordinates(strike.lat, strike.lon)}</span></div>`;
+  }
+
+  function formatStrikeTime(time) {
+    return new Date(time).toISOString().replace("T", " ").replace(".000Z", " UTC");
   }
 
   function updateRate(strikes) {

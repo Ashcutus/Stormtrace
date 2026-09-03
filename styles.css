@@ -154,8 +154,26 @@ body[data-system-mode="light"] .leaflet-tile { filter: saturate(.42) contrast(.9
 .leaflet-container { font: inherit; }
 .leaflet-pane.leaflet-overlay-pane svg { overflow: visible; }
 .strike-marker { stroke-width: 1; }
-.strike-live { filter: drop-shadow(0 0 5px var(--magenta)); animation: strikePing 1.4s ease-out; transform-origin: center; transform-box: fill-box; }
-@keyframes strikePing { 0% { stroke-width: 8; opacity: .2; transform: scale(3.6); } 65% { opacity: 1; transform: scale(1); } }
+.strike-live { filter: drop-shadow(0 0 3px color-mix(in srgb, var(--magenta) 70%, transparent)); animation: strikePing 1.8s ease-out; transform-origin: center; transform-box: fill-box; }
+@keyframes strikePing { 0% { stroke-width: 3; opacity: .5; transform: scale(1.8); } 70% { opacity: .95; transform: scale(1); } }
+.strike-tooltip { padding: 0; color: var(--text); background: var(--surface-2); border: 1px solid var(--line-bright); border-radius: 0; box-shadow: var(--shadow); }
+.strike-tooltip::before { border-top-color: var(--line-bright); }
+.strike-tooltip-content { display: grid; gap: 3px; min-width: 155px; padding: 7px 9px; font: 9px ui-monospace, monospace; }
+.strike-tooltip-content strong { color: var(--violet-bright); font-size: 9px; }
+.strike-tooltip-content span { color: var(--muted); font-size: 8px; }
+.storm-popup .leaflet-popup-content-wrapper, .storm-popup .leaflet-popup-tip { border: 1px solid var(--line-bright); border-radius: 0; background: var(--surface-2); color: var(--text); box-shadow: var(--shadow); }
+.storm-popup .leaflet-popup-content { margin: 0; min-width: 246px; }
+.storm-popup .leaflet-popup-close-button { top: 7px; right: 7px; width: 18px; height: 18px; color: var(--muted); font-size: 17px; }
+.storm-popup .leaflet-popup-close-button:hover { color: var(--violet-bright); }
+.strike-popup-content { display: grid; gap: 7px; padding: 11px; font: 9px ui-monospace, monospace; }
+.strike-popup-heading { display: flex; align-items: center; gap: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+.strike-popup-heading > div { display: grid; gap: 3px; }
+.strike-popup-heading strong { color: var(--violet-bright); font-size: 9px; letter-spacing: .08em; }
+.strike-popup-heading span:last-child { color: var(--muted); font-size: 8px; }
+.strike-popup-icon { display: grid; place-items: center; width: 23px; height: 23px; border: 1px solid var(--violet); color: var(--violet-bright); font-size: 15px; }
+.strike-detail { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.strike-detail span { color: var(--muted); font-size: 8px; }
+.strike-detail strong { color: var(--text); font-size: 8px; text-align: right; }
 
 .home-marker { width: 14px; height: 14px; border: 2px solid var(--bright-text, #fff); border-radius: 50%; background: var(--violet); box-shadow: 0 0 0 5px color-mix(in srgb, var(--violet) 25%, transparent), 0 0 18px var(--violet); }
 
@@ -279,6 +297,10 @@ dialog::backdrop { background: transparent; }
 .toast strong { font-size: 9px; }
 .toast span { margin-top: 3px; color: var(--muted); font-size: 8px; }
 @keyframes toastIn { from { opacity: 0; transform: translateY(-6px); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .strike-live { animation: none; }
+}
 
 .theme-dialog-card { width: min(610px, calc(100vw - 40px)); }
 .theme-intro { max-width: 490px; }
