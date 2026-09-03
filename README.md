@@ -70,6 +70,8 @@ Then select the Stormtrace bar icon again. If the app was already open, close an
 
 Version 1.2 replaces the old Chromium web-app window with a dedicated GTK application. The native app has its own local profile, so settings and rolling history from the old Chromium profile are not migrated.
 
+Version 1.2.1 keeps strike markers stable during live updates and smooths their hover and click interactions.
+
 To check the installed plugin:
 
 ```bash
@@ -118,8 +120,8 @@ Then press `SUPER + SPACE` and search for **Stormtrace**. The server has no npm 
 
 | Interaction | Result |
 | --- | --- |
-| Hover a strike | Shows its region, age, and coordinates. |
-| Click a strike | Opens extended details and keeps them open until dismissed. |
+| Hover a strike | Shows a stable, anchored preview with its region, age, and coordinates. |
+| Click a strike | Selects it and keeps the extended details open through live updates until dismissed. |
 | Drag / scroll | Move and zoom the map. |
 | `+` / `−` | Zoom in or out. |
 | World button | Return to the global view. |

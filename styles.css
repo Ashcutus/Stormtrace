@@ -153,20 +153,27 @@ kbd { color: #d7cce7; background: #272131; border: 1px solid #3c324a; border-rad
 body[data-system-mode="light"] .leaflet-tile { filter: saturate(.48) contrast(.96) brightness(calc(.98 * var(--map-brightness, 1))); }
 .leaflet-container { font: inherit; }
 .leaflet-pane.leaflet-overlay-pane svg { overflow: visible; }
-.strike-marker { stroke-width: 1; }
+.strike-marker {
+  cursor: pointer;
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: r 120ms ease, fill-opacity 120ms ease, stroke-opacity 120ms ease, stroke-width 120ms ease, filter 120ms ease;
+}
 .strike-live { filter: drop-shadow(0 0 3px color-mix(in srgb, var(--magenta) 70%, transparent)); animation: strikePing 1.8s ease-out; transform-origin: center; transform-box: fill-box; }
 @keyframes strikePing { 0% { stroke-width: 3; opacity: .5; transform: scale(1.8); } 70% { opacity: .95; transform: scale(1); } }
-.strike-tooltip { padding: 0; color: var(--text); background: var(--surface-2); border: 1px solid var(--line-bright); border-radius: 0; box-shadow: var(--shadow); }
+.strike-marker.is-hovered { filter: drop-shadow(0 0 5px color-mix(in srgb, var(--violet-bright) 80%, transparent)); }
+.strike-marker.is-selected { filter: drop-shadow(0 0 7px color-mix(in srgb, var(--magenta) 85%, transparent)); }
+.strike-tooltip { padding: 0; pointer-events: none; color: var(--text); background: var(--surface-2); border: 1px solid var(--line-bright); border-radius: 0; box-shadow: var(--shadow); }
 .strike-tooltip::before { border-top-color: var(--line-bright); }
 .strike-tooltip-content { display: grid; gap: 3px; min-width: 155px; padding: 7px 9px; font: 10px ui-monospace, monospace; }
 .strike-tooltip-content strong { color: var(--violet-bright); font-size: 10px; }
 .strike-tooltip-content span { color: var(--muted); font-size: 9px; }
 .storm-popup .leaflet-popup-content-wrapper, .storm-popup .leaflet-popup-tip { border: 1px solid var(--line-bright); border-radius: 0; background: var(--surface-2); color: var(--text); box-shadow: var(--shadow); }
 .storm-popup .leaflet-popup-content { margin: 0; min-width: 246px; }
-.storm-popup .leaflet-popup-close-button { top: 7px; right: 7px; width: 18px; height: 18px; color: var(--muted); font-size: 17px; }
+.storm-popup .leaflet-popup-close-button { top: 4px; right: 4px; width: 28px; height: 28px; color: var(--muted); font-size: 18px; line-height: 28px; }
 .storm-popup .leaflet-popup-close-button:hover { color: var(--violet-bright); }
 .strike-popup-content { display: grid; gap: 7px; padding: 11px; font: 10px ui-monospace, monospace; }
-.strike-popup-heading { display: flex; align-items: center; gap: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+.strike-popup-heading { display: flex; align-items: center; gap: 8px; padding: 0 24px 8px 0; border-bottom: 1px solid var(--line); }
 .strike-popup-heading > div { display: grid; gap: 3px; }
 .strike-popup-heading strong { color: var(--violet-bright); font-size: 10px; letter-spacing: .08em; }
 .strike-popup-heading span:last-child { color: var(--muted); font-size: 9px; }
