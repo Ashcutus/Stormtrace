@@ -3,7 +3,7 @@ set -euo pipefail
 
 APP_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 APP_URL="http://127.0.0.1:4177"
-APP_VERSION="1.2.0"
+APP_VERSION="1.2.1"
 RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp}/stormtrace"
 mkdir -p "$RUNTIME_DIR"
 

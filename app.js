@@ -89,8 +89,9 @@
     userLocation: persisted.userLocation || null,
     lastAlertAt: 0,
     lastStrike: null,
+    strikeMarkers: new Map(),
     selectedStrikeId: null,
-    renderingStrikes: false,
+    hoveredStrikeId: null,
     renderTimer: null,
     hotspots: [],
     db: null,
@@ -540,56 +541,40 @@
     const bounds = state.map.getBounds();
     const inWindow = [...state.strikes.values()].filter((strike) => strike.time >= cutoff);
     const visible = inWindow.filter((strike) => bounds.contains([strike.lat, strike.lon]));
-    const toRender = visible.sort((a, b) => b.time - a.time).slice(0, MAX_RENDERED_STRIKES);
-
-    const selectedStrikeId = state.selectedStrikeId;
-    state.renderingStrikes = true;
-    state.map.closePopup();
-    state.strikeLayer.clearLayers();
-    state.renderingStrikes = false;
+    const toRender = visible
+      .sort((a, b) => b.time - a.time)
+      .slice(0, MAX_RENDERED_STRIKES)
+      .sort((a, b) => a.time - b.time);
+    const renderIds = new Set(toRender.map((strike) => strike.id));
     const now = Date.now();
-    const palette = state.activePalette;
-    let selectedMarker = null;
-    for (const strike of toRender) {
-      const ageMinutes = (now - strike.time) / 60000;
-      const style = ageMinutes < 5
-        ? { color: palette.magenta, fillColor: palette.magenta, radius: 3.6, opacity: 0.95, fillOpacity: 0.72 }
-        : ageMinutes < 60
-          ? { color: palette.violet, fillColor: palette.violet, radius: 3, opacity: 0.8, fillOpacity: 0.56 }
-          : { color: palette.blue, fillColor: palette.blue, radius: 2.5, opacity: 0.58, fillOpacity: 0.38 };
-      const liveClass = now - strike.time < 18000 ? " strike-live" : "";
-      const marker = L.circleMarker([strike.lat, strike.lon], {
-        ...style,
-        weight: 1,
-        className: `strike-marker${liveClass}`,
-      })
-        .bindTooltip(strikeTooltip(strike), {
-          className: "strike-tooltip",
-          direction: "top",
-          sticky: true,
-          offset: [0, -6],
-          opacity: 1,
-        })
-        .bindPopup(strikePopup(strike), {
-          className: "storm-popup",
-          closeButton: true,
-          closeOnClick: false,
-          maxWidth: 280,
-        })
-        .on("click", () => {
-          state.selectedStrikeId = strike.id;
-          marker.closeTooltip();
-        })
-        .on("popupclose", () => {
-          if (!state.renderingStrikes && state.selectedStrikeId === strike.id) state.selectedStrikeId = null;
-        })
-        .addTo(state.strikeLayer);
-      if (strike.id === selectedStrikeId) selectedMarker = marker;
+
+    for (const [id, marker] of state.strikeMarkers) {
+      if (renderIds.has(id)) continue;
+      if (state.hoveredStrikeId === id) state.hoveredStrikeId = null;
+      if (state.selectedStrikeId === id) {
+        state.selectedStrikeId = null;
+        marker.closePopup();
+      }
+      state.strikeLayer.removeLayer(marker);
+      state.strikeMarkers.delete(id);
     }
 
-    if (selectedMarker) {
-      selectedMarker.openPopup();
-    } else if (selectedStrikeId) {
+    for (const strike of toRender) {
+      let marker = state.strikeMarkers.get(strike.id);
+      if (!marker) {
+        marker = createStrikeMarker(strike, now);
+        state.strikeMarkers.set(strike.id, marker);
+      } else {
+        marker.setTooltipContent(strikeTooltip(strike));
+        marker.setPopupContent(strikePopup(strike));
+      }
+      updateStrikeMarkerVisual(marker, strike, now);
+    }
+
+    const selectedMarker = state.strikeMarkers.get(state.selectedStrikeId);
+    if (selectedMarker?.isPopupOpen()) {
+      selectedMarker.bringToFront();
+    } else if (state.selectedStrikeId) {
       state.selectedStrikeId = null;
     }
 
@@ -599,6 +584,98 @@
     updateRate(inWindow);
     updateHotspots(inWindow);
     updateProximityStats();
+  }
+
+  function createStrikeMarker(strike, now) {
+    const { radius, ...style } = strikePresentation(strike, now);
+    const marker = L.circleMarker([strike.lat, strike.lon], {
+      ...style,
+      radius,
+      weight: 1,
+      className: "strike-marker",
+      bubblingMouseEvents: false,
+    })
+      .bindTooltip(strikeTooltip(strike), {
+        className: "strike-tooltip",
+        direction: "auto",
+        sticky: false,
+        offset: [0, -9],
+        opacity: 1,
+      })
+      .bindPopup(strikePopup(strike), {
+        className: "storm-popup",
+        closeButton: true,
+        closeOnClick: false,
+        autoClose: true,
+        autoPan: true,
+        autoPanPadding: [24, 84],
+        maxWidth: 280,
+      })
+      .on("mouseover", () => {
+        if (state.selectedStrikeId === strike.id) {
+          marker.closeTooltip();
+          return;
+        }
+        state.hoveredStrikeId = strike.id;
+        updateStrikeMarkerVisual(marker, strike);
+        marker.bringToFront();
+      })
+      .on("mouseout", () => {
+        if (state.hoveredStrikeId === strike.id) state.hoveredStrikeId = null;
+        updateStrikeMarkerVisual(marker, strike);
+        state.strikeMarkers.get(state.selectedStrikeId)?.bringToFront();
+      })
+      .on("popupopen", () => {
+        const previousId = state.selectedStrikeId;
+        state.selectedStrikeId = strike.id;
+        if (state.hoveredStrikeId === strike.id) state.hoveredStrikeId = null;
+        marker.closeTooltip();
+        if (previousId && previousId !== strike.id) {
+          const previousMarker = state.strikeMarkers.get(previousId);
+          if (previousMarker) updateStrikeMarkerVisual(previousMarker, state.strikes.get(previousId));
+        }
+        updateStrikeMarkerVisual(marker, strike);
+        marker.bringToFront();
+      })
+      .on("popupclose", () => {
+        if (state.selectedStrikeId === strike.id) state.selectedStrikeId = null;
+        updateStrikeMarkerVisual(marker, strike);
+      })
+      .addTo(state.strikeLayer);
+
+    return marker;
+  }
+
+  function strikePresentation(strike, now = Date.now()) {
+    const ageMinutes = (now - strike.time) / 60000;
+    const palette = state.activePalette;
+    if (ageMinutes < 5) {
+      return { color: palette.magenta, fillColor: palette.magenta, radius: 4.8, opacity: 0.95, fillOpacity: 0.76 };
+    }
+    if (ageMinutes < 60) {
+      return { color: palette.violet, fillColor: palette.violet, radius: 4.1, opacity: 0.84, fillOpacity: 0.62 };
+    }
+    return { color: palette.blue, fillColor: palette.blue, radius: 3.6, opacity: 0.64, fillOpacity: 0.44 };
+  }
+
+  function updateStrikeMarkerVisual(marker, strike, now = Date.now()) {
+    if (!marker || !strike) return;
+    const { radius, ...style } = strikePresentation(strike, now);
+    const selected = state.selectedStrikeId === strike.id;
+    const hovered = state.hoveredStrikeId === strike.id;
+    marker.setStyle({
+      ...style,
+      opacity: selected ? 1 : style.opacity,
+      fillOpacity: Math.min(1, style.fillOpacity + (selected ? 0.18 : hovered ? 0.1 : 0)),
+      weight: selected ? 2.4 : hovered ? 1.8 : 1,
+    });
+    marker.setRadius(radius + (selected ? 2.2 : hovered ? 1.4 : 0));
+
+    const element = marker.getElement();
+    if (!element) return;
+    element.classList.toggle("strike-live", now - strike.time < 18000);
+    element.classList.toggle("is-hovered", hovered);
+    element.classList.toggle("is-selected", selected);
   }
 
   function strikePopup(strike) {
