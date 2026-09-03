@@ -144,9 +144,9 @@
             <div class="panel-heading">
               <div>
                 <span class="eyebrow">Activity index</span>
-                <h2>Hot spots</h2>
+                <h2>Hotspots</h2>
               </div>
-              <button class="mini-button" id="hotspotFocus" title="Focus the leading hot spot">Focus</button>
+              <button class="mini-button" id="hotspotFocus" title="Focus the leading hotspot">Focus</button>
             </div>
             <div class="hotspot-list" id="hotspotList">
               <div class="empty-state">Waiting for enough strikes to identify active cells…</div>
@@ -251,6 +251,30 @@
           <label><span>Live / safe</span><span class="color-field"><input type="color" data-palette-key="cyan"/><output></output></span></label>
           <label><span>Warning</span><span class="color-field"><input type="color" data-palette-key="yellow"/><output></output></span></label>
         </div>
+
+        <section class="map-appearance" aria-labelledby="mapAppearanceTitle">
+          <div class="map-appearance-heading">
+            <span class="eyebrow">Map visibility</span>
+            <h3 id="mapAppearanceTitle">Manual map controls</h3>
+          </div>
+          <div class="map-appearance-grid">
+            <div class="appearance-control">
+              <div class="range-labels"><label for="mapBrightness">Map brightness</label><strong><span id="mapBrightnessValue">100</span>%</strong></div>
+              <input id="mapBrightness" type="range" min="70" max="140" step="5" value="100" />
+              <div class="range-ticks"><span>Dim</span><span>Default</span><span>Bright</span></div>
+            </div>
+            <div class="appearance-control">
+              <div class="range-labels"><label for="mapOpacity">Map opacity</label><strong><span id="mapOpacityValue">100</span>%</strong></div>
+              <input id="mapOpacity" type="range" min="55" max="100" step="5" value="100" />
+              <div class="range-ticks"><span>Faint</span><span>Solid</span></div>
+            </div>
+            <div class="appearance-control">
+              <div class="range-labels"><label for="mapShade">Edge shade</label><strong><span id="mapShadeValue">45</span>%</strong></div>
+              <input id="mapShade" type="range" min="0" max="60" step="5" value="45" />
+              <div class="range-ticks"><span>None</span><span>Balanced</span><span>Strong</span></div>
+            </div>
+          </div>
+        </section>
 
         <div class="theme-actions">
           <button type="button" class="mini-button" id="resetCustomTheme">Copy Omarchy colours</button>
