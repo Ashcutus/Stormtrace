@@ -19,6 +19,7 @@ Stormtrace opens as a centred, resizable desktop window. Expand it to fullscreen
 - **Private nearby alerts** with a configurable 5–50 mile safety radius and a two-minute notification cooldown.
 - **A native Omarchy experience** with a contained GTK window, one-click fullscreen and restore, single-instance focus behaviour, and no browser chrome.
 - **Theme-aware presentation** that follows the active Omarchy palette or uses a saved Stormtrace colour scheme.
+- **A built-in update check** that compares the installed app with the version currently published for Omarchy.
 
 ## See the storm at every scale
 
@@ -86,6 +87,7 @@ The plugin does not use install hooks, `sudo`, or a boot-enabled service. Its lo
 | Alert radius | Choose a proximity threshold from 5 to 50 miles. |
 | Pause / play | Stop or resume the live feed while keeping the map and history open. |
 | Expand / restore | Switch between the contained window and fullscreen. |
+| About | Review data notes and check whether a newer Stormtrace version is available. |
 | Power | Exit Stormtrace and stop its local service cleanly. |
 
 ### Keyboard shortcuts
@@ -124,6 +126,8 @@ Blitzortung data is for private, non-commercial use.
 - [OpenStreetMap copyright](https://www.openstreetmap.org/copyright)
 
 ## Update or remove
+
+Open **About Stormtrace and updates** from the information button, then select **Check for updates**. Stormtrace only checks the version published by this repository; it does not download or install anything automatically.
 
 Update an existing git-managed installation:
 

@@ -46,6 +46,11 @@
     mapShadeValue: $("#mapShadeValue"),
     infoButton: $("#infoButton"),
     infoDialog: $("#infoDialog"),
+    updatePanel: $("#updatePanel"),
+    updateStatus: $("#updateStatus"),
+    updateDetail: $("#updateDetail"),
+    updateCommand: $("#updateCommand"),
+    checkUpdateButton: $("#checkUpdateButton"),
     placeSearch: $("#placeSearch"),
     searchResults: $("#searchResults"),
     locationButton: $("#locationButton"),
@@ -191,6 +196,7 @@
       els.themeDialog.showModal();
     });
     els.infoButton.addEventListener("click", () => els.infoDialog.showModal());
+    els.checkUpdateButton.addEventListener("click", checkForUpdates);
     els.mapMessageAction.addEventListener("click", () => location.reload());
     $("#zoomIn").addEventListener("click", () => state.map?.zoomIn());
     $("#zoomOut").addEventListener("click", () => state.map?.zoomOut());
@@ -548,8 +554,8 @@
     els.monitorButton.setAttribute("aria-pressed", String(!paused));
     els.monitorButton.setAttribute("aria-label", paused ? "Resume monitoring" : "Pause monitoring");
     els.monitorButton.title = paused ? "Resume monitoring (P)" : "Pause monitoring (P)";
-    els.monitorButton.querySelector(".monitor-pause-icon").hidden = paused;
-    els.monitorButton.querySelector(".monitor-play-icon").hidden = !paused;
+    els.monitorButton.querySelector(".monitor-pause-icon").toggleAttribute("hidden", paused);
+    els.monitorButton.querySelector(".monitor-play-icon").toggleAttribute("hidden", !paused);
   }
 
   function postNativeAction(action) {
@@ -561,8 +567,49 @@
   function updateWindowModeButton(fullscreen) {
     els.windowModeButton.setAttribute("aria-label", fullscreen ? "Restore window" : "Enter fullscreen");
     els.windowModeButton.title = fullscreen ? "Restore window (F11)" : "Enter fullscreen (F11)";
-    els.windowModeButton.querySelector(".window-expand-icon").hidden = fullscreen;
-    els.windowModeButton.querySelector(".window-restore-icon").hidden = !fullscreen;
+    els.windowModeButton.querySelector(".window-expand-icon").toggleAttribute("hidden", fullscreen);
+    els.windowModeButton.querySelector(".window-restore-icon").toggleAttribute("hidden", !fullscreen);
+  }
+
+  async function checkForUpdates() {
+    if (els.checkUpdateButton.disabled) return;
+    els.checkUpdateButton.disabled = true;
+    els.checkUpdateButton.textContent = "Checking…";
+    els.updatePanel.dataset.state = "checking";
+    els.updateStatus.textContent = "Checking the published version";
+    els.updateDetail.textContent = "Contacting the Stormtrace repository…";
+    els.updateCommand.hidden = true;
+
+    try {
+      const response = await fetch("/api/update", {
+        cache: "no-store",
+        headers: { Accept: "application/json" },
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.ok) throw new Error(result.error || `Update check returned ${response.status}`);
+
+      const current = `v${result.currentVersion}`;
+      const latest = `v${result.latestVersion}`;
+      if (result.updateAvailable) {
+        setUpdateState("available", `${latest} is available`, `This installation is ${current}. Close Stormtrace, then run the command below.`);
+        els.updateCommand.hidden = false;
+      } else if (result.developmentBuild) {
+        setUpdateState("ahead", "Development build", `${current} is newer than the published ${latest}.`);
+      } else {
+        setUpdateState("current", "Stormtrace is up to date", `${current} is the latest published version.`);
+      }
+    } catch (error) {
+      setUpdateState("error", "Could not check for updates", error.message || "Check your network connection and try again.");
+    } finally {
+      els.checkUpdateButton.disabled = false;
+      els.checkUpdateButton.textContent = "Check again";
+    }
+  }
+
+  function setUpdateState(stateName, title, detail) {
+    els.updatePanel.dataset.state = stateName;
+    els.updateStatus.textContent = title;
+    els.updateDetail.textContent = detail;
   }
 
   function normalizeStrike(raw) {
