@@ -20,7 +20,7 @@ Stormtrace is structurally ready for the Omarchy plugin marketplace. This releas
    omarchy plugin add https://github.com/Ashcutus/Stormtrace.git --enable
    ```
 
-7. Select the bar icon twice and confirm there is one `org.omarchy.Stormtrace` window which is focused on the second selection. Confirm `stormtrace-receiver.service` remains active after the launcher exits. Also run the installed plugin's `install-omarchy.sh` and launch Stormtrace from `SUPER + SPACE`.
+7. Select the bar icon twice and confirm there is one `org.omarchy.Stormtrace` window which is focused on the second selection. Confirm it opens floating and centred, `F11` restores correctly after fullscreen, pause/resume controls the feed, and Exit stops `stormtrace-receiver.service`. Also run the installed plugin's `install-omarchy.sh` and launch Stormtrace from `SUPER + SPACE`.
 8. Open the [Omarchy marketplace submission form](https://plugins.omarchy.org/publish.html) and provide the repository URL, category, and tags.
 
 Suggested listing metadata:

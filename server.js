@@ -25,7 +25,7 @@ const server = createServer(async (request, response) => {
     return json(response, 200, {
       ok: true,
       app: "stormtrace",
-      version: "1.2.1",
+      version: "1.3.0",
       root: ROOT,
       pid: process.pid,
       historyProvider: Boolean(API_KEY),

@@ -24,7 +24,7 @@ BarWidget {
 
   Timer {
     id: healthTimer
-    interval: 10000
+    interval: 3000
     running: true
     repeat: true
     triggeredOnStart: true
@@ -50,7 +50,7 @@ BarWidget {
     bar: root.bar
     text: "ϟ"
     active: root.serverReady
-    tooltipText: root.serverReady ? "Open Stormtrace · live receiver running" : "Open Stormtrace lightning map"
+    tooltipText: root.serverReady ? "Open Stormtrace · local service ready" : "Start Stormtrace lightning monitor"
     onPressed: root.launch()
   }
 }

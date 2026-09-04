@@ -20,12 +20,18 @@
 
   const $ = (selector) => document.querySelector(selector);
   const $$ = (selector) => [...document.querySelectorAll(selector)];
+  const nativeBridge = window.webkit?.messageHandlers?.stormtrace || null;
+
+  document.body.classList.toggle("native-shell", Boolean(nativeBridge));
 
   const els = {
     statusDot: $("#statusDot"),
     statusLabel: $("#statusLabel"),
     statusDetail: $("#statusDetail"),
+    monitorButton: $("#monitorButton"),
     refreshButton: $("#refreshButton"),
+    windowModeButton: $("#windowModeButton"),
+    exitButton: $("#exitButton"),
     themeButton: $("#themeButton"),
     themeDialog: $("#themeDialog"),
     currentThemeName: $("#currentThemeName"),
@@ -105,6 +111,7 @@
     customPalette: persisted.customPalette || null,
     activePalette: FALLBACK_PALETTE,
     themeSignature: "",
+    monitoringPaused: false,
   };
 
   init();
@@ -169,7 +176,16 @@
   }
 
   function bindControls() {
+    els.monitorButton.addEventListener("click", toggleMonitoring);
     els.refreshButton.addEventListener("click", reconnectFeed);
+    els.windowModeButton.addEventListener("click", () => postNativeAction("toggle-fullscreen"));
+    els.exitButton.addEventListener("click", () => {
+      els.exitButton.disabled = true;
+      postNativeAction("quit");
+    });
+    window.addEventListener("stormtrace:fullscreen-change", (event) => {
+      updateWindowModeButton(Boolean(event.detail?.fullscreen));
+    });
     els.themeButton.addEventListener("click", () => {
       syncThemeDialog();
       els.themeDialog.showModal();
@@ -247,12 +263,23 @@
     });
 
     document.addEventListener("keydown", (event) => {
-      if (event.target.matches("input, textarea")) return;
       const key = event.key.toLowerCase();
+      if (key === "f11") {
+        event.preventDefault();
+        postNativeAction("toggle-fullscreen");
+        return;
+      }
+      if ((event.ctrlKey || event.metaKey) && key === "q") {
+        event.preventDefault();
+        postNativeAction("quit");
+        return;
+      }
+      if (event.target.matches("input, textarea")) return;
       if (key === "/") {
         event.preventDefault();
         els.placeSearch.focus();
       } else if (key === "r") reconnectFeed();
+      else if (key === "p") toggleMonitoring();
       else if (key === "l") selectWindow("live");
       else if (key === "g") requestLocation();
       else if (key === "n") {
@@ -418,12 +445,13 @@
   }
 
   function setStatus(kind, label, detail) {
-    els.statusDot.className = `pulse-dot ${kind === "live" ? "live" : kind === "error" ? "error" : ""}`;
+    els.statusDot.className = `pulse-dot ${kind === "live" ? "live" : kind === "error" ? "error" : kind === "paused" ? "paused" : ""}`;
     els.statusLabel.textContent = label;
     els.statusDetail.textContent = detail;
   }
 
   function connectFeed() {
+    if (state.monitoringPaused) return;
     clearTimeout(state.socketRetry);
     if (state.socket) {
       state.socket.onclose = null;
@@ -462,7 +490,7 @@
 
     socket.onerror = () => setStatus("error", "DEGRADED", "Live receiver interrupted");
     socket.onclose = () => {
-      if (state.socket !== socket) return;
+      if (state.socket !== socket || state.monitoringPaused) return;
       state.retryCount += 1;
       const delay = Math.min(30000, 1200 * 2 ** Math.min(5, state.retryCount));
       setStatus("error", "RECONNECTING", `Next attempt in ${Math.ceil(delay / 1000)}s`);
@@ -471,6 +499,10 @@
   }
 
   function reconnectFeed() {
+    if (state.monitoringPaused) {
+      toast("Monitoring paused", "Use the play control or press P to resume the live feed.");
+      return;
+    }
     if (isDemo) {
       stopDemo();
       startDemo();
@@ -479,6 +511,58 @@
     }
     state.retryCount = 0;
     connectFeed();
+  }
+
+  function toggleMonitoring() {
+    if (state.monitoringPaused) resumeMonitoring();
+    else pauseMonitoring();
+  }
+
+  function pauseMonitoring() {
+    state.monitoringPaused = true;
+    clearTimeout(state.socketRetry);
+    state.socketRetry = null;
+    if (state.socket) {
+      state.socket.onclose = null;
+      state.socket.close();
+      state.socket = null;
+    }
+    stopDemo();
+    setStatus("paused", "PAUSED", "Monitoring stopped · history remains available");
+    updateMonitoringButton();
+    toast("Monitoring paused", "Stormtrace is no longer listening for new strikes.");
+  }
+
+  function resumeMonitoring() {
+    state.monitoringPaused = false;
+    state.retryCount = 0;
+    updateMonitoringButton();
+    if (isDemo) resumeDemo();
+    else connectFeed();
+    toast("Monitoring resumed", "Stormtrace is listening for new strikes again.");
+  }
+
+  function updateMonitoringButton() {
+    const paused = state.monitoringPaused;
+    els.monitorButton.classList.toggle("is-paused", paused);
+    els.monitorButton.setAttribute("aria-pressed", String(!paused));
+    els.monitorButton.setAttribute("aria-label", paused ? "Resume monitoring" : "Pause monitoring");
+    els.monitorButton.title = paused ? "Resume monitoring (P)" : "Pause monitoring (P)";
+    els.monitorButton.querySelector(".monitor-pause-icon").hidden = paused;
+    els.monitorButton.querySelector(".monitor-play-icon").hidden = !paused;
+  }
+
+  function postNativeAction(action) {
+    if (!nativeBridge) return false;
+    nativeBridge.postMessage(action);
+    return true;
+  }
+
+  function updateWindowModeButton(fullscreen) {
+    els.windowModeButton.setAttribute("aria-label", fullscreen ? "Restore window" : "Enter fullscreen");
+    els.windowModeButton.title = fullscreen ? "Restore window (F11)" : "Enter fullscreen (F11)";
+    els.windowModeButton.querySelector(".window-expand-icon").hidden = fullscreen;
+    els.windowModeButton.querySelector(".window-restore-icon").hidden = !fullscreen;
   }
 
   function normalizeStrike(raw) {
@@ -1188,6 +1272,12 @@
     state.strikes.clear();
     const seedStrikes = generateDemoStrikes(760);
     ingestStrikes(seedStrikes, false, false);
+    resumeDemo();
+  }
+
+  function resumeDemo() {
+    stopDemo();
+    if (state.monitoringPaused) return;
     setStatus("live", "DEMO", "Simulated global receiver");
     els.historyState.textContent = "24h demonstration archive";
     state.demoTimer = setInterval(() => {
