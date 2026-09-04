@@ -3,7 +3,7 @@ set -euo pipefail
 
 APP_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 APP_URL="http://127.0.0.1:4177"
-APP_VERSION="1.4.0"
+APP_VERSION="1.4.1"
 RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp}/stormtrace"
 mkdir -p "$RUNTIME_DIR"
 
@@ -29,6 +29,33 @@ server_ready() {
 
 server_responding() {
   curl -fsS --max-time 1 "$APP_URL/api/health" >/dev/null 2>&1
+}
+
+configure_webkit_rendering() {
+  local device_dir device_class vendor_id
+  local has_amd_gpu=0
+  local has_nvidia_gpu=0
+
+  # Avoid WebKitGTK driver teardown crashes while keeping this user-overridable.
+  export WEBKIT_DISABLE_COMPOSITING_MODE="${WEBKIT_DISABLE_COMPOSITING_MODE:-1}"
+
+  # An AMD-only host should not load an installed NVIDIA GLVND provider.
+  [[ -n ${__EGL_VENDOR_LIBRARY_FILENAMES:-} ]] && return
+  for device_dir in /sys/bus/pci/devices/*; do
+    [[ -r $device_dir/class && -r $device_dir/vendor ]] || continue
+    read -r device_class <"$device_dir/class"
+    [[ ${device_class,,} == 0x03* ]] || continue
+    read -r vendor_id <"$device_dir/vendor"
+    case ${vendor_id,,} in
+      0x1002) has_amd_gpu=1 ;;
+      0x10de) has_nvidia_gpu=1 ;;
+    esac
+  done
+
+  if ((has_amd_gpu && !has_nvidia_gpu)) &&
+    [[ -r /usr/share/glvnd/egl_vendor.d/50_mesa.json ]]; then
+    export __EGL_VENDOR_LIBRARY_FILENAMES=/usr/share/glvnd/egl_vendor.d/50_mesa.json
+  fi
 }
 
 stop_managed_server() {
@@ -118,4 +145,5 @@ if ! server_ready; then
   exit 1
 fi
 
+configure_webkit_rendering
 exec setsid -f uwsm-app -- python3 "$APP_DIR/stormtrace_app.py" "$APP_URL"

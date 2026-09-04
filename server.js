@@ -8,7 +8,7 @@ const ROOT = fileURLToPath(new URL(".", import.meta.url));
 const HOST = process.env.STORMTRACE_HOST || "127.0.0.1";
 const PORT = Number(process.env.STORMTRACE_PORT || 4177);
 const API_KEY = process.env.LIGHTNING_API_KEY || readLocalKey();
-const APP_VERSION = "1.4.0";
+const APP_VERSION = "1.4.1";
 const UPDATE_MANIFEST_URL = process.env.STORMTRACE_UPDATE_MANIFEST_URL
   || "https://raw.githubusercontent.com/Ashcutus/Stormtrace/main/manifest.json";
 const REPOSITORY_URL = "https://github.com/Ashcutus/Stormtrace";
