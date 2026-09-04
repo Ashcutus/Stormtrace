@@ -3,7 +3,7 @@ set -euo pipefail
 
 APP_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 APP_URL="http://127.0.0.1:4177"
-APP_VERSION="1.2.1"
+APP_VERSION="1.3.0"
 RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp}/stormtrace"
 mkdir -p "$RUNTIME_DIR"
 
@@ -36,12 +36,20 @@ stop_managed_server() {
 
   if systemctl --user is-active --quiet stormtrace-receiver.service 2>/dev/null; then
     systemctl --user stop stormtrace-receiver.service || return 1
+    rm -f "$RUNTIME_DIR/server.pid"
     return 0
   fi
 
-  [[ -r $RUNTIME_DIR/server.pid ]] || return 1
+  if [[ ! -r $RUNTIME_DIR/server.pid ]]; then
+    server_responding && return 1
+    return 0
+  fi
   read -r pid <"$RUNTIME_DIR/server.pid"
-  [[ $pid =~ ^[0-9]+$ && -r /proc/$pid/cmdline ]] || return 1
+  if [[ ! $pid =~ ^[0-9]+$ || ! -r /proc/$pid/cmdline ]]; then
+    rm -f "$RUNTIME_DIR/server.pid"
+    server_responding && return 1
+    return 0
+  fi
   cmdline=$(tr '\0' ' ' <"/proc/$pid/cmdline")
   [[ $cmdline == *"/server.js"* || $cmdline == *"/server.py"* ]] || return 1
   kill "$pid" 2>/dev/null || return 1
@@ -58,6 +66,14 @@ stop_managed_server() {
 if [[ ${1:-} == "--health" ]]; then
   server_ready
   exit $?
+fi
+
+if [[ ${1:-} == "--stop" ]]; then
+  if stop_managed_server; then
+    exit 0
+  fi
+  notify_error "Stormtrace could not stop its local service. Check: systemctl --user status stormtrace-receiver.service"
+  exit 1
 fi
 
 if ! python3 -c 'import gi; gi.require_version("Gtk", "3.0"); gi.require_version("WebKit2", "4.1"); from gi.repository import Gtk, WebKit2' >/dev/null 2>&1; then

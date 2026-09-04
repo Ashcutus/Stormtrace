@@ -41,7 +41,7 @@ class Handler(SimpleHTTPRequestHandler):
             return self.send_json(200, {
                 "ok": True,
                 "app": "stormtrace",
-                "version": "1.2.1",
+                "version": "1.3.0",
                 "root": str(ROOT),
                 "pid": os.getpid(),
                 "historyProvider": bool(API_KEY),
