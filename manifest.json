@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "stormtrace.lightning",
   "name": "Stormtrace",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "author": "Stormtrace Contributors",
   "description": "A theme-aware bar launcher for a real-time global lightning map with local history and proximity alerts.",
   "kinds": [

@@ -17,7 +17,7 @@ Stormtrace opens as a centred, resizable desktop window. Expand it to fullscreen
 - **Useful time windows** for live activity, the past hour, six hours, or the rolling 24-hour local archive.
 - **Activity intelligence** with visible-strike totals, estimated global rate, hotspot ranking, and the latest detected strike.
 - **Private nearby alerts** with a configurable 5–50 mile safety radius and a two-minute notification cooldown.
-- **A native Omarchy experience** with a contained GTK window, one-click fullscreen and restore, single-instance focus behaviour, and no browser chrome.
+- **A native Omarchy experience** with a contained GTK window, one-click fullscreen and restore & single-instance focus behaviour.
 - **Theme-aware presentation** that follows the active Omarchy palette or uses a saved Stormtrace colour scheme.
 - **A built-in update check** that compares the installed app with the version currently published for Omarchy.
 

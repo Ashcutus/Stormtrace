@@ -15,7 +15,7 @@ import subprocess
 ROOT = Path(__file__).resolve().parent
 HOST = os.environ.get("STORMTRACE_HOST", "127.0.0.1")
 PORT = int(os.environ.get("STORMTRACE_PORT", "4177"))
-APP_VERSION = "1.4.0"
+APP_VERSION = "1.4.1"
 UPDATE_MANIFEST_URL = os.environ.get(
     "STORMTRACE_UPDATE_MANIFEST_URL",
     "https://raw.githubusercontent.com/Ashcutus/Stormtrace/main/manifest.json",
