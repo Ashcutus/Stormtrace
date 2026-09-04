@@ -8,12 +8,19 @@ from urllib.parse import parse_qs, urlparse
 from urllib.request import Request, urlopen
 import json
 import os
+import re
 import subprocess
 
 
 ROOT = Path(__file__).resolve().parent
 HOST = os.environ.get("STORMTRACE_HOST", "127.0.0.1")
 PORT = int(os.environ.get("STORMTRACE_PORT", "4177"))
+APP_VERSION = "1.4.0"
+UPDATE_MANIFEST_URL = os.environ.get(
+    "STORMTRACE_UPDATE_MANIFEST_URL",
+    "https://raw.githubusercontent.com/Ashcutus/Stormtrace/main/manifest.json",
+)
+REPOSITORY_URL = "https://github.com/Ashcutus/Stormtrace"
 
 
 def local_api_key():
@@ -41,11 +48,13 @@ class Handler(SimpleHTTPRequestHandler):
             return self.send_json(200, {
                 "ok": True,
                 "app": "stormtrace",
-                "version": "1.3.0",
+                "version": APP_VERSION,
                 "root": str(ROOT),
                 "pid": os.getpid(),
                 "historyProvider": bool(API_KEY),
             })
+        if parsed.path == "/api/update":
+            return self.update_check()
         if parsed.path == "/api/theme":
             return self.send_json(200, read_omarchy_theme())
         if parsed.path == "/api/history":
@@ -107,6 +116,37 @@ class Handler(SimpleHTTPRequestHandler):
         except Exception as error:
             return self.send_json(502, {"configured": True, "error": str(error)})
 
+    def update_check(self):
+        request = Request(
+            UPDATE_MANIFEST_URL,
+            headers={
+                "Accept": "application/json",
+                "User-Agent": f"Stormtrace/{APP_VERSION}",
+            },
+        )
+        try:
+            with urlopen(request, timeout=8) as upstream:
+                manifest = json.load(upstream)
+            latest_version = normalize_version(manifest.get("version"))
+            if not latest_version:
+                raise ValueError("Published manifest has an invalid version")
+            comparison = compare_versions(latest_version, APP_VERSION)
+            return self.send_json(200, {
+                "ok": True,
+                "currentVersion": APP_VERSION,
+                "latestVersion": latest_version,
+                "updateAvailable": comparison > 0,
+                "developmentBuild": comparison < 0,
+                "repositoryUrl": REPOSITORY_URL,
+            })
+        except Exception as error:
+            self.log_error("Update check failed: %s", error)
+            return self.send_json(502, {
+                "ok": False,
+                "currentVersion": APP_VERSION,
+                "error": "The published version could not be checked right now.",
+            })
+
     def log_message(self, fmt, *args):
         if self.path.startswith("/api/") and self.path != "/api/health":
             super().log_message(fmt, *args)
@@ -120,6 +160,17 @@ def read_omarchy_theme():
         return {"available": True, "name": name or "Omarchy", "mode": colors.get("mode", "dark"), "colors": colors}
     except Exception:
         return {"available": False, "name": "Stormtrace default", "mode": "dark", "colors": {}}
+
+
+def normalize_version(value):
+    match = re.fullmatch(r"v?(\d+)\.(\d+)\.(\d+)", str(value or "").strip())
+    return ".".join(str(int(part)) for part in match.groups()) if match else ""
+
+
+def compare_versions(left, right):
+    left_parts = tuple(int(part) for part in left.split("."))
+    right_parts = tuple(int(part) for part in right.split("."))
+    return (left_parts > right_parts) - (left_parts < right_parts)
 
 
 if __name__ == "__main__":

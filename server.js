@@ -8,6 +8,10 @@ const ROOT = fileURLToPath(new URL(".", import.meta.url));
 const HOST = process.env.STORMTRACE_HOST || "127.0.0.1";
 const PORT = Number(process.env.STORMTRACE_PORT || 4177);
 const API_KEY = process.env.LIGHTNING_API_KEY || readLocalKey();
+const APP_VERSION = "1.4.0";
+const UPDATE_MANIFEST_URL = process.env.STORMTRACE_UPDATE_MANIFEST_URL
+  || "https://raw.githubusercontent.com/Ashcutus/Stormtrace/main/manifest.json";
+const REPOSITORY_URL = "https://github.com/Ashcutus/Stormtrace";
 
 const contentTypes = {
   ".html": "text/html; charset=utf-8",
@@ -25,11 +29,15 @@ const server = createServer(async (request, response) => {
     return json(response, 200, {
       ok: true,
       app: "stormtrace",
-      version: "1.3.0",
+      version: APP_VERSION,
       root: ROOT,
       pid: process.pid,
       historyProvider: Boolean(API_KEY),
     });
+  }
+
+  if (url.pathname === "/api/update") {
+    return checkForUpdate(response);
   }
 
   if (url.pathname === "/api/history") {
@@ -96,6 +104,40 @@ async function proxyHistory(url, response) {
   }
 }
 
+async function checkForUpdate(response) {
+  try {
+    const upstream = await fetch(UPDATE_MANIFEST_URL, {
+      headers: {
+        Accept: "application/json",
+        "User-Agent": `Stormtrace/${APP_VERSION}`,
+      },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!upstream.ok) throw new Error(`Update source returned ${upstream.status}`);
+
+    const manifest = await upstream.json();
+    const latestVersion = normalizeVersion(manifest.version);
+    if (!latestVersion) throw new Error("Published manifest has an invalid version");
+
+    const comparison = compareVersions(latestVersion, APP_VERSION);
+    return json(response, 200, {
+      ok: true,
+      currentVersion: APP_VERSION,
+      latestVersion,
+      updateAvailable: comparison > 0,
+      developmentBuild: comparison < 0,
+      repositoryUrl: REPOSITORY_URL,
+    });
+  } catch (error) {
+    console.error(`Update check failed: ${error.message}`);
+    return json(response, 502, {
+      ok: false,
+      currentVersion: APP_VERSION,
+      error: "The published version could not be checked right now.",
+    });
+  }
+}
+
 function json(response, status, body) {
   response.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
   response.end(JSON.stringify(body));
@@ -103,6 +145,20 @@ function json(response, status, body) {
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, Number.isFinite(value) ? value : min));
+}
+
+function normalizeVersion(value) {
+  const match = String(value || "").trim().match(/^v?(\d+)\.(\d+)\.(\d+)$/);
+  return match ? match.slice(1).map(Number).join(".") : "";
+}
+
+function compareVersions(left, right) {
+  const leftParts = left.split(".").map(Number);
+  const rightParts = right.split(".").map(Number);
+  for (let index = 0; index < 3; index += 1) {
+    if (leftParts[index] !== rightParts[index]) return leftParts[index] - rightParts[index];
+  }
+  return 0;
 }
 
 function readLocalKey() {

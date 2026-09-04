@@ -47,6 +47,7 @@ body {
 
 button, input { font: inherit; }
 button { color: inherit; font-weight: 700; }
+button:disabled { cursor: wait; opacity: .58; }
 input { font-weight: 400; }
 button, a, input { -webkit-tap-highlight-color: transparent; }
 button:focus-visible, a:focus-visible, input:focus-visible {
@@ -124,6 +125,7 @@ body.native-shell .icon-button.native-only { display: grid; }
 }
 .icon-button:hover, .map-controls button:hover { border-color: var(--violet); background: var(--surface-3); }
 .icon-button svg, .text-button svg, .map-controls svg, .search-wrap svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.icon-button svg[hidden] { display: none !important; }
 #monitorButton.is-paused { color: var(--yellow); border-color: color-mix(in srgb, var(--yellow) 62%, var(--line)); }
 .window-action { margin-left: 2px; }
 .exit-button:hover { color: var(--danger); border-color: var(--danger); background: color-mix(in srgb, var(--danger) 8%, var(--surface-3)); }
@@ -314,6 +316,24 @@ dialog::backdrop { background: transparent; }
 .dialog-actions { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 16px; margin-top: 18px; }
 .dialog-actions .wide-button { margin: 0; }
 .dialog-actions a { color: var(--violet-bright); font-size: var(--font-xs); font-weight: 700; text-decoration: none; }
+.update-check {
+  clear: both; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 11px 14px;
+  margin-top: 18px; padding: 13px; background: var(--surface); border: 1px solid var(--line);
+}
+.update-copy { display: grid; gap: 3px; min-width: 0; }
+.update-copy strong { font-size: var(--font-sm); font-weight: 700; }
+.update-copy > span:last-child { color: var(--text-secondary); font-size: var(--font-xs); line-height: 1.5; }
+.update-check[data-state="available"] { border-color: var(--violet); box-shadow: inset 2px 0 var(--violet); }
+.update-check[data-state="available"] .update-copy strong { color: var(--violet-bright); }
+.update-check[data-state="current"] .update-copy strong { color: var(--cyan); }
+.update-check[data-state="ahead"] .update-copy strong { color: var(--yellow); }
+.update-check[data-state="error"] { border-color: color-mix(in srgb, var(--danger) 65%, var(--line)); }
+.update-check[data-state="error"] .update-copy strong { color: var(--danger); }
+.update-command {
+  grid-column: 1 / -1; overflow-x: auto; padding: 8px 9px; color: var(--text); background: var(--bg);
+  border: 1px solid var(--line-bright); font: 700 var(--font-2xs)/1.5 ui-monospace, monospace; white-space: nowrap; user-select: all;
+}
+.update-command[hidden] { display: none; }
 
 .toast-stack { position: fixed; z-index: 2000; top: 76px; right: 14px; display: grid; gap: 8px; pointer-events: none; }
 .toast { width: min(340px, calc(100vw - 30px)); display: grid; grid-template-columns: 28px 1fr; gap: 9px; padding: 11px; background: var(--surface-2); border: 1px solid var(--violet); box-shadow: var(--shadow); animation: toastIn .22s ease-out; }

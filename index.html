@@ -14,7 +14,7 @@
       integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
       crossorigin=""
     />
-    <link rel="stylesheet" href="/styles.css?v=1.3.0" />
+    <link rel="stylesheet" href="/styles.css?v=1.4.0" />
   </head>
   <body>
     <noscript>Stormtrace requires JavaScript to render its live map.</noscript>
@@ -26,7 +26,7 @@
           <div>
             <div class="brand-line">
               <h1>Stormtrace</h1>
-              <span class="version">v1.3.0</span>
+              <span class="version">v1.4.0</span>
             </div>
             <p>Global lightning intelligence</p>
           </div>
@@ -51,7 +51,7 @@
           <button class="icon-button" id="refreshButton" title="Reconnect data feed (R)" aria-label="Reconnect data feed">
             <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7" /></svg>
           </button>
-          <button class="icon-button" id="infoButton" title="About the data" aria-label="About the data">
+          <button class="icon-button" id="infoButton" title="About Stormtrace and updates" aria-label="About Stormtrace and updates">
             <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/></svg>
           </button>
           <button class="icon-button native-only window-action" id="windowModeButton" title="Enter fullscreen (F11)" aria-label="Enter fullscreen">
@@ -227,6 +227,15 @@
         <h2>Real strikes, local history</h2>
         <p>Stormtrace listens to a viewport-aware community lightning feed and keeps a rolling 24-hour cache in this app. On a new install, the older time filters fill up as the app runs.</p>
         <p>The live interface is unofficial and may change. Data is provided for private, non-commercial use and must not be treated as a safety-critical warning system.</p>
+        <section class="update-check" id="updatePanel" aria-labelledby="updateStatus">
+          <div class="update-copy" role="status" aria-live="polite">
+            <span class="eyebrow">Application updates</span>
+            <strong id="updateStatus">Stormtrace v1.4.0</strong>
+            <span id="updateDetail">Compare this installation with the version published for Omarchy.</span>
+          </div>
+          <button type="button" class="mini-button" id="checkUpdateButton">Check for updates</button>
+          <code class="update-command" id="updateCommand" hidden>omarchy plugin update stormtrace.lightning --yes</code>
+        </section>
         <div class="dialog-actions">
           <button value="close" class="wide-button">Understood</button>
           <a href="https://www.blitzortung.org/" target="_blank" rel="noreferrer">Project source ↗</a>
@@ -302,6 +311,6 @@
       integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
       crossorigin=""
     ></script>
-    <script src="/app.js?v=1.3.0" defer></script>
+    <script src="/app.js?v=1.4.0" defer></script>
   </body>
 </html>
