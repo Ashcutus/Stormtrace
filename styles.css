@@ -104,11 +104,9 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 .status-cluster strong { font-size: var(--font-sm); font-weight: 700; letter-spacing: 0.1em; }
 .status-cluster span:last-child { color: var(--text-secondary); font-size: var(--font-xs); white-space: nowrap; }
 .pulse-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--yellow); box-shadow: 0 0 10px currentColor; color: var(--yellow); }
-.pulse-dot.live { background: var(--cyan); color: var(--cyan); animation: statusPulse 1.8s infinite; }
+.pulse-dot.live { background: var(--cyan); color: var(--cyan); }
 .pulse-dot.error { background: var(--danger); color: var(--danger); }
 .pulse-dot.paused { background: var(--yellow); color: var(--yellow); box-shadow: 0 0 7px currentColor; }
-
-@keyframes statusPulse { 50% { box-shadow: 0 0 2px currentColor, 0 0 0 5px transparent; } }
 
 .header-actions { display: flex; gap: 8px; }
 .icon-button.native-only { display: none; }
@@ -164,25 +162,14 @@ kbd { color: var(--text-secondary); background: color-mix(in srgb, var(--surface
 .text-button:hover, .mini-button:hover, .wide-button:hover { border-color: var(--violet); background: var(--surface-3); }
 
 .workspace { min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 348px; }
-.map-panel { position: relative; min-width: 0; overflow: hidden; border-right: 1px solid var(--line); background: var(--bg); }
+.map-panel { position: relative; min-width: 0; overflow: hidden; contain: layout paint; border-right: 1px solid var(--line); background: var(--bg); }
 #map { position: absolute; inset: 0; z-index: 0; background: var(--bg); }
-.map-shade { position: absolute; inset: 0; z-index: 401; pointer-events: none; box-shadow: inset 0 0 90px 16px rgba(2, 1, 5, var(--map-shade-opacity, .45)); }
+.map-shade { position: absolute; inset: 0; z-index: 401; pointer-events: none; background: radial-gradient(ellipse at center, transparent 55%, rgba(2, 1, 5, var(--map-shade-opacity, .45)) 100%); }
 
 .leaflet-control-container { display: none; }
-.leaflet-tile { filter: invert(1) hue-rotate(183deg) saturate(.55) contrast(1.03) brightness(calc(.72 * var(--map-brightness, 1))); }
-body[data-system-mode="light"] .leaflet-tile { filter: saturate(.48) contrast(.96) brightness(calc(.98 * var(--map-brightness, 1))); }
+.leaflet-tile-pane { filter: invert(1) hue-rotate(183deg) saturate(.55) contrast(1.03) brightness(calc(.72 * var(--map-brightness, 1))); }
+body[data-system-mode="light"] .leaflet-tile-pane { filter: saturate(.48) contrast(.96) brightness(calc(.98 * var(--map-brightness, 1))); }
 .leaflet-container { font: inherit; }
-.leaflet-pane.leaflet-overlay-pane svg { overflow: visible; }
-.strike-marker {
-  cursor: pointer;
-  transform-box: fill-box;
-  transform-origin: center;
-  transition: r 120ms ease, fill-opacity 120ms ease, stroke-opacity 120ms ease, stroke-width 120ms ease, filter 120ms ease;
-}
-.strike-live { filter: drop-shadow(0 0 3px color-mix(in srgb, var(--magenta) 70%, transparent)); animation: strikePing 1.8s ease-out; transform-origin: center; transform-box: fill-box; }
-@keyframes strikePing { 0% { stroke-width: 3; opacity: .5; transform: scale(1.8); } 70% { opacity: .95; transform: scale(1); } }
-.strike-marker.is-hovered { filter: drop-shadow(0 0 5px color-mix(in srgb, var(--violet-bright) 80%, transparent)); }
-.strike-marker.is-selected { filter: drop-shadow(0 0 7px color-mix(in srgb, var(--magenta) 85%, transparent)); }
 .strike-tooltip { padding: 0; pointer-events: none; color: var(--text); background: var(--surface-2); border: 1px solid var(--line-bright); border-radius: 0; box-shadow: var(--shadow); }
 .strike-tooltip::before { border-top-color: var(--line-bright); }
 .strike-tooltip-content { display: grid; gap: 4px; min-width: 180px; padding: 9px 11px; font: var(--font-xs)/1.45 ui-monospace, monospace; }
@@ -204,7 +191,7 @@ body[data-system-mode="light"] .leaflet-tile { filter: saturate(.48) contrast(.9
 
 .home-marker { width: 14px; height: 14px; border: 2px solid var(--bright-text, #fff); border-radius: 50%; background: var(--violet); box-shadow: 0 0 0 5px color-mix(in srgb, var(--violet) 25%, transparent), 0 0 18px var(--violet); }
 
-.map-overlay { position: absolute; z-index: 500; background: color-mix(in srgb, var(--surface) 88%, transparent); border: 1px solid var(--line-bright); backdrop-filter: blur(8px); }
+.map-overlay { position: absolute; z-index: 500; background: color-mix(in srgb, var(--surface) 96%, transparent); border: 1px solid var(--line-bright); }
 .top-left { left: 14px; top: 14px; padding: 9px 11px; display: grid; gap: 3px; }
 .top-left strong { font-size: var(--font-md); font-weight: 700; }
 .top-left #coordinates { color: var(--text-secondary); font-size: var(--font-xs); }
@@ -223,8 +210,8 @@ body[data-system-mode="light"] .leaflet-tile { filter: saturate(.48) contrast(.9
 
 .map-credit {
   position: absolute; z-index: 500; right: 14px; bottom: 70px; padding: 4px 6px;
-  background: color-mix(in srgb, var(--surface) 86%, transparent); color: var(--text-tertiary); border: 1px solid var(--line);
-  font-size: var(--font-2xs); font-weight: 700; text-decoration: none; backdrop-filter: blur(5px);
+  background: color-mix(in srgb, var(--surface) 94%, transparent); color: var(--text-tertiary); border: 1px solid var(--line);
+  font-size: var(--font-2xs); font-weight: 700; text-decoration: none;
 }
 .map-credit:hover { color: var(--violet-bright); border-color: var(--line-bright); }
 
@@ -342,10 +329,6 @@ dialog::backdrop { background: transparent; }
 .toast strong { font-size: var(--font-xs); font-weight: 700; }
 .toast span { margin-top: 3px; color: var(--text-secondary); font-size: var(--font-xs); }
 @keyframes toastIn { from { opacity: 0; transform: translateY(-6px); } }
-
-@media (prefers-reduced-motion: reduce) {
-  .strike-live { animation: none; }
-}
 
 .theme-dialog-card { width: min(610px, calc(100vw - 40px)); }
 .theme-intro { max-width: 490px; }

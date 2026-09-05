@@ -206,10 +206,16 @@ Run the project checks before committing:
 
 ```bash
 npm run check
+npm test
 bash -n start.sh start-app.sh install-omarchy.sh uninstall-omarchy.sh
 git diff --check
 omarchy plugin validate .
 ```
+
+The regression tests cover archive ordering and retention, bulk reads of oversized
+history with timestamp ties, live reception during backfill, demo isolation,
+wrapped marker positions, deferred statistics, distance caching, and bar health
+validation. They run without a desktop session or external feed.
 
 The repository includes the marketplace manifest, QML bar entry point, native GTK shell, local servers, safe launcher scripts, and a [publishing checklist](PUBLISHING.md).
 

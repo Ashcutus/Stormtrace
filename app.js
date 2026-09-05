@@ -18,6 +18,26 @@
     line: "#2d2638", lineBright: "#4e3c66",
   };
 
+  const REGIONS = [
+    ["British Isles", 49, 61, -12, 3], ["Western Europe", 43, 55, -5, 16],
+    ["Northern Europe", 55, 72, -10, 35], ["Mediterranean", 30, 45, -8, 38],
+    ["Eastern Europe", 43, 60, 16, 42], ["West Africa", -2, 20, -20, 15],
+    ["Central Africa", -12, 12, 15, 35], ["East Africa", -15, 15, 35, 52],
+    ["Southern Africa", -36, -12, 12, 42], ["Middle East", 12, 40, 35, 62],
+    ["Indian subcontinent", 5, 36, 62, 91], ["Bay of Bengal", 5, 24, 80, 100],
+    ["Southeast Asia", -2, 28, 92, 113], ["Indonesia", -12, 8, 105, 142],
+    ["East Asia", 20, 50, 110, 145], ["Japan & Pacific", 20, 52, 140, 180],
+    ["Northern Australia", -27, -9, 112, 154], ["Southern Australia", -45, -27, 112, 155],
+    ["New Zealand", -49, -33, 164, 180], ["Western United States", 25, 52, -130, -103],
+    ["Central United States", 25, 52, -103, -88], ["Eastern United States", 25, 52, -88, -65],
+    ["Mexico & Central America", 7, 30, -118, -77], ["Caribbean", 8, 28, -90, -58],
+    ["Northern South America", -8, 15, -82, -50], ["Amazon Basin", -20, 2, -80, -45],
+    ["Southern South America", -56, -20, -76, -35], ["Central Asia", 30, 57, 45, 90],
+    ["North Atlantic", 0, 70, -70, -12], ["South Atlantic", -60, 0, -70, 12],
+    ["Indian Ocean", -60, 12, 35, 112], ["North Pacific", 0, 65, -180, -118],
+    ["South Pacific", -60, 0, 142, 180], ["South Pacific", -60, 0, -180, -76],
+  ];
+
   const $ = (selector) => document.querySelector(selector);
   const $$ = (selector) => [...document.querySelectorAll(selector)];
   const nativeBridge = window.webkit?.messageHandlers?.stormtrace || null;
@@ -90,6 +110,12 @@
     rangeLayer: null,
     homeLayer: null,
     strikes: new Map(),
+    strikeTimeline: [],
+    strikeTimelineStart: 0,
+    pendingWrites: new Map(),
+    writeTimer: null,
+    databaseMaintenanceTimer: null,
+    themeRefreshing: false,
     socket: null,
     socketRetry: null,
     retryCount: 0,
@@ -104,7 +130,14 @@
     selectedStrikeId: null,
     hoveredStrikeId: null,
     renderTimer: null,
+    statsTimer: null,
+    lastStatsUpdate: 0,
+    latestStrikeDirty: false,
+    distanceCache: new WeakMap(),
+    distanceLatitude: null,
+    distanceLongitude: null,
     hotspots: [],
+    hotspotSignature: null,
     db: null,
     demoTimer: null,
     loadedHistoryCount: 0,
@@ -115,6 +148,7 @@
     systemPalette: FALLBACK_PALETTE,
     customPalette: persisted.customPalette || null,
     activePalette: FALLBACK_PALETTE,
+    paletteVersion: 0,
     themeSignature: "",
     monitoringPaused: false,
   };
@@ -124,13 +158,15 @@
   async function init() {
     bindControls();
     updateClock();
-    setInterval(updateClock, 1000);
-    setInterval(updateRelativeTimes, 1000);
+    setInterval(() => { updateClock(); updateRelativeTimes(); }, 10000);
     updateRadiusUI();
     updateMapAppearanceUI();
     updateNotificationUI();
     await refreshOmarchyTheme();
-    setInterval(refreshOmarchyTheme, 4000);
+    setInterval(refreshOmarchyTheme, 30000);
+    setInterval(() => { trimMemory(); scheduleRender(); scheduleStats(); }, 60000);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("pagehide", flushStrikes);
 
     if (!window.L) {
       showMapMessage("Map engine unavailable", "The map library could not load. Check the connection, then retry.");
@@ -139,14 +175,37 @@
     }
 
     initMap();
-    state.db = await openDatabase().catch(() => null);
-    await loadHistory();
-    await loadProviderHistory();
+    await startReceiver();
+  }
 
+  async function startReceiver() {
     if (isDemo) {
       startDemo();
+      return;
+    }
+
+    state.db = await openDatabase().catch(() => null);
+    if (state.db) scheduleDatabaseMaintenance(5000);
+    // Open storage before receiving live strikes so early arrivals can persist.
+    // Cached and provider history can then merge without delaying the feed.
+    connectFeed();
+    await loadHistory();
+    await loadProviderHistory();
+  }
+
+  function handleVisibilityChange() {
+    if (document.hidden) {
+      clearTimeout(state.renderTimer);
+      state.renderTimer = null;
+      clearTimeout(state.statsTimer);
+      state.statsTimer = null;
+      flushStrikes();
     } else {
-      connectFeed();
+      state.latestStrikeDirty = true;
+      updateClock();
+      refreshOmarchyTheme();
+      scheduleRender();
+      scheduleStats(true);
     }
   }
 
@@ -159,7 +218,7 @@
       zoomControl: false,
       attributionControl: false,
       worldCopyJump: true,
-      preferCanvas: false,
+      preferCanvas: true,
     });
 
     state.tileLayer = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -212,6 +271,10 @@
       saveSettings();
     });
     els.hotspotFocus.addEventListener("click", () => focusHotspot(0));
+    els.hotspotList.addEventListener("click", (event) => activateHotspotRow(event.target));
+    els.hotspotList.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") activateHotspotRow(event.target);
+    });
 
     $$(".theme-source-button").forEach((button) => {
       button.addEventListener("click", () => selectThemeSource(button.dataset.themeSource));
@@ -297,6 +360,8 @@
   }
 
   async function refreshOmarchyTheme() {
+    if (document.hidden || state.themeRefreshing) return;
+    state.themeRefreshing = true;
     try {
       const response = await fetch("/api/theme", { cache: "no-store" });
       if (!response.ok) throw new Error(`Theme endpoint returned ${response.status}`);
@@ -312,6 +377,8 @@
       state.systemPalette = FALLBACK_PALETTE;
       if (!state.customPalette) state.customPalette = editablePalette(FALLBACK_PALETTE);
       applyActivePalette();
+    } finally {
+      state.themeRefreshing = false;
     }
   }
 
@@ -364,6 +431,7 @@
   function applyActivePalette() {
     const palette = state.themeSource === "custom" ? derivedCustomPalette(state.customPalette) : state.systemPalette;
     state.activePalette = palette;
+    state.paletteVersion += 1;
     const root = document.documentElement;
     const variables = {
       "--bg": palette.bg, "--surface": palette.surface, "--surface-2": palette.surface2,
@@ -622,7 +690,15 @@
     const lon = Number(raw.lon);
     if (!Number.isFinite(lat) || !Number.isFinite(lon) || !Number.isFinite(time)) return null;
     const id = String(raw.id ?? `${time}:${lat.toFixed(5)}:${lon.toFixed(5)}`);
-    return { id, time, lat, lon, deviation: Number(raw.dev || raw.mds || 0), polarity: Number(raw.pol || 0) };
+    return {
+      id,
+      time,
+      lat,
+      lon,
+      region: describeRegion(lat, lon),
+      deviation: Number(raw.dev || raw.mds || 0),
+      polarity: Number(raw.pol || 0),
+    };
   }
 
   function ingestStrikes(rawStrikes, isNew = false, persist = true) {
@@ -638,22 +714,90 @@
 
     if (!additions.length) return;
     additions.sort((a, b) => a.time - b.time);
-    state.lastStrike = additions.at(-1);
+    appendStrikeTimeline(additions);
+    if (!state.lastStrike || additions.at(-1).time >= state.lastStrike.time) {
+      state.lastStrike = additions.at(-1);
+      state.latestStrikeDirty = true;
+    }
     if (isNew) additions.forEach(checkProximityAlert);
     if (persist && state.db) storeStrikes(additions);
     trimMemory();
-    updateLatestStrike();
     scheduleRender();
+    scheduleStats();
+  }
+
+  function appendStrikeTimeline(additions) {
+    const timeline = state.strikeTimeline;
+    if (!timeline.length || timeline.at(-1).time <= additions[0].time) {
+      for (const strike of additions) timeline.push(strike);
+      return;
+    }
+
+    // Late live packets usually belong near the tail. Move just that suffix
+    // instead of copying the entire archive for each small packet.
+    if (additions.length <= 64) {
+      for (const strike of additions) {
+        let low = state.strikeTimelineStart;
+        let high = timeline.length;
+        while (low < high) {
+          const middle = (low + high) >> 1;
+          if (timeline[middle].time <= strike.time) low = middle + 1;
+          else high = middle;
+        }
+        timeline.splice(low, 0, strike);
+      }
+      return;
+    }
+
+    const merged = [];
+    let existingIndex = state.strikeTimelineStart;
+    let additionIndex = 0;
+    while (existingIndex < timeline.length && additionIndex < additions.length) {
+      if (timeline[existingIndex].time <= additions[additionIndex].time) merged.push(timeline[existingIndex++]);
+      else merged.push(additions[additionIndex++]);
+    }
+    while (existingIndex < timeline.length) merged.push(timeline[existingIndex++]);
+    while (additionIndex < additions.length) merged.push(additions[additionIndex++]);
+    state.strikeTimeline = merged;
+    state.strikeTimelineStart = 0;
   }
 
   function trimMemory() {
     const cutoff = Date.now() - HISTORY_HOURS * 60 * 60 * 1000;
-    for (const [id, strike] of state.strikes) {
-      if (strike.time < cutoff) state.strikes.delete(id);
+    const timeline = state.strikeTimeline;
+    let index = state.strikeTimelineStart;
+    while (index < timeline.length && (timeline[index].time < cutoff || state.strikes.size > MAX_STORED_STRIKES)) {
+      state.strikes.delete(timeline[index].id);
+      index += 1;
     }
-    if (state.strikes.size <= MAX_STORED_STRIKES) return;
-    const oldest = [...state.strikes.values()].sort((a, b) => a.time - b.time);
-    oldest.slice(0, state.strikes.size - MAX_STORED_STRIKES).forEach((strike) => state.strikes.delete(strike.id));
+    state.strikeTimelineStart = index;
+    if (index >= 4096) {
+      state.strikeTimeline = timeline.slice(index);
+      state.strikeTimelineStart = 0;
+    }
+  }
+
+  function timelineIndexAtOrAfter(time) {
+    const timeline = state.strikeTimeline;
+    let low = state.strikeTimelineStart;
+    let high = timeline.length;
+    while (low < high) {
+      const middle = (low + high) >> 1;
+      if (timeline[middle].time < time) low = middle + 1;
+      else high = middle;
+    }
+    return low;
+  }
+
+  function displayLongitude(longitude, bounds) {
+    const center = (bounds.west + bounds.east) / 2;
+    return longitude + 360 * Math.round((center - longitude) / 360);
+  }
+
+  function strikeIsInBounds(strike, bounds) {
+    if (strike.lat < bounds.south || strike.lat > bounds.north) return false;
+    const longitude = displayLongitude(strike.lon, bounds);
+    return longitude >= bounds.west && longitude <= bounds.east;
   }
 
   function selectedCutoff() {
@@ -662,21 +806,55 @@
   }
 
   function scheduleRender() {
-    clearTimeout(state.renderTimer);
-    state.renderTimer = setTimeout(render, 120);
+    if (document.hidden || state.renderTimer !== null) return;
+    state.renderTimer = setTimeout(() => {
+      state.renderTimer = null;
+      render();
+    }, 500);
+  }
+
+  function scheduleStats(immediate = false) {
+    if (document.hidden) return;
+    if (immediate) {
+      clearTimeout(state.statsTimer);
+      state.statsTimer = null;
+    }
+    if (state.statsTimer !== null) return;
+    const delay = immediate ? 0 : Math.max(0, 5000 - (Date.now() - state.lastStatsUpdate));
+    state.statsTimer = setTimeout(() => {
+      state.statsTimer = null;
+      if (document.hidden) return;
+      state.lastStatsUpdate = Date.now();
+      const windowStart = timelineIndexAtOrAfter(selectedCutoff());
+      updateRate(windowStart);
+      updateHotspots(state.strikeTimeline, windowStart);
+      updateProximityStats();
+    }, delay);
   }
 
   function render() {
-    if (!state.map || !state.strikeLayer) return;
+    if (document.hidden || !state.map || !state.strikeLayer) return;
     const cutoff = selectedCutoff();
-    const bounds = state.map.getBounds();
-    const inWindow = [...state.strikes.values()].filter((strike) => strike.time >= cutoff);
-    const visible = inWindow.filter((strike) => bounds.contains([strike.lat, strike.lon]));
-    const toRender = visible
-      .sort((a, b) => b.time - a.time)
-      .slice(0, MAX_RENDERED_STRIKES)
-      .sort((a, b) => a.time - b.time);
-    const renderIds = new Set(toRender.map((strike) => strike.id));
+    const mapBounds = state.map.getBounds();
+    const bounds = {
+      south: mapBounds.getSouth(),
+      north: mapBounds.getNorth(),
+      west: mapBounds.getWest(),
+      east: mapBounds.getEast(),
+    };
+    const windowStart = timelineIndexAtOrAfter(cutoff);
+    const timeline = state.strikeTimeline;
+    const toRender = [];
+    let visibleCount = 0;
+    for (let index = timeline.length - 1; index >= windowStart; index -= 1) {
+      const strike = timeline[index];
+      if (!strikeIsInBounds(strike, bounds)) continue;
+      visibleCount += 1;
+      if (toRender.length < MAX_RENDERED_STRIKES) toRender.push(strike);
+    }
+    toRender.reverse();
+    const renderIds = new Set();
+    for (const strike of toRender) renderIds.add(strike.id);
     const now = Date.now();
 
     for (const [id, marker] of state.strikeMarkers) {
@@ -692,12 +870,12 @@
 
     for (const strike of toRender) {
       let marker = state.strikeMarkers.get(strike.id);
+      const longitude = displayLongitude(strike.lon, bounds);
       if (!marker) {
-        marker = createStrikeMarker(strike, now);
+        marker = createStrikeMarker(strike, now, longitude);
         state.strikeMarkers.set(strike.id, marker);
-      } else {
-        marker.setTooltipContent(strikeTooltip(strike));
-        marker.setPopupContent(strikePopup(strike));
+      } else if (marker.getLatLng().lng !== longitude) {
+        marker.setLatLng([strike.lat, longitude]);
       }
       updateStrikeMarkerVisual(marker, strike, now);
     }
@@ -709,31 +887,33 @@
       state.selectedStrikeId = null;
     }
 
-    els.visibleCount.textContent = String(visible.length).padStart(3, "0");
+    els.visibleCount.textContent = String(visibleCount).padStart(3, "0");
     const labels = { live: "Live · 15 min", 60: "Past hour", 360: "Past 6 hours", 1440: "Rolling 24 hours" };
     els.visibleWindow.textContent = `${labels[state.selectedWindow]} · map bounds`;
-    updateRate(inWindow);
-    updateHotspots(inWindow);
-    updateProximityStats();
+    if (state.latestStrikeDirty) {
+      updateLatestStrike();
+      state.latestStrikeDirty = false;
+    }
   }
 
-  function createStrikeMarker(strike, now) {
-    const { radius, ...style } = strikePresentation(strike, now);
-    const marker = L.circleMarker([strike.lat, strike.lon], {
+  function createStrikeMarker(strike, now, longitude = strike.lon) {
+    const ageBand = strikeAgeBand(strike, now);
+    const { radius, ...style } = strikePresentationForBand(ageBand);
+    const marker = L.circleMarker([strike.lat, longitude], {
       ...style,
       radius,
       weight: 1,
       className: "strike-marker",
       bubblingMouseEvents: false,
     })
-      .bindTooltip(strikeTooltip(strike), {
+      .bindTooltip(() => strikeTooltip(strike), {
         className: "strike-tooltip",
         direction: "auto",
         sticky: false,
         offset: [0, -9],
         opacity: 1,
       })
-      .bindPopup(strikePopup(strike), {
+      .bindPopup(() => strikePopup(strike), {
         className: "storm-popup",
         closeButton: true,
         closeOnClick: false,
@@ -774,16 +954,21 @@
       })
       .addTo(state.strikeLayer);
 
+    marker.stormtraceVisual = `${state.paletteVersion}:${ageBand}:false:false`;
     return marker;
   }
 
-  function strikePresentation(strike, now = Date.now()) {
+  function strikeAgeBand(strike, now) {
     const ageMinutes = (now - strike.time) / 60000;
+    return ageMinutes < 5 ? 0 : ageMinutes < 60 ? 1 : 2;
+  }
+
+  function strikePresentationForBand(ageBand) {
     const palette = state.activePalette;
-    if (ageMinutes < 5) {
+    if (ageBand === 0) {
       return { color: palette.magenta, fillColor: palette.magenta, radius: 4.8, opacity: 0.95, fillOpacity: 0.76 };
     }
-    if (ageMinutes < 60) {
+    if (ageBand === 1) {
       return { color: palette.violet, fillColor: palette.violet, radius: 4.1, opacity: 0.84, fillOpacity: 0.62 };
     }
     return { color: palette.blue, fillColor: palette.blue, radius: 3.6, opacity: 0.64, fillOpacity: 0.44 };
@@ -791,9 +976,13 @@
 
   function updateStrikeMarkerVisual(marker, strike, now = Date.now()) {
     if (!marker || !strike) return;
-    const { radius, ...style } = strikePresentation(strike, now);
     const selected = state.selectedStrikeId === strike.id;
     const hovered = state.hoveredStrikeId === strike.id;
+    const ageBand = strikeAgeBand(strike, now);
+    const signature = `${state.paletteVersion}:${ageBand}:${selected}:${hovered}`;
+    if (marker.stormtraceVisual === signature) return;
+    marker.stormtraceVisual = signature;
+    const { radius, ...style } = strikePresentationForBand(ageBand);
     marker.setStyle({
       ...style,
       opacity: selected ? 1 : style.opacity,
@@ -801,12 +990,6 @@
       weight: selected ? 2.4 : hovered ? 1.8 : 1,
     });
     marker.setRadius(radius + (selected ? 2.2 : hovered ? 1.4 : 0));
-
-    const element = marker.getElement();
-    if (!element) return;
-    element.classList.toggle("strike-live", now - strike.time < 18000);
-    element.classList.toggle("is-hovered", hovered);
-    element.classList.toggle("is-selected", selected);
   }
 
   function strikePopup(strike) {
@@ -814,10 +997,10 @@
     const deviation = strike.deviation > 0 ? `${Math.round(strike.deviation).toLocaleString()} m` : "Not reported";
     const polarity = strike.polarity > 0 ? "Positive" : strike.polarity < 0 ? "Negative" : "Unknown";
     const distance = state.userLocation
-      ? `<div class="strike-detail"><span>Distance</span><strong>${formatMiles(haversineMiles(state.userLocation.lat, state.userLocation.lon, strike.lat, strike.lon))}</strong></div>`
+      ? `<div class="strike-detail"><span>Distance</span><strong>${formatMiles(strikeDistance(strike))}</strong></div>`
       : "";
     return `<div class="strike-popup-content">
-      <div class="strike-popup-heading"><span class="strike-popup-icon">ϟ</span><div><strong>LIGHTNING STRIKE</strong><span>${escapeHtml(describeRegion(strike.lat, strike.lon))}</span></div></div>
+      <div class="strike-popup-heading"><span class="strike-popup-icon">ϟ</span><div><strong>LIGHTNING STRIKE</strong><span>${escapeHtml(strike.region)}</span></div></div>
       <div class="strike-detail"><span>Detected</span><strong>${age}</strong></div>
       <div class="strike-detail"><span>Time (UTC)</span><strong>${formatStrikeTime(strike.time)}</strong></div>
       <div class="strike-detail"><span>Coordinates</span><strong>${formatCoordinates(strike.lat, strike.lon)}</strong></div>
@@ -828,17 +1011,21 @@
   }
 
   function strikeTooltip(strike) {
-    return `<div class="strike-tooltip-content"><strong>ϟ ${escapeHtml(describeRegion(strike.lat, strike.lon))}</strong><span>${relativeAge(strike.time)} · ${formatCoordinates(strike.lat, strike.lon)}</span></div>`;
+    return `<div class="strike-tooltip-content"><strong>ϟ ${escapeHtml(strike.region)}</strong><span>${relativeAge(strike.time)} · ${formatCoordinates(strike.lat, strike.lon)}</span></div>`;
   }
 
   function formatStrikeTime(time) {
     return new Date(time).toISOString().replace("T", " ").replace(".000Z", " UTC");
   }
 
-  function updateRate(strikes) {
+  function updateRate(start) {
     const now = Date.now();
-    const recent = strikes.filter((strike) => strike.time >= now - 5 * 60 * 1000).length;
-    const previous = strikes.filter((strike) => strike.time >= now - 10 * 60 * 1000 && strike.time < now - 5 * 60 * 1000).length;
+    const recentCutoff = now - 5 * 60 * 1000;
+    const previousCutoff = now - 10 * 60 * 1000;
+    const recentStart = Math.max(start, timelineIndexAtOrAfter(recentCutoff));
+    const previousStart = Math.max(start, timelineIndexAtOrAfter(previousCutoff));
+    const recent = state.strikeTimeline.length - recentStart;
+    const previous = recentStart - previousStart;
     const rate = Math.round(recent / 5);
     els.globalRate.textContent = rate.toLocaleString();
     if (!previous) {
@@ -850,15 +1037,18 @@
     }
   }
 
-  function updateHotspots(strikes) {
-    const cutoff = Date.now() - 60 * 60 * 1000;
+  function updateHotspots(strikes, start) {
+    const now = Date.now();
+    const cutoff = now - 60 * 60 * 1000;
+    const recentCutoff = now - 10 * 60 * 1000;
     const groups = new Map();
-    for (const strike of strikes) {
-      if (strike.time < cutoff) continue;
-      const name = describeRegion(strike.lat, strike.lon);
+    for (let index = strikes.length - 1; index >= start; index -= 1) {
+      const strike = strikes[index];
+      if (strike.time < cutoff) break;
+      const name = strike.region;
       const current = groups.get(name) || { name, count: 0, recent: 0, latTotal: 0, lonTotal: 0 };
       current.count += 1;
-      if (strike.time > Date.now() - 10 * 60 * 1000) current.recent += 1;
+      if (strike.time > recentCutoff) current.recent += 1;
       current.latTotal += strike.lat;
       current.lonTotal += strike.lon;
       groups.set(name, current);
@@ -868,6 +1058,12 @@
       .map((item) => ({ ...item, lat: item.latTotal / item.count, lon: item.lonTotal / item.count }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 4);
+
+    const signature = state.hotspots
+      .map((hotspot) => `${hotspot.name}:${hotspot.count}:${hotspot.recent}:${hotspot.lat.toFixed(3)}:${hotspot.lon.toFixed(3)}`)
+      .join("|");
+    if (signature === state.hotspotSignature) return;
+    state.hotspotSignature = signature;
 
     if (!state.hotspots.length) {
       els.hotspotList.innerHTML = '<div class="empty-state">Waiting for enough strikes to identify active cells…</div>';
@@ -887,12 +1083,6 @@
         <span class="hotspot-trend">+${hotspot.recent}</span>
       </div>
     `).join("");
-    els.hotspotList.querySelectorAll(".hotspot-row").forEach((row) => {
-      row.addEventListener("click", () => focusHotspot(Number(row.dataset.index)));
-      row.addEventListener("keydown", (event) => {
-        if (event.key === "Enter" || event.key === " ") focusHotspot(Number(row.dataset.index));
-      });
-    });
   }
 
   function focusHotspot(index) {
@@ -900,37 +1090,23 @@
     if (hotspot) state.map?.flyTo([hotspot.lat, hotspot.lon], 5, { duration: 1.1 });
   }
 
+  function activateHotspotRow(target) {
+    const row = target.closest?.(".hotspot-row");
+    if (row) focusHotspot(Number(row.dataset.index));
+  }
+
   function describeRegion(lat, lon) {
-    const regions = [
-      ["British Isles", 49, 61, -12, 3], ["Western Europe", 43, 55, -5, 16],
-      ["Northern Europe", 55, 72, -10, 35], ["Mediterranean", 30, 45, -8, 38],
-      ["Eastern Europe", 43, 60, 16, 42], ["West Africa", -2, 20, -20, 15],
-      ["Central Africa", -12, 12, 15, 35], ["East Africa", -15, 15, 35, 52],
-      ["Southern Africa", -36, -12, 12, 42], ["Middle East", 12, 40, 35, 62],
-      ["Indian subcontinent", 5, 36, 62, 91], ["Bay of Bengal", 5, 24, 80, 100],
-      ["Southeast Asia", -2, 28, 92, 113], ["Indonesia", -12, 8, 105, 142],
-      ["East Asia", 20, 50, 110, 145], ["Japan & Pacific", 20, 52, 140, 180],
-      ["Northern Australia", -27, -9, 112, 154], ["Southern Australia", -45, -27, 112, 155],
-      ["New Zealand", -49, -33, 164, 180], ["Western United States", 25, 52, -130, -103],
-      ["Central United States", 25, 52, -103, -88], ["Eastern United States", 25, 52, -88, -65],
-      ["Mexico & Central America", 7, 30, -118, -77], ["Caribbean", 8, 28, -90, -58],
-      ["Northern South America", -8, 15, -82, -50], ["Amazon Basin", -20, 2, -80, -45],
-      ["Southern South America", -56, -20, -76, -35], ["Central Asia", 30, 57, 45, 90],
-      ["North Atlantic", 0, 70, -70, -12], ["South Atlantic", -60, 0, -70, 12],
-      ["Indian Ocean", -60, 12, 35, 112], ["North Pacific", 0, 65, -180, -118],
-      ["South Pacific", -60, 0, 142, 180], ["South Pacific", -60, 0, -180, -76],
-    ];
-    const match = regions.find(([, minLat, maxLat, minLon, maxLon]) => lat >= minLat && lat < maxLat && lon >= minLon && lon < maxLon);
+    const match = REGIONS.find(([, minLat, maxLat, minLon, maxLon]) => lat >= minLat && lat < maxLat && lon >= minLon && lon < maxLon);
     return match?.[0] || `${Math.abs(Math.round(lat))}°${lat >= 0 ? "N" : "S"} / ${Math.abs(Math.round(lon))}°${lon >= 0 ? "E" : "W"}`;
   }
 
   function updateLatestStrike() {
-    if (!state.lastStrike) return;
-    els.latestLocation.textContent = `${describeRegion(state.lastStrike.lat, state.lastStrike.lon)} · ${formatCoordinates(state.lastStrike.lat, state.lastStrike.lon)}`;
+    if (document.hidden || !state.lastStrike) return;
+    els.latestLocation.textContent = `${state.lastStrike.region} · ${formatCoordinates(state.lastStrike.lat, state.lastStrike.lon)}`;
     els.latestAge.dataset.time = String(state.lastStrike.time);
     els.latestAge.textContent = relativeAge(state.lastStrike.time);
     if (state.userLocation) {
-      const distance = haversineMiles(state.userLocation.lat, state.userLocation.lon, state.lastStrike.lat, state.lastStrike.lon);
+      const distance = strikeDistance(state.lastStrike);
       els.latestDistance.textContent = `${formatMiles(distance)} from your location`;
     } else {
       els.latestDistance.textContent = state.lastStrike.deviation > 0
@@ -940,7 +1116,19 @@
   }
 
   function updateRelativeTimes() {
+    if (document.hidden) return;
+    updateOpenStrikeDetails(state.selectedStrikeId);
+    if (state.hoveredStrikeId !== state.selectedStrikeId) updateOpenStrikeDetails(state.hoveredStrikeId);
     if (state.lastStrike) els.latestAge.textContent = relativeAge(state.lastStrike.time);
+  }
+
+  function updateOpenStrikeDetails(id) {
+    if (id === null) return;
+    const marker = state.strikeMarkers.get(id);
+    const strike = state.strikes.get(id);
+    if (!marker || !strike) return;
+    if (marker.isTooltipOpen()) marker.setTooltipContent(() => strikeTooltip(strike));
+    if (marker.isPopupOpen()) marker.setPopupContent(() => strikePopup(strike));
   }
 
   function updateMapReadout() {
@@ -955,6 +1143,7 @@
     syncWindowButtons();
     saveSettings();
     scheduleRender();
+    scheduleStats(true);
   }
 
   function syncWindowButtons() {
@@ -1076,21 +1265,28 @@
       return;
     }
     const cutoff = Date.now() - 60 * 60 * 1000;
-    const distances = [...state.strikes.values()]
-      .filter((strike) => strike.time >= cutoff)
-      .map((strike) => haversineMiles(state.userLocation.lat, state.userLocation.lon, strike.lat, strike.lon));
-    const nearby = distances.filter((distance) => distance <= state.radiusMiles);
-    els.nearbyCount.textContent = nearby.length.toLocaleString();
-    els.closestStrike.textContent = distances.length ? formatMiles(Math.min(...distances)) : "—";
+    const timeline = state.strikeTimeline;
+    const start = timelineIndexAtOrAfter(cutoff);
+    let nearbyCount = 0;
+    let closestDistance = Infinity;
+    for (let index = start; index < timeline.length; index += 1) {
+      const strike = timeline[index];
+      const distance = strikeDistance(strike);
+      if (distance <= state.radiusMiles) nearbyCount += 1;
+      if (distance < closestDistance) closestDistance = distance;
+    }
+    els.nearbyCount.textContent = nearbyCount.toLocaleString();
+    els.closestStrike.textContent = Number.isFinite(closestDistance) ? formatMiles(closestDistance) : "—";
   }
 
   function checkProximityAlert(strike) {
     if (!state.notificationsEnabled || !state.userLocation || !("Notification" in window) || Notification.permission !== "granted") return;
-    const distance = haversineMiles(state.userLocation.lat, state.userLocation.lon, strike.lat, strike.lon);
-    if (distance > state.radiusMiles || Date.now() - state.lastAlertAt < ALERT_COOLDOWN_MS) return;
+    if (Date.now() - state.lastAlertAt < ALERT_COOLDOWN_MS) return;
+    const distance = strikeDistance(strike);
+    if (distance > state.radiusMiles) return;
     state.lastAlertAt = Date.now();
     const notification = new Notification("Lightning inside your safety radius", {
-      body: `${formatMiles(distance)} away · ${describeRegion(strike.lat, strike.lon)} · detected just now`,
+      body: `${formatMiles(distance)} away · ${strike.region} · detected just now`,
       icon: "/icon.svg",
       tag: "stormtrace-nearby",
     });
@@ -1168,7 +1364,8 @@
   }
 
   function updateClock() {
-    els.clock.textContent = `UTC ${new Date().toISOString().slice(11, 19)}`;
+    if (document.hidden) return;
+    els.clock.textContent = `UTC ${new Date().toISOString().slice(11, 16)}`;
   }
 
   function relativeAge(time) {
@@ -1188,6 +1385,22 @@
   function formatMiles(miles) {
     if (!Number.isFinite(miles)) return "—";
     return miles < 10 ? `${miles.toFixed(1)} mi` : `${Math.round(miles).toLocaleString()} mi`;
+  }
+
+  function strikeDistance(strike) {
+    if (!state.userLocation) return Infinity;
+    const { lat, lon } = state.userLocation;
+    if (state.distanceLatitude !== lat || state.distanceLongitude !== lon) {
+      state.distanceCache = new WeakMap();
+      state.distanceLatitude = lat;
+      state.distanceLongitude = lon;
+    }
+    let distance = state.distanceCache.get(strike);
+    if (distance === undefined) {
+      distance = haversineMiles(lat, lon, strike.lat, strike.lon);
+      state.distanceCache.set(strike, distance);
+    }
+    return distance;
   }
 
   function haversineMiles(lat1, lon1, lat2, lon2) {
@@ -1245,25 +1458,76 @@
     return new Promise((resolve) => {
       const transaction = state.db.transaction("strikes", "readonly");
       const index = transaction.objectStore("strikes").index("time");
-      const request = index.getAll(IDBKeyRange.lowerBound(Date.now() - HISTORY_HOURS * 60 * 60 * 1000), MAX_STORED_STRIKES);
-      request.onsuccess = () => {
-        const records = request.result || [];
+      const range = IDBKeyRange.lowerBound(Date.now() - HISTORY_HOURS * 60 * 60 * 1000);
+      const finish = (records) => {
         state.loadedHistoryCount = records.length;
         ingestStrikes(records, false, false);
         els.historyState.textContent = records.length ? `${records.length.toLocaleString()} cached strikes` : "Building from this session";
         resolve();
       };
-      request.onerror = () => resolve();
+      const readFrom = (lowerBound, trim = false) => {
+        const request = index.getAll(lowerBound);
+        request.onsuccess = () => {
+          const records = request.result || [];
+          finish(trim ? records.slice(-MAX_STORED_STRIKES) : records);
+        };
+        request.onerror = () => resolve();
+      };
+      const count = index.count(range);
+      count.onerror = () => resolve();
+      transaction.onabort = () => resolve();
+      count.onsuccess = () => {
+        if (count.result <= MAX_STORED_STRIKES) {
+          // Keep the usual startup path as one bulk read.
+          readFrom(range);
+          return;
+        }
+        // Skip discarded keys without materializing every retained record in a
+        // cursor callback. Include the boundary timestamp's ties in the bulk
+        // read, then trim their oldest primary keys to keep exactly the newest.
+        const request = index.openKeyCursor(range);
+        let skipped = false;
+        request.onerror = () => resolve();
+        request.onsuccess = () => {
+          const cursor = request.result;
+          if (!cursor) { finish([]); return; }
+          if (!skipped) {
+            skipped = true;
+            cursor.advance(count.result - MAX_STORED_STRIKES);
+          } else {
+            readFrom(IDBKeyRange.lowerBound(cursor.key), true);
+          }
+        };
+      };
     });
   }
 
   function storeStrikes(strikes) {
+    strikes.forEach((strike) => state.pendingWrites.set(strike.id, strike));
+    if (state.pendingWrites.size >= 1000) flushStrikes();
+    else if (state.writeTimer === null) state.writeTimer = setTimeout(flushStrikes, 2000);
+  }
+
+  function flushStrikes() {
+    clearTimeout(state.writeTimer);
+    state.writeTimer = null;
+    if (!state.db || !state.pendingWrites.size) return;
+    const strikes = [...state.pendingWrites.values()];
+    state.pendingWrites.clear();
     try {
       const transaction = state.db.transaction("strikes", "readwrite");
       const store = transaction.objectStore("strikes");
       strikes.forEach((strike) => store.put(strike));
-      transaction.oncomplete = pruneDatabase;
+      transaction.oncomplete = () => scheduleDatabaseMaintenance();
     } catch { /* private-mode quota or a closing tab */ }
+  }
+
+  function scheduleDatabaseMaintenance(delay = 60000) {
+    if (state.databaseMaintenanceTimer !== null) return;
+    state.databaseMaintenanceTimer = setTimeout(() => {
+      state.databaseMaintenanceTimer = null;
+      pruneDatabase();
+    }, delay);
   }
 
   function pruneDatabase() {
@@ -1317,6 +1581,9 @@
   function startDemo() {
     stopDemo();
     state.strikes.clear();
+    state.strikeTimeline.length = 0;
+    state.strikeTimelineStart = 0;
+    state.lastStrike = null;
     const seedStrikes = generateDemoStrikes(760);
     ingestStrikes(seedStrikes, false, false);
     resumeDemo();
