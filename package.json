@@ -6,6 +6,7 @@
   "description": "A local, real-time global lightning monitor for Omarchy.",
   "scripts": {
     "start": "node server.js",
+    "test": "node --test tests/*.test.js",
     "check": "node --check server.js && node --check app.js && python3 -c \"import ast, pathlib; [ast.parse(pathlib.Path(name).read_text()) for name in ('server.py', 'stormtrace_app.py')]\""
   },
   "engines": {
