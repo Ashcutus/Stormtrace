@@ -178,7 +178,7 @@ The 24-hour archive is local and begins filling when Stormtrace first runs. Full
 
 ### Theme colours are not updating
 
-Stormtrace reads the active Omarchy palette through its local API. If that is unavailable, it uses its built-in palette; saved custom colours remain available from Appearance.
+Select **Omarchy** in Appearance to follow the system theme. Stormtrace checks for changes every five seconds while visible and when the window regains focus, without needing a restart. Temporary read failures keep the last applied colours until the next successful check. If no system palette is available at startup, it uses its built-in palette; saved custom colours remain available from Appearance.
 
 ## For contributors
 

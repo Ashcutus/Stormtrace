@@ -163,7 +163,8 @@
     updateMapAppearanceUI();
     updateNotificationUI();
     await refreshOmarchyTheme();
-    setInterval(refreshOmarchyTheme, 30000);
+    setInterval(refreshOmarchyTheme, 5000);
+    window.addEventListener("focus", refreshOmarchyTheme);
     setInterval(() => { trimMemory(); scheduleRender(); scheduleStats(); }, 60000);
     document.addEventListener("visibilitychange", handleVisibilityChange);
     window.addEventListener("pagehide", flushStrikes);
@@ -362,10 +363,14 @@
   async function refreshOmarchyTheme() {
     if (document.hidden || state.themeRefreshing) return;
     state.themeRefreshing = true;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
     try {
-      const response = await fetch("/api/theme", { cache: "no-store" });
+      const response = await fetch("/api/theme", { cache: "no-store", signal: controller.signal });
       if (!response.ok) throw new Error(`Theme endpoint returned ${response.status}`);
       const payload = await response.json();
+      // Theme files may be temporarily unavailable while Omarchy switches them.
+      if (!payload.available && state.themeSignature) return;
       const signature = JSON.stringify(payload);
       if (signature === state.themeSignature) return;
       state.themeSignature = signature;
@@ -374,10 +379,13 @@
       applyActivePalette();
       syncThemeDialog();
     } catch {
-      state.systemPalette = FALLBACK_PALETTE;
-      if (!state.customPalette) state.customPalette = editablePalette(FALLBACK_PALETTE);
-      applyActivePalette();
+      // Keep the last applied palette on transient failures and retry next time.
+      if (!state.themeSignature) {
+        if (!state.customPalette) state.customPalette = editablePalette(FALLBACK_PALETTE);
+        applyActivePalette();
+      }
     } finally {
+      clearTimeout(timeout);
       state.themeRefreshing = false;
     }
   }
