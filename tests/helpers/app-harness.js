@@ -9,7 +9,7 @@ const exports = [
   "timelineIndexAtOrAfter", "displayLongitude", "strikeIsInBounds", "render",
   "scheduleStats", "selectWindow", "handleVisibilityChange", "strikeDistance",
   "updateProximityStats", "loadHistory", "storeStrikes", "flushStrikes", "startDemo",
-  "startReceiver",
+  "startReceiver", "refreshOmarchyTheme", "selectThemeSource",
 ];
 
 function element() {
@@ -21,6 +21,7 @@ function element() {
     style: { setProperty() {} },
     classList: { toggle() {} },
     addEventListener() {},
+    querySelectorAll: () => [],
     get textContent() { return value; },
     set textContent(text) { this.writes++; value = String(text); html = null; },
     get innerHTML() { return html ?? value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;"); },
@@ -37,6 +38,7 @@ export function loadApp({ search = "", indexedDB, fetch = async () => ({ ok: tru
   const document = {
     hidden: false,
     body: element(),
+    documentElement: element(),
     querySelector(selector) {
       if (!elements.has(selector)) elements.set(selector, element());
       return elements.get(selector);
@@ -50,6 +52,7 @@ export function loadApp({ search = "", indexedDB, fetch = async () => ({ ok: tru
   }
   const context = vm.createContext({
     Date: TestDate,
+    AbortController,
     location: { search },
     URLSearchParams,
     window: {},
