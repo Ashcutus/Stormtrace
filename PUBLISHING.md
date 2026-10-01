@@ -5,12 +5,12 @@ Stormtrace is structurally ready for the Omarchy plugin marketplace. This releas
 1. Keep the repository public so the marketplace can inspect and install it.
 2. Keep `manifest.json` at the repository root.
 3. Replace `Stormtrace Contributors` in `manifest.json` and `LICENSE` with the maintainer's preferred display name if desired.
-4. Keep the release version in sync across `manifest.json`, `package.json`, `index.html`, `start-app.sh`, `server.js`, and `server.py`; the in-app update check compares the server version with the published manifest.
+4. Set the release version in `manifest.json`; the servers, launcher, bar widget, and interface read it from there.
 5. Run `omarchy plugin validate .` at the release commit.
 6. Verify the native runtime and project checks:
 
    ```bash
-   omarchy pkg add python-gobject gtk3 webkit2gtk-4.1
+   omarchy pkg add python-gobject gtk3 webkit2gtk-4.1 geoclue
    npm run check
    bash -n start.sh start-app.sh install-omarchy.sh uninstall-omarchy.sh
    ```

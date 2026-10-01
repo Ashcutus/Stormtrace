@@ -3,7 +3,7 @@ set -euo pipefail
 
 APP_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 APP_URL="http://127.0.0.1:4177"
-APP_VERSION="1.4.1"
+APP_VERSION=""
 RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp}/stormtrace"
 mkdir -p "$RUNTIME_DIR"
 
@@ -21,6 +21,8 @@ if ! command -v python3 >/dev/null 2>&1 || ! command -v curl >/dev/null 2>&1; th
   notify_error "Stormtrace requires Python 3 and curl."
   exit 1
 fi
+
+APP_VERSION=$(python3 -c 'import json, pathlib, sys; print(json.loads((pathlib.Path(sys.argv[1]) / "manifest.json").read_text())["version"])' "$APP_DIR")
 
 server_ready() {
   curl -fsS --max-time 1 "$APP_URL/api/health" 2>/dev/null |
@@ -104,7 +106,12 @@ if [[ ${1:-} == "--stop" ]]; then
 fi
 
 if ! python3 -c 'import gi; gi.require_version("Gtk", "3.0"); gi.require_version("WebKit2", "4.1"); from gi.repository import Gtk, WebKit2' >/dev/null 2>&1; then
-  notify_error "Stormtrace requires python-gobject, gtk3, and webkit2gtk-4.1. Install them with: omarchy pkg add python-gobject gtk3 webkit2gtk-4.1"
+  notify_error "Stormtrace requires python-gobject, gtk3, and webkit2gtk-4.1. Install them with: omarchy pkg add python-gobject gtk3 webkit2gtk-4.1 geoclue"
+  exit 1
+fi
+
+if [[ ! -e /usr/share/dbus-1/system-services/org.freedesktop.GeoClue2.service ]]; then
+  notify_error "Stormtrace location requires GeoClue. Install it with: omarchy pkg add geoclue"
   exit 1
 fi
 

@@ -17,9 +17,10 @@ desktop_exec_arg() {
 }
 
 if ! command -v python3 >/dev/null 2>&1 ||
-  ! python3 -c 'import gi; gi.require_version("Gtk", "3.0"); gi.require_version("WebKit2", "4.1"); from gi.repository import Gtk, WebKit2' >/dev/null 2>&1; then
-  echo "Stormtrace requires python-gobject, gtk3, and webkit2gtk-4.1." >&2
-  echo "Install them with: omarchy pkg add python-gobject gtk3 webkit2gtk-4.1" >&2
+  ! python3 -c 'import gi; gi.require_version("Gtk", "3.0"); gi.require_version("WebKit2", "4.1"); from gi.repository import Gtk, WebKit2' >/dev/null 2>&1 ||
+  [[ ! -e /usr/share/dbus-1/system-services/org.freedesktop.GeoClue2.service ]]; then
+  echo "Stormtrace requires python-gobject, gtk3, webkit2gtk-4.1, and geoclue." >&2
+  echo "Install them with: omarchy pkg add python-gobject gtk3 webkit2gtk-4.1 geoclue" >&2
   exit 1
 fi
 

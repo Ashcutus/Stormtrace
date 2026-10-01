@@ -3,6 +3,7 @@
 
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from datetime import datetime, timezone
 from urllib.error import HTTPError
 from urllib.parse import parse_qs, urlparse
 from urllib.request import Request, urlopen
@@ -15,7 +16,7 @@ import subprocess
 ROOT = Path(__file__).resolve().parent
 HOST = os.environ.get("STORMTRACE_HOST", "127.0.0.1")
 PORT = int(os.environ.get("STORMTRACE_PORT", "4177"))
-APP_VERSION = "1.4.1"
+APP_VERSION = json.loads((ROOT / "manifest.json").read_text(encoding="utf-8"))["version"]
 UPDATE_MANIFEST_URL = os.environ.get(
     "STORMTRACE_UPDATE_MANIFEST_URL",
     "https://raw.githubusercontent.com/Ashcutus/Stormtrace/main/manifest.json",
@@ -69,8 +70,8 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_header("Permissions-Policy", "geolocation=(self)")
             self.send_header("Content-Security-Policy", "; ".join([
                 "default-src 'self'",
-                "script-src 'self' https://unpkg.com",
-                "style-src 'self' 'unsafe-inline' https://unpkg.com",
+                "script-src 'self'",
+                "style-src 'self' 'unsafe-inline'",
                 "img-src 'self' data: blob: https://tile.openstreetmap.org https://*.tile.openstreetmap.org",
                 "connect-src 'self' wss://live2.lightningmaps.org https://nominatim.openstreetmap.org",
                 "font-src 'self'",
@@ -102,19 +103,12 @@ class Handler(SimpleHTTPRequestHandler):
         try:
             with urlopen(request, timeout=15) as upstream:
                 body = json.load(upstream)
-            flashes = [{
-                "id": f"provider:{flash.get('flash_id')}",
-                "time": flash.get("flash_timestamp_utc"),
-                "lat": flash.get("lat"),
-                "lon": flash.get("lon"),
-                "polarity": 0,
-                "deviation": 0,
-            } for flash in body.get("flashes", [])]
+            flashes = normalize_history_flashes(body.get("flashes"))
             return self.send_json(200, {"configured": True, "flashes": flashes})
         except HTTPError as error:
             return self.send_json(error.code, {"configured": True, "error": f"History provider returned {error.code}"})
-        except Exception as error:
-            return self.send_json(502, {"configured": True, "error": str(error)})
+        except Exception:
+            return self.send_json(502, {"configured": True, "error": "The history provider could not be reached."})
 
     def update_check(self):
         request = Request(
@@ -160,6 +154,35 @@ def read_omarchy_theme():
         return {"available": True, "name": name or "Omarchy", "mode": colors.get("mode", "dark"), "colors": colors}
     except Exception:
         return {"available": False, "name": "Stormtrace default", "mode": "dark", "colors": {}}
+
+
+def normalize_history_flashes(input_value):
+    flashes = []
+    if not isinstance(input_value, list):
+        return flashes
+    for raw in input_value:
+        if not isinstance(raw, dict) or raw.get("flash_id") is None:
+            continue
+        try:
+            timestamp = str(raw.get("flash_timestamp_utc") or "")
+            parsed_time = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+            if parsed_time.tzinfo is None:
+                parsed_time = parsed_time.replace(tzinfo=timezone.utc)
+            latitude = float(raw.get("lat"))
+            longitude = float(raw.get("lon"))
+            if not (-90 <= latitude <= 90 and -180 <= longitude <= 180):
+                continue
+            flashes.append({
+                "id": f"provider:{raw['flash_id']}",
+                "time": int(parsed_time.timestamp() * 1000),
+                "lat": latitude,
+                "lon": longitude,
+                "polarity": 0,
+                "deviation": 0,
+            })
+        except (TypeError, ValueError, OverflowError):
+            continue
+    return flashes
 
 
 def normalize_version(value):

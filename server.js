@@ -1,4 +1,4 @@
-import { createReadStream, existsSync, readFileSync } from "node:fs";
+import { createReadStream, existsSync, readFileSync, statSync } from "node:fs";
 import { createServer } from "node:http";
 import { extname, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -8,7 +8,7 @@ const ROOT = fileURLToPath(new URL(".", import.meta.url));
 const HOST = process.env.STORMTRACE_HOST || "127.0.0.1";
 const PORT = Number(process.env.STORMTRACE_PORT || 4177);
 const API_KEY = process.env.LIGHTNING_API_KEY || readLocalKey();
-const APP_VERSION = "1.4.1";
+const APP_VERSION = JSON.parse(readFileSync(resolve(ROOT, "manifest.json"), "utf8")).version;
 const UPDATE_MANIFEST_URL = process.env.STORMTRACE_UPDATE_MANIFEST_URL
   || "https://raw.githubusercontent.com/Ashcutus/Stormtrace/main/manifest.json";
 const REPOSITORY_URL = "https://github.com/Ashcutus/Stormtrace";
@@ -22,8 +22,23 @@ const contentTypes = {
   ".webmanifest": "application/manifest+json; charset=utf-8",
 };
 
-const server = createServer(async (request, response) => {
-  const url = new URL(request.url || "/", `http://${request.headers.host || `${HOST}:${PORT}`}`);
+export function createStormtraceServer() {
+  return createServer((request, response) => {
+    handleRequest(request, response).catch((error) => {
+      console.error(`Request failed: ${error.message}`);
+      if (!response.headersSent) json(response, 500, { error: "Internal server error" });
+      else response.destroy();
+    });
+  });
+}
+
+async function handleRequest(request, response) {
+  let url;
+  try {
+    url = new URL(request.url || "/", `http://${request.headers.host || `${HOST}:${PORT}`}`);
+  } catch {
+    return json(response, 400, { error: "Invalid request URL" });
+  }
 
   if (url.pathname === "/api/health") {
     return json(response, 200, {
@@ -48,9 +63,14 @@ const server = createServer(async (request, response) => {
     return json(response, 200, readOmarchyTheme());
   }
 
-  const pathname = url.pathname === "/" ? "/index.html" : decodeURIComponent(url.pathname);
+  let pathname;
+  try {
+    pathname = url.pathname === "/" ? "/index.html" : decodeURIComponent(url.pathname);
+  } catch {
+    return json(response, 400, { error: "Invalid request path" });
+  }
   const filePath = resolve(ROOT, `.${pathname}`);
-  if (!filePath.startsWith(`${resolve(ROOT)}${sep}`) || !existsSync(filePath)) {
+  if (!filePath.startsWith(`${resolve(ROOT)}${sep}`) || !existsSync(filePath) || !statSync(filePath).isFile()) {
     return json(response, 404, { error: "Not found" });
   }
 
@@ -59,8 +79,8 @@ const server = createServer(async (request, response) => {
     "Cache-Control": "no-cache",
     "Content-Security-Policy": [
       "default-src 'self'",
-      "script-src 'self' https://unpkg.com",
-      "style-src 'self' 'unsafe-inline' https://unpkg.com",
+      "script-src 'self'",
+      "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob: https://tile.openstreetmap.org https://*.tile.openstreetmap.org",
       "connect-src 'self' wss://live2.lightningmaps.org https://nominatim.openstreetmap.org",
       "font-src 'self'",
@@ -70,13 +90,20 @@ const server = createServer(async (request, response) => {
     "X-Content-Type-Options": "nosniff",
     "Permissions-Policy": "geolocation=(self)",
   });
-  createReadStream(filePath).pipe(response);
-});
+  const stream = createReadStream(filePath);
+  stream.on("error", (error) => {
+    console.error(`Static file read failed: ${error.message}`);
+    response.destroy();
+  });
+  stream.pipe(response);
+}
 
-server.listen(PORT, HOST, () => {
-  console.log(`Stormtrace ready at http://${HOST}:${PORT}`);
-  console.log(API_KEY ? "Historical API backfill enabled." : "Using local rolling history (no LIGHTNING_API_KEY set)." );
-});
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  createStormtraceServer().listen(PORT, HOST, () => {
+    console.log(`Stormtrace ready at http://${HOST}:${PORT}`);
+    console.log(API_KEY ? "Historical API backfill enabled." : "Using local rolling history (no LIGHTNING_API_KEY set)." );
+  });
+}
 
 async function proxyHistory(url, response) {
   if (!API_KEY) return json(response, 200, { configured: false, flashes: [] });
@@ -88,20 +115,31 @@ async function proxyHistory(url, response) {
     });
     const payload = await upstream.json().catch(() => ({}));
     if (!upstream.ok) {
-      return json(response, upstream.status, { configured: true, error: payload.error || `History provider returned ${upstream.status}` });
+      return json(response, upstream.status, { configured: true, error: `History provider returned ${upstream.status}` });
     }
-    const flashes = (payload.flashes || []).map((flash) => ({
-      id: `provider:${flash.flash_id}`,
-      time: Date.parse(`${flash.flash_timestamp_utc}${flash.flash_timestamp_utc?.endsWith("Z") ? "" : "Z"}`),
-      lat: Number(flash.lat),
-      lon: Number(flash.lon),
+    const flashes = normalizeHistoryFlashes(payload.flashes);
+    return json(response, 200, { configured: true, flashes });
+  } catch {
+    return json(response, 502, { configured: true, error: "The history provider could not be reached." });
+  }
+}
+
+export function normalizeHistoryFlashes(input) {
+  if (!Array.isArray(input)) return [];
+  return input.map((flash) => {
+    const timestamp = String(flash?.flash_timestamp_utc || "");
+    if (flash?.flash_id == null || flash?.lat == null || flash?.lon == null) return null;
+    return {
+      id: `provider:${flash?.flash_id}`,
+      time: Date.parse(`${timestamp}${timestamp.endsWith("Z") || /[+-]\d\d:\d\d$/.test(timestamp) ? "" : "Z"}`),
+      lat: Number(flash?.lat),
+      lon: Number(flash?.lon),
       polarity: 0,
       deviation: 0,
-    })).filter((flash) => Number.isFinite(flash.time) && Number.isFinite(flash.lat) && Number.isFinite(flash.lon));
-    return json(response, 200, { configured: true, flashes });
-  } catch (error) {
-    return json(response, 502, { configured: true, error: error.message });
-  }
+    };
+  }).filter((flash) => flash
+    && Number.isFinite(flash.time) && Number.isFinite(flash.lat) && Number.isFinite(flash.lon)
+    && Math.abs(flash.lat) <= 90 && Math.abs(flash.lon) <= 180);
 }
 
 async function checkForUpdate(response) {

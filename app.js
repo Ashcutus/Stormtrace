@@ -41,6 +41,8 @@
   const $ = (selector) => document.querySelector(selector);
   const $$ = (selector) => [...document.querySelectorAll(selector)];
   const nativeBridge = window.webkit?.messageHandlers?.stormtrace || null;
+  const { readSettings, readRangeSetting, saveSettings: writeSettings } = globalThis.StormtraceSettings;
+  const { locationErrorMessage } = globalThis.StormtraceLocation;
 
   document.body.classList.toggle("native-shell", Boolean(nativeBridge));
 
@@ -100,6 +102,7 @@
     historyState: $("#historyState"),
     clock: $("#clock"),
     toastStack: $("#toastStack"),
+    appVersion: $("#appVersion"),
   };
 
   const persisted = readSettings();
@@ -157,6 +160,7 @@
 
   async function init() {
     bindControls();
+    refreshAppMetadata();
     updateClock();
     setInterval(() => { updateClock(); updateRelativeTimes(); }, 10000);
     updateRadiusUI();
@@ -177,6 +181,15 @@
 
     initMap();
     await startReceiver();
+  }
+
+  async function refreshAppMetadata() {
+    try {
+      const response = await fetch("/api/health", { cache: "no-store" });
+      if (!response.ok) return;
+      const payload = await response.json();
+      if (/^\d+\.\d+\.\d+$/.test(payload.version)) els.appVersion.textContent = `v${payload.version}`;
+    } catch { /* the connection status already reports local server failures */ }
   }
 
   async function startReceiver() {
@@ -1181,7 +1194,7 @@
         (error) => {
           els.enableLocationButton.disabled = false;
           els.enableLocationButton.textContent = "Try location again";
-          els.permissionNote.textContent = error.code === 1 ? "Location permission was declined. Check your system privacy settings." : "Your position could not be determined. Try again in a moment.";
+          els.permissionNote.textContent = locationErrorMessage(error);
           toast("Location not set", els.permissionNote.textContent);
           resolve(false);
         },
@@ -1425,18 +1438,8 @@
     return span.innerHTML;
   }
 
-  function readSettings() {
-    try { return JSON.parse(localStorage.getItem("stormtrace:settings") || "{}"); }
-    catch { return {}; }
-  }
-
-  function readRangeSetting(value, fallback, min, max) {
-    const number = Number(value);
-    return Number.isFinite(number) ? Math.min(max, Math.max(min, number)) : fallback;
-  }
-
   function saveSettings() {
-    localStorage.setItem("stormtrace:settings", JSON.stringify({
+    return writeSettings({
       window: state.selectedWindow,
       radiusMiles: state.radiusMiles,
       notificationsEnabled: state.notificationsEnabled,
@@ -1446,7 +1449,7 @@
       mapBrightness: state.mapBrightness,
       mapOpacity: state.mapOpacity,
       mapShade: state.mapShade,
-    }));
+    });
   }
 
   function openDatabase() {

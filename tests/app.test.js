@@ -268,6 +268,28 @@ test("distances are reused and invalidated only when the location coordinates ch
   assert.equal(app.strikeDistance(row), Infinity);
 });
 
+test("location failures explain the actionable Omarchy cause", () => {
+  const app = loadApp();
+  assert.equal(app.locationErrorMessage({ code: 1 }),
+    "Location permission was declined. Check your system privacy settings.");
+  assert.equal(app.locationErrorMessage({ code: 2 }),
+    "The system location service is unavailable. On Omarchy, install or check GeoClue.");
+  assert.equal(app.locationErrorMessage({ code: 3 }),
+    "Location lookup timed out. Check your connection and try again.");
+  assert.equal(app.locationErrorMessage({}),
+    "Your position could not be determined. Try again in a moment.");
+});
+
+test("settings failures do not interrupt location or interface updates", () => {
+  const app = loadApp({ storage: {
+    getItem() { throw new Error("Storage disabled"); },
+    setItem() { throw new Error("Quota exceeded"); },
+  } });
+  app.state.userLocation = { lat: 51.5, lon: -0.12, accuracy: 1000 };
+  assert.equal(app.saveSettings(), false);
+  assert.deepEqual(app.state.userLocation, { lat: 51.5, lon: -0.12, accuracy: 1000 });
+});
+
 test("bar health validation rejects unrelated servers, bad JSON, wrong versions and paths", () => {
   const qml = readFileSync(new URL("../BarWidget.qml", import.meta.url), "utf8");
   const code = qml.match(/  function healthMatches\(output\) \{[\s\S]*?\n  \}/)[0];
