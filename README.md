@@ -52,7 +52,7 @@ Stormtrace follows the active Omarchy theme automatically. The Appearance panel 
 Install the native runtime once:
 
 ```bash
-omarchy pkg add python-gobject gtk3 webkit2gtk-4.1
+omarchy pkg add python-gobject gtk3 webkit2gtk-4.1 geoclue
 ```
 
 Add and enable Stormtrace:

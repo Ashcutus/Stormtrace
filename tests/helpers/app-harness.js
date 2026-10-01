@@ -4,12 +4,15 @@ import vm from "node:vm";
 // Run the actual application functions without starting a network feed or GTK.
 // These exports exist only in the in-memory test copy of the script.
 const source = readFileSync(new URL("../../app.js", import.meta.url), "utf8");
+const settingsSource = readFileSync(new URL("../../client/settings.js", import.meta.url), "utf8");
+const locationSource = readFileSync(new URL("../../client/location.js", import.meta.url), "utf8");
 const exports = [
   "state", "els", "ingestStrikes", "appendStrikeTimeline", "trimMemory",
   "timelineIndexAtOrAfter", "displayLongitude", "strikeIsInBounds", "render",
   "scheduleStats", "selectWindow", "handleVisibilityChange", "strikeDistance",
   "updateProximityStats", "loadHistory", "storeStrikes", "flushStrikes", "startDemo",
   "startReceiver", "refreshOmarchyTheme", "selectThemeSource",
+  "locationErrorMessage", "saveSettings",
 ];
 
 function element() {
@@ -29,7 +32,7 @@ function element() {
   };
 }
 
-export function loadApp({ search = "", indexedDB, fetch = async () => ({ ok: true, json: async () => ({ available: false }) }) } = {}) {
+export function loadApp({ search = "", indexedDB, storage, fetch = async () => ({ ok: true, json: async () => ({ available: false }) }) } = {}) {
   let now = 1800000000000;
   let nextTimer = 1;
   const timers = new Map();
@@ -56,8 +59,9 @@ export function loadApp({ search = "", indexedDB, fetch = async () => ({ ok: tru
     location: { search },
     URLSearchParams,
     window: {},
+    navigator: {},
     document,
-    localStorage: { getItem: () => null, setItem() {} },
+    localStorage: storage || { getItem: () => null, setItem() {} },
     fetch,
     indexedDB,
     WebSocket: class {
@@ -103,6 +107,8 @@ export function loadApp({ search = "", indexedDB, fetch = async () => ({ ok: tru
       },
     },
   });
+  vm.runInContext(settingsSource, context);
+  vm.runInContext(locationSource, context);
   vm.runInContext(source.replace("  init();", `  globalThis.app = {${exports.join(",")}};`), context);
   const app = context.app;
   app.state.themeSignature = JSON.stringify({ available: false });
