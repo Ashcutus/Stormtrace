@@ -42,7 +42,7 @@
   const $$ = (selector) => [...document.querySelectorAll(selector)];
   const nativeBridge = window.webkit?.messageHandlers?.stormtrace || null;
   const { readSettings, readRangeSetting, saveSettings: writeSettings } = globalThis.StormtraceSettings;
-  const { locationErrorMessage } = globalThis.StormtraceLocation;
+  const { locationErrorMessage, validLocation, locate } = globalThis.StormtraceLocation;
 
   document.body.classList.toggle("native-shell", Boolean(nativeBridge));
 
@@ -126,7 +126,9 @@
     selectedWindow: persisted.window || "live",
     radiusMiles: persisted.radiusMiles || 20,
     notificationsEnabled: Boolean(persisted.notificationsEnabled),
-    userLocation: persisted.userLocation || null,
+    userLocation: validLocation({ latitude: persisted.userLocation?.lat,
+      longitude: persisted.userLocation?.lon, accuracy: persisted.userLocation?.accuracy })
+      ? persisted.userLocation : null,
     lastAlertAt: 0,
     lastStrike: null,
     strikeMarkers: new Map(),
@@ -1178,29 +1180,25 @@
     }
     els.enableLocationButton.disabled = true;
     els.enableLocationButton.textContent = "Locating…";
-    return new Promise((resolve) => {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          state.userLocation = { lat: position.coords.latitude, lon: position.coords.longitude, accuracy: position.coords.accuracy };
-          updateLocationLayers();
-          updateLocationUI();
-          updateLatestStrike();
-          updateProximityStats();
-          saveSettings();
-          state.map?.flyTo([state.userLocation.lat, state.userLocation.lon], 6, { duration: 1.1 });
-          toast("Location set", `${formatCoordinates(state.userLocation.lat, state.userLocation.lon)} · stored on this device.`);
-          resolve(true);
-        },
-        (error) => {
-          els.enableLocationButton.disabled = false;
-          els.enableLocationButton.textContent = "Try location again";
-          els.permissionNote.textContent = locationErrorMessage(error);
-          toast("Location not set", els.permissionNote.textContent);
-          resolve(false);
-        },
-        { enableHighAccuracy: false, timeout: 12000, maximumAge: 15 * 60 * 1000 },
-      );
-    });
+    try {
+      const position = await locate(navigator.geolocation);
+      state.userLocation = { lat: position.coords.latitude, lon: position.coords.longitude, accuracy: position.coords.accuracy };
+      updateLocationLayers();
+      updateLocationUI();
+      updateLatestStrike();
+      updateProximityStats();
+      saveSettings();
+      state.map?.flyTo([state.userLocation.lat, state.userLocation.lon], 6, { duration: 1.1 });
+      els.permissionNote.textContent = `Location accuracy: approximately ${formatMiles(position.coords.accuracy / 1609.344)}.`;
+      toast("Location set", `${formatCoordinates(state.userLocation.lat, state.userLocation.lon)} · stored on this device.`);
+      return true;
+    } catch (error) {
+      els.enableLocationButton.disabled = false;
+      els.enableLocationButton.textContent = "Try location again";
+      els.permissionNote.textContent = locationErrorMessage(error);
+      toast("Location not set", els.permissionNote.textContent);
+      return false;
+    }
   }
 
   function updateLocationUI() {

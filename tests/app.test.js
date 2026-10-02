@@ -307,3 +307,73 @@ test("bar health validation rejects unrelated servers, bad JSON, wrong versions 
   context.canonicalSourceDir = "";
   assert.equal(context.healthMatches(JSON.stringify(valid)), false);
 });
+
+test("location waits for Warrington after a coarse London fix and releases the watch", async () => {
+  const app = loadApp();
+  let success;
+  const cleared = [];
+  const pending = app.locate({
+    watchPosition(callback, error, options) {
+      success = callback;
+      assert.equal(options.enableHighAccuracy, true);
+      assert.equal(options.maximumAge, 0);
+      return 7;
+    },
+    clearWatch(id) { cleared.push(id); },
+  });
+  success({ coords: { latitude: 51.5074, longitude: -0.1278, accuracy: 100000 } });
+  assert.deepEqual(cleared, []);
+  const warrington = { coords: { latitude: 53.3900, longitude: -2.5970, accuracy: 100 } };
+  success(warrington);
+  assert.equal(await pending, warrington);
+  assert.deepEqual(cleared, [7]);
+  assert.equal(app.timers.size, 0);
+});
+
+test("coarse location times out without replacing the saved position", async () => {
+  const app = loadApp();
+  const previous = { lat: 53.39, lon: -2.597, accuracy: 100 };
+  app.state.userLocation = previous;
+  const cleared = [];
+  app.navigator.geolocation = {
+    watchPosition(success) {
+      queueMicrotask(() => success({ coords: { latitude: 51.5, longitude: -0.12, accuracy: 100000 } }));
+      return 8;
+    },
+    clearWatch(id) { cleared.push(id); },
+  };
+  const pending = app.requestLocation();
+  await Promise.resolve();
+  app.advance(30000);
+  assert.equal(await pending, false);
+  assert.equal(app.state.userLocation, previous);
+  assert.match(app.elements.get("#permissionNote").textContent, /broad estimate/);
+  assert.equal(app.elements.get("#enableLocationButton").disabled, false);
+  assert.deepEqual(cleared, [8]);
+});
+
+test("coarse saved locations and malformed coordinates are rejected", () => {
+  const app = loadApp({ storage: {
+    getItem: () => JSON.stringify({ userLocation: { lat: 51.5, lon: -0.12, accuracy: 100000 } }),
+    setItem() {},
+  } });
+  assert.equal(app.state.userLocation, null);
+  for (const coords of [null, {}, { latitude: 91, longitude: 0, accuracy: 1 },
+    { latitude: 53, longitude: -2, accuracy: -1 }, { latitude: 53, longitude: NaN, accuracy: 1 }]) {
+    assert.ok(!app.validLocation(coords));
+  }
+});
+
+test("location permission errors clean up the watch and timer", async () => {
+  const app = loadApp();
+  const cleared = [];
+  let fail;
+  const pending = app.locate({
+    watchPosition(success, error) { fail = error; return 9; },
+    clearWatch(id) { cleared.push(id); },
+  });
+  fail({ code: 1 });
+  await assert.rejects(pending, (error) => error.code === 1);
+  assert.deepEqual(cleared, [9]);
+  assert.equal(app.timers.size, 0);
+});

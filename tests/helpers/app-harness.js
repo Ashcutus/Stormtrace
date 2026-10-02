@@ -12,7 +12,7 @@ const exports = [
   "scheduleStats", "selectWindow", "handleVisibilityChange", "strikeDistance",
   "updateProximityStats", "loadHistory", "storeStrikes", "flushStrikes", "startDemo",
   "startReceiver", "refreshOmarchyTheme", "selectThemeSource",
-  "locationErrorMessage", "saveSettings",
+  "locationErrorMessage", "validLocation", "locate", "requestLocation", "saveSettings",
 ];
 
 function element() {
@@ -24,6 +24,8 @@ function element() {
     style: { setProperty() {} },
     classList: { toggle() {} },
     addEventListener() {},
+    append() {},
+    remove() {},
     querySelectorAll: () => [],
     get textContent() { return value; },
     set textContent(text) { this.writes++; value = String(text); html = null; },
@@ -125,7 +127,7 @@ export function loadApp({ search = "", indexedDB, storage, fetch = async () => (
     removeLayer(marker) { markers.delete(marker); },
   };
   return {
-    ...app, document, elements, bounds, markers, timers, sockets,
+    ...app, navigator: context.navigator, document, elements, bounds, markers, timers, sockets,
     now: () => now,
     advance(milliseconds) {
       const target = now + milliseconds;
