@@ -62,6 +62,7 @@
 		getEvents: function() {
 			return {
 				move: this._update,
+				moveend: this._update,
 				zoomanim: this._animateZoom,
 				zoom: this._pinchZoom,
 				zoomstart: this._zoomStart,
@@ -163,11 +164,18 @@
 		},
 		_update: function(e) {
 			if (!this._map) return;
-			this._offset = this._map.containerPointToLayerPoint([0, 0]);
-			if (this._zooming) return;
-			var container = this._container, gl = this._glMap, offset = this._map.getSize().multiplyBy(this.options.padding), topLeft = this._map.containerPointToLayerPoint([0, 0]).subtract(offset);
-			L.DomUtil.setPosition(container, this._roundPoint(topLeft));
-			this._transformGL(gl);
+			var origin = this._map.containerPointToLayerPoint([0, 0]);
+			if (this._zooming && e?.type !== "zoom") return;
+			var offset = this._map.getSize().multiplyBy(this.options.padding);
+			// Keep the basemap in the same moving pane as the markers while
+			// its padded canvas still covers the viewport. Rebasing every move
+			// makes the GL paint and the overlay's compositor transform diverge.
+			if (e?.type === "move" && this._renderedZoom === this._map.getZoom()
+				&& Math.abs(origin.x - this._offset.x) < offset.x
+				&& Math.abs(origin.y - this._offset.y) < offset.y) return;
+			this._offset = origin;
+			L.DomUtil.setPosition(this._container, this._roundPoint(origin.subtract(offset)));
+			this._transformGL(this._glMap);
 		},
 		_transformGL: function(gl) {
 			var center = this._map.getCenter();
@@ -178,12 +186,12 @@
 			// Leaflet moves the container immediately. Paint the matching camera
 			// before the browser composites it, rather than one frame later.
 			gl.redraw();
+			this._renderedZoom = this._map.getZoom();
 		},
 		_pinchZoom: function(e) {
-			this._glMap.jumpTo({
-				zoom: this._map.getZoom() - 1,
-				center: this._map.getCenter()
-			});
+			// Continuous zoom (including flyTo) must rebase and paint in the
+			// same frame as Leaflet's marker renderer.
+			this._update({ type: "zoom" });
 		},
 		_animateZoom: function(e) {
 			var scale = this._map.getZoomScale(e.zoom);
