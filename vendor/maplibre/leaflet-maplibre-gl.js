@@ -50,10 +50,8 @@
 			map.getPane(paneName).appendChild(this._container);
 			this._initGL();
 			this._offset = this._map.containerPointToLayerPoint([0, 0]);
-			if (map.options.zoomAnimation) L.DomEvent.on(map._proxy, L.DomUtil.TRANSITION_END, this._transitionEnd, this);
 		},
 		onRemove: function(map) {
-			if (this._map._proxy && this._map.options.zoomAnimation) L.DomEvent.off(this._map._proxy, L.DomUtil.TRANSITION_END, this._transitionEnd, this);
 			var paneName = this.getPaneName();
 			map.getPane(paneName).removeChild(this._container);
 			this._glMap.remove();
@@ -126,6 +124,8 @@
 				container: this._container,
 				center: [center.lng, center.lat],
 				zoom: this._map.getZoom() - 1,
+				// Panning reuses the painted canvas between camera updates.
+				preserveDrawingBuffer: true,
 				attributionControl: false
 			});
 			this._glMap = new maplibre_gl.Map(options);
@@ -189,11 +189,15 @@
 			this._renderedZoom = this._map.getZoom();
 		},
 		_pinchZoom: function(e) {
+			// CSS zoom scales the existing image; repaint only after its
+			// transform is removed at zoomend, avoiding double scaling.
+			if (this._cssZooming) return;
 			// Continuous zoom (including flyTo) must rebase and paint in the
 			// same frame as Leaflet's marker renderer.
 			this._update({ type: "zoom" });
 		},
 		_animateZoom: function(e) {
+			this._cssZooming = true;
 			var scale = this._map.getZoomScale(e.zoom);
 			var padding = this._map.getSize().multiplyBy(this.options.padding * scale);
 			var viewHalf = this.getSize()._divideBy(2);
@@ -208,26 +212,13 @@
 			var scale = this._map.getZoomScale(this._map.getZoom());
 			L.DomUtil.setTransform(this._glMap._actualCanvas, null, scale);
 			this._zooming = false;
+			this._cssZooming = false;
 			this._update();
 		},
-		_transitionEnd: function(e) {
-			L.Util.requestAnimFrame(function() {
-				var zoom = this._map.getZoom();
-				var center = this._map.getCenter();
-				var offset = this._map.latLngToContainerPoint(this._map.getBounds().getNorthWest());
-				this._resizeContainer();
-				L.DomUtil.setTransform(this._glMap._actualCanvas, offset, 1);
-				this._glMap.once("moveend", L.Util.bind(function() {
-					this._zoomEnd();
-				}, this));
-				this._glMap.jumpTo({
-					center,
-					zoom: zoom - 1
-				});
-			}, this);
-		},
-		_resize: function(e) {
-			this._transitionEnd(e);
+		_resize: function() {
+			this._resizeContainer();
+			this._glMap.resize();
+			this._update();
 		}
 	});
 	var maplibreGL = function(options) {
