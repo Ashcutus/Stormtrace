@@ -1,5 +1,6 @@
 /* jshint esversion: 6, -W008, -W030, -W083 */
-// Generated from src/leaflet-maplibre-gl.mjs. Run `npm run build` to update.
+// Generated from src/leaflet-maplibre-gl.mjs.
+// Stormtrace patch: synchronize camera and canvas updates during Leaflet movement.
 (function(global, factory) {
 	typeof exports === "object" && typeof module !== "undefined" ? factory(exports, require("leaflet"), require("maplibre-gl")) : typeof define === "function" && define.amd ? define([
 		"exports",
@@ -36,14 +37,12 @@
 	var L = leaflet.default || leaflet;
 	var MaplibreGL = L.Layer.extend({
 		options: {
-			updateInterval: 32,
 			padding: .1,
 			interactive: false,
 			pane: "tilePane"
 		},
 		initialize: function(options) {
 			L.setOptions(this, options);
-			this._throttledUpdate = L.Util.throttle(this._update, this.options.updateInterval, this);
 		},
 		onAdd: function(map) {
 			if (!this._container) this._initContainer();
@@ -62,7 +61,7 @@
 		},
 		getEvents: function() {
 			return {
-				move: this._throttledUpdate,
+				move: this._update,
 				zoomanim: this._animateZoom,
 				zoom: this._pinchZoom,
 				zoomstart: this._zoomStart,
@@ -176,6 +175,9 @@
 				center: [center.lng, center.lat],
 				zoom: this._map.getZoom() - 1
 			});
+			// Leaflet moves the container immediately. Paint the matching camera
+			// before the browser composites it, rather than one frame later.
+			gl.redraw();
 		},
 		_pinchZoom: function(e) {
 			this._glMap.jumpTo({
