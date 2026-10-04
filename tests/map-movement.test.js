@@ -7,9 +7,14 @@ function bridge() {
   const calls = [];
   const L = {
     Layer: { extend: (methods) => methods },
-    DomUtil: { setPosition: (_, position) => calls.push(["position", position.x, position.y]) },
+    DomUtil: {
+      setPosition: (_, position) => calls.push(["position", position.x, position.y]),
+      setTransform: (_, offset, scale) => calls.push(["transform", scale]),
+      addClass() {},
+    },
+    extend: Object.assign,
   };
-  const context = vm.createContext({ L, maplibregl: {} });
+  const context = vm.createContext({ L, maplibregl: { Map: null } });
   vm.runInContext(readFileSync(new URL("../vendor/maplibre/leaflet-maplibre-gl.js", import.meta.url), "utf8"), context);
   const layer = Object.create(L.MaplibreGL);
   const view = { x: 0, y: 0, lng: 0, zoom: 4 };
@@ -18,6 +23,7 @@ function bridge() {
   layer._map = {
     getCenter: () => ({ lat: 18, lng: view.lng }),
     getZoom: () => view.zoom,
+    getZoomScale: () => 1,
     getSize: () => ({ multiplyBy: () => ({ x: 80, y: 60 }) }),
     containerPointToLayerPoint: () => ({
       x: view.x, y: view.y,
@@ -30,7 +36,7 @@ function bridge() {
   };
   layer._update();
   calls.length = 0;
-  return { layer, view, calls };
+  return { layer, view, calls, context };
 }
 
 test("dragging keeps the padded basemap in the same moving pane as markers", () => {
@@ -79,4 +85,40 @@ test("continuous zoom rebases and paints each frame while zooming", () => {
   layer._map = null;
   layer.getEvents().move.call(layer, { type: "move" });
   assert.equal(calls.length, 9, "animated zoom move events and detached layers skip pan updates");
+});
+
+
+test("GL initialization preserves the canvas image between pan updates", () => {
+  const { layer, context } = bridge();
+  let options;
+  context.maplibregl.Map = class {
+    constructor(value) { options = value; this._canvas = {}; }
+    on() {}
+    setTransformConstrain() {}
+  };
+  layer.getAttribution = () => "";
+  layer._transformGL = () => {};
+  layer._initGL();
+  assert.equal(options.preserveDrawingBuffer, true);
+});
+
+test("CSS zoom retains the painted image until the scale transform is removed", () => {
+  const { layer, view, calls } = bridge();
+  layer._cssZooming = true;
+  layer._zooming = true;
+  view.zoom = 5;
+  layer.getEvents().zoom.call(layer, { type: "zoom" });
+  assert.equal(calls.length, 0, "no new camera image beneath the active CSS scale");
+  layer.getEvents().zoomend.call(layer);
+  assert.deepEqual(calls.map((call) => call[0]), ["transform", "position", "camera", "paint"]);
+  assert.equal(layer._cssZooming, false);
+  assert.equal(layer._zooming, false);
+});
+
+test("resize restores a painted camera without a deferred zoom transition", () => {
+  const { layer, calls } = bridge();
+  layer._resizeContainer = () => calls.push(["size"]);
+  layer._glMap.resize = () => calls.push(["resize"]);
+  layer.getEvents().resize.call(layer);
+  assert.deepEqual(calls.map((call) => call[0]), ["size", "resize", "position", "camera", "paint"]);
 });
