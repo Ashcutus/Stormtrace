@@ -96,10 +96,14 @@ test("GL initialization preserves the canvas image between pan updates", () => {
     on() {}
     setTransformConstrain() {}
   };
+  layer.options.canvasContextAttributes = { antialias: true, preserveDrawingBuffer: false };
   layer.getAttribution = () => "";
   layer._transformGL = () => {};
   layer._initGL();
-  assert.equal(options.preserveDrawingBuffer, true);
+  assert.equal(options.canvasContextAttributes.preserveDrawingBuffer, true);
+  assert.equal(options.canvasContextAttributes.antialias, true);
+  assert.equal(options.preserveDrawingBuffer, undefined);
+  assert.equal(layer.options.canvasContextAttributes.preserveDrawingBuffer, false);
 });
 
 test("CSS zoom retains the painted image until the scale transform is removed", () => {
