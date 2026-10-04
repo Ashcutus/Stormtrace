@@ -12,7 +12,7 @@ const exports = [
   "scheduleStats", "selectWindow", "handleVisibilityChange", "strikeDistance",
   "updateProximityStats", "loadHistory", "storeStrikes", "flushStrikes", "startDemo",
   "startReceiver", "refreshOmarchyTheme", "selectThemeSource",
-  "locationErrorMessage", "validLocation", "locate", "requestLocation", "saveSettings", "useApproximateLocation", "setManualLocation",
+  "locationErrorMessage", "validLocation", "locate", "requestLocation", "saveSettings", "useApproximateLocation", "setManualLocation", "toggleMapLocation", "setMapLocation",
 ];
 
 function element() {
@@ -24,6 +24,7 @@ function element() {
     style: { setProperty() {} },
     classList: { toggle() {} },
     addEventListener() {},
+    setAttribute() {},
     append() {},
     remove() {},
     querySelectorAll: () => [],

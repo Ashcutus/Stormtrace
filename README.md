@@ -37,13 +37,19 @@ Hover a marker for a quick anchored preview. Select it for persistent details th
 
 ### Track activity and what is near you
 
-The sidebar combines visible activity, rate changes, ranked hotspots, and proximity monitoring. Your chosen location and alert radius stay on the device.
+The sidebar combines visible activity, rate changes, ranked hotspots, and proximity monitoring. Your chosen location and alert radius stay on the device. Use `Set here` to choose a monitoring point directly on the map, or enter coordinates manually.
 
 ![Stormtrace activity index and safety radius](docs/screenshots/activity-monitoring.png)
 
+### Choose a monitoring point on the map
+
+Zoom and drag to find your location, select `Set here`, then click the exact point you want to monitor. The cursor changes to a crosshair while selecting; use `Cancel` or press `Escape` to leave without changing your saved point. This works even when automatic location is unavailable.
+
+![Stormtrace map location selection with English place labels](docs/screenshots/manual-location.png)
+
 ### Make it feel native to your desktop
 
-Stormtrace follows the active Omarchy theme automatically. The Appearance panel also provides a private custom palette plus brightness, opacity, and edge-shade controls for the map.
+Stormtrace follows the active Omarchy theme automatically. The map uses a light OpenFreeMap style independently of the UI theme, with English place names where available and Latin-script fallbacks. WebGL is required; unsupported systems fall back to standard OpenStreetMap tiles with local labels. The Appearance panel also provides a private custom palette plus brightness, opacity, and edge-shade controls for the map.
 
 ![Stormtrace theme and map appearance controls](docs/screenshots/appearance-controls.png)
 
@@ -82,7 +88,8 @@ The plugin does not use install hooks, `sudo`, or a boot-enabled service. Its lo
 | Drag / scroll | Move or zoom the map. |
 | `Live` / `1h` / `6h` / `24h` | Change the strike-age window. |
 | `Focus` | Move to the leading activity hotspot. |
-| `Set location` | Request a fresh position for distance and alerts (up to 30 seconds). Ethernet is supported. If only an estimate over 5 km is available, review its coordinates and uncertainty before choosing to use it. Enter coordinates manually for a fixed monitoring point. |
+| `Set location` | Request a fresh position for distance and alerts (up to 30 seconds). Ethernet is supported. If only an estimate over 5 km is available, review its coordinates and uncertainty before choosing to use it. You can also enter coordinates manually. |
+| `Set here` | Select a manual monitoring point by clicking the map. `Cancel` or `Escape` leaves your saved point unchanged. |
 | `Near me` | Enable or disable private desktop notifications. |
 | Alert radius | Choose a proximity threshold from 5 to 50 miles. |
 | Pause / play | Stop or resume the live feed while keeping the map and history open. |
@@ -101,6 +108,7 @@ The plugin does not use install hooks, `sudo`, or a boot-enabled service. Its lo
 | `P` | Pause or resume monitoring. |
 | `R` | Reconnect the live receiver. |
 | `+` / `−` | Zoom the map. |
+| `Escape` | Cancel selection of a monitoring point on the map. |
 | `F11` | Enter fullscreen or return to the contained window. |
 | `Ctrl+Q` | Exit Stormtrace and stop its local service. |
 
@@ -170,7 +178,7 @@ If a previous crash left the local service running, stop it safely with:
 
 ### The map is blank or strikes are missing
 
-The map needs network access for Leaflet, OpenStreetMap tiles, and the live WebSocket feed. Use the refresh button or press `R` to reconnect. The built-in demo feed can confirm that the interface itself is working.
+The map needs network access for OpenFreeMap tiles (or fallback OpenStreetMap tiles), and the live WebSocket feed. Use the refresh button or press `R` to reconnect. The built-in demo feed can confirm that the interface itself is working.
 
 ### Older time windows are empty
 

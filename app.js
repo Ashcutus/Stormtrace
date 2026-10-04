@@ -153,7 +153,7 @@
     themeSource: persisted.themeSource === "custom" ? "custom" : "system",
     mapBrightness: readRangeSetting(persisted.mapBrightness, 100, 70, 140),
     mapOpacity: readRangeSetting(persisted.mapOpacity, 100, 55, 100),
-    mapShade: readRangeSetting(persisted.mapShade, 45, 0, 60),
+    mapShade: readRangeSetting(persisted.mapShade, 10, 0, 60),
     systemPalette: FALLBACK_PALETTE,
     customPalette: persisted.customPalette || null,
     activePalette: FALLBACK_PALETTE,
@@ -234,17 +234,25 @@
       center: [18, 6],
       zoom: 2,
       minZoom: 2,
-      maxZoom: 12,
+      maxZoom: 18,
       zoomControl: false,
       attributionControl: false,
       worldCopyJump: true,
       preferCanvas: true,
     });
 
-    state.tileLayer = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom: 19,
-      crossOrigin: true,
-    }).addTo(state.map);
+    try {
+      state.tileLayer = L.maplibreGL({
+        style: "/client/map-style.json",
+        attributionControl: false,
+      }).addTo(state.map);
+    } catch (error) {
+      // Software-rendered WebKit installations may not support WebGL.
+      state.tileLayer = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19, crossOrigin: true,
+      }).addTo(state.map);
+      toast("Standard map loaded", "English labels require WebGL. Search results still use English.");
+    }
     applyMapAppearance();
 
     state.strikeLayer = L.layerGroup().addTo(state.map);
@@ -255,6 +263,7 @@
       updateMapReadout();
       scheduleRender();
     });
+    state.map.on("click", setMapLocation);
     updateMapReadout();
     updateLocationLayers();
   }
@@ -280,6 +289,7 @@
     $("#zoomIn").addEventListener("click", () => state.map?.zoomIn());
     $("#zoomOut").addEventListener("click", () => state.map?.zoomOut());
     $("#worldView").addEventListener("click", () => state.map?.setView([18, 6], 2));
+    $("#setHere").addEventListener("click", toggleMapLocation);
     els.locationButton.addEventListener("click", requestLocation);
     els.enableLocationButton.addEventListener("click", requestLocation);
     els.approximateLocationButton.addEventListener("click", useApproximateLocation);
@@ -365,6 +375,7 @@
         postNativeAction("quit");
         return;
       }
+      if (key === "escape" && choosingMapLocation) toggleMapLocation();
       if (event.target.matches("input, textarea")) return;
       if (key === "/") {
         event.preventDefault();
@@ -480,7 +491,8 @@
   function applyMapAppearance() {
     document.documentElement.style.setProperty("--map-brightness", String(state.mapBrightness / 100));
     document.documentElement.style.setProperty("--map-shade-opacity", String(state.mapShade / 100));
-    state.tileLayer?.setOpacity(state.mapOpacity / 100);
+    if (state.tileLayer?.setOpacity) state.tileLayer.setOpacity(state.mapOpacity / 100);
+    else if (state.tileLayer?.getContainer()) state.tileLayer.getContainer().style.opacity = String(state.mapOpacity / 100);
     updateMapAppearanceUI();
   }
 
@@ -1179,11 +1191,36 @@
     $$(".segment").forEach((button) => button.classList.toggle("active", button.dataset.window === state.selectedWindow));
   }
 
+  let choosingMapLocation = false;
+
+  function toggleMapLocation() {
+    choosingMapLocation = !choosingMapLocation;
+    $("#setHere").textContent = choosingMapLocation ? "Cancel" : "Set here";
+    $("#setHere").setAttribute("aria-pressed", String(choosingMapLocation));
+    $("#map").classList.toggle("choosing-location", choosingMapLocation);
+    if (choosingMapLocation) toast("Choose your location", "Zoom and drag to find your point, then click the map to save it.");
+  }
+
+  function setMapLocation(event) {
+    if (!choosingMapLocation) return;
+    const coords = {
+      latitude: event.latlng.lat,
+      longitude: ((event.latlng.lng + 180) % 360 + 360) % 360 - 180,
+      accuracy: 0,
+    };
+    if (!validLocation(coords)) return;
+    locationGeneration++;
+    applyLocation(coords, "manual", false);
+    els.manualLatitude.value = String(coords.latitude);
+    els.manualLongitude.value = String(coords.longitude);
+    toggleMapLocation();
+  }
+
   let locationRequest = null;
   let locationGeneration = 0;
   let approximatePosition = null;
 
-  function applyLocation(coords, source = "automatic") {
+  function applyLocation(coords, source = "automatic", recenter = true) {
     state.userLocation = { lat: coords.latitude, lon: coords.longitude, accuracy: coords.accuracy, source };
     approximatePosition = null;
     els.approximateLocationButton.hidden = true;
@@ -1192,7 +1229,7 @@
     updateLatestStrike();
     updateProximityStats();
     saveSettings();
-    state.map?.flyTo?.([state.userLocation.lat, state.userLocation.lon], 6, { duration: 1.1 });
+    if (recenter) state.map?.flyTo?.([state.userLocation.lat, state.userLocation.lon], 6, { duration: 1.1 });
     els.permissionNote.textContent = source === "manual"
       ? "Monitoring your manually chosen point. Stored on this device."
       : `Location uncertainty: approximately ${formatMiles(coords.accuracy / 1609.344)}. Distances and alerts use the estimated centre.`;
@@ -1395,7 +1432,7 @@
     els.searchResults.hidden = false;
     els.searchResults.innerHTML = '<div class="empty-state" style="padding:9px">Searching map index…</div>';
     try {
-      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&q=${encodeURIComponent(value)}`, {
+      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&accept-language=en&q=${encodeURIComponent(value)}`, {
         headers: { Accept: "application/json" },
       });
       if (!response.ok) throw new Error(`Search returned ${response.status}`);
