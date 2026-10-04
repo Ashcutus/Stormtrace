@@ -443,3 +443,24 @@ test("transient provider errors allow improvement and the best broad estimate is
   assert.deepEqual(cleared, [12]);
   assert.equal(app.timers.size, 0);
 });
+
+
+test("map selection saves a wrapped manual point and supersedes pending automatic location", async () => {
+  const app = loadApp();
+  let success;
+  app.navigator.geolocation = { watchPosition(callback) { success = callback; return 12; }, clearWatch() {} };
+  const pending = app.requestLocation();
+  app.toggleMapLocation();
+  app.setMapLocation({ latlng: { lat: 53.39, lng: 357.403 } });
+  assert.equal(app.state.userLocation.lat, 53.39);
+  assert.ok(Math.abs(app.state.userLocation.lon + 2.597) < 1e-9);
+  assert.equal(app.state.userLocation.source, "manual");
+  assert.equal(app.elements.get("#setHere").textContent, "Set here");
+  success({ coords: { latitude: 51.5, longitude: 0, accuracy: 100 } });
+  assert.equal(await pending, false);
+  assert.equal(app.state.userLocation.lat, 53.39);
+  app.toggleMapLocation();
+  app.toggleMapLocation();
+  app.setMapLocation({ latlng: { lat: 0, lng: 0 } });
+  assert.equal(app.state.userLocation.lat, 53.39);
+});

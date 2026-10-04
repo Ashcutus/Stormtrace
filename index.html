@@ -10,6 +10,7 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="stylesheet" href="/vendor/leaflet/leaflet.css" />
     <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/vendor/maplibre/maplibre-gl.css" />
   </head>
   <body>
     <noscript>Stormtrace requires JavaScript to render its live map.</noscript>
@@ -101,6 +102,7 @@
           </div>
 
           <div class="map-controls" aria-label="Map controls">
+            <button id="setHere" aria-pressed="false" title="Choose a manual monitoring point on the map">Set here</button>
             <button id="zoomIn" aria-label="Zoom in">+</button>
             <button id="zoomOut" aria-label="Zoom out">−</button>
             <button id="worldView" aria-label="Reset to world view" title="World view">
@@ -108,7 +110,7 @@
             </button>
           </div>
 
-          <a class="map-credit" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap</a>
+          <div class="map-credit"><a href="https://openfreemap.org/" target="_blank" rel="noreferrer">OpenFreeMap</a> · <a href="https://openmaptiles.org/" target="_blank" rel="noreferrer">© OpenMapTiles</a> · <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap</a></div>
 
           <div class="map-message" id="mapMessage" hidden>
             <span class="message-icon">!</span>
@@ -203,7 +205,7 @@
                 <label>Longitude<input id="manualLongitude" type="number" min="-180" max="180" step="any" required placeholder="-2.597" /></label>
                 <button class="wide-button" type="submit">Save location</button>
               </form>
-              <p class="permission-note">Use coordinates for your chosen monitoring point. Works on Ethernet without automatic location.</p>
+              <p class="permission-note">Use the map’s “Set here” button, or enter coordinates for your chosen monitoring point. Works on Ethernet without automatic location.</p>
             </details>
             <p class="permission-note" id="permissionNote">Notifications remain on this device. Location is never uploaded.</p>
           </section>
@@ -294,8 +296,8 @@
               <div class="range-ticks"><span>Faint</span><span>Solid</span></div>
             </div>
             <div class="appearance-control">
-              <div class="range-labels"><label for="mapShade">Edge shade</label><strong><span id="mapShadeValue">45</span>%</strong></div>
-              <input id="mapShade" type="range" min="0" max="60" step="5" value="45" />
+              <div class="range-labels"><label for="mapShade">Edge shade</label><strong><span id="mapShadeValue">10</span>%</strong></div>
+              <input id="mapShade" type="range" min="0" max="60" step="5" value="10" />
               <div class="range-ticks"><span>None</span><span>Balanced</span><span>Strong</span></div>
             </div>
           </div>
@@ -312,6 +314,8 @@
     <div class="toast-stack" id="toastStack" aria-live="polite"></div>
 
     <script src="/vendor/leaflet/leaflet.js"></script>
+    <script src="/vendor/maplibre/maplibre-gl.js"></script>
+    <script src="/vendor/maplibre/leaflet-maplibre-gl.js"></script>
     <script src="/client/settings.js"></script>
     <script src="/client/location.js"></script>
     <script src="/app.js" defer></script>
