@@ -195,6 +195,16 @@
             </div>
 
             <button class="wide-button" id="enableLocationButton">Use my current location</button>
+            <button class="wide-button" id="approximateLocationButton" hidden>Use approximate location</button>
+            <details class="manual-location">
+              <summary>Enter location manually</summary>
+              <form id="manualLocationForm">
+                <label>Latitude<input id="manualLatitude" type="number" min="-90" max="90" step="any" required placeholder="53.39" /></label>
+                <label>Longitude<input id="manualLongitude" type="number" min="-180" max="180" step="any" required placeholder="-2.597" /></label>
+                <button class="wide-button" type="submit">Save location</button>
+              </form>
+              <p class="permission-note">Use coordinates for your chosen monitoring point. Works on Ethernet without automatic location.</p>
+            </details>
             <p class="permission-note" id="permissionNote">Notifications remain on this device. Location is never uploaded.</p>
           </section>
 

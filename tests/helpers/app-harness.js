@@ -12,7 +12,7 @@ const exports = [
   "scheduleStats", "selectWindow", "handleVisibilityChange", "strikeDistance",
   "updateProximityStats", "loadHistory", "storeStrikes", "flushStrikes", "startDemo",
   "startReceiver", "refreshOmarchyTheme", "selectThemeSource",
-  "locationErrorMessage", "validLocation", "locate", "requestLocation", "saveSettings",
+  "locationErrorMessage", "validLocation", "locate", "requestLocation", "saveSettings", "useApproximateLocation", "setManualLocation",
 ];
 
 function element() {

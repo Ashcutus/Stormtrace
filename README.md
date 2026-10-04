@@ -82,7 +82,7 @@ The plugin does not use install hooks, `sudo`, or a boot-enabled service. Its lo
 | Drag / scroll | Move or zoom the map. |
 | `Live` / `1h` / `6h` / `24h` | Change the strike-age window. |
 | `Focus` | Move to the leading activity hotspot. |
-| `Set location` | Request a fresh, accurate position for distance and alerts (up to 30 seconds). Broad estimates over 5 km are rejected; connecting to Wi-Fi may improve results. |
+| `Set location` | Request a fresh position for distance and alerts (up to 30 seconds). Ethernet is supported. If only an estimate over 5 km is available, review its coordinates and uncertainty before choosing to use it. Enter coordinates manually for a fixed monitoring point. |
 | `Near me` | Enable or disable private desktop notifications. |
 | Alert radius | Choose a proximity threshold from 5 to 50 miles. |
 | Pause / play | Stop or resume the live feed while keeping the map and history open. |
