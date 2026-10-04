@@ -125,7 +125,9 @@
 				center: [center.lng, center.lat],
 				zoom: this._map.getZoom() - 1,
 				// Panning reuses the painted canvas between camera updates.
-				preserveDrawingBuffer: true,
+				canvasContextAttributes: L.extend({}, this.options.canvasContextAttributes, {
+					preserveDrawingBuffer: true
+				}),
 				attributionControl: false
 			});
 			this._glMap = new maplibre_gl.Map(options);
