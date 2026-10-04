@@ -78,6 +78,10 @@
     locationButton: $("#locationButton"),
     enableLocationButton: $("#enableLocationButton"),
     locationState: $("#locationState"),
+    approximateLocationButton: $("#approximateLocationButton"),
+    manualLocationForm: $("#manualLocationForm"),
+    manualLatitude: $("#manualLatitude"),
+    manualLongitude: $("#manualLongitude"),
     notificationToggle: $("#notificationToggle"),
     radiusRange: $("#radiusRange"),
     radiusValue: $("#radiusValue"),
@@ -278,6 +282,8 @@
     $("#worldView").addEventListener("click", () => state.map?.setView([18, 6], 2));
     els.locationButton.addEventListener("click", requestLocation);
     els.enableLocationButton.addEventListener("click", requestLocation);
+    els.approximateLocationButton.addEventListener("click", useApproximateLocation);
+    els.manualLocationForm.addEventListener("submit", setManualLocation);
     els.notificationToggle.addEventListener("change", toggleNotifications);
     els.radiusRange.addEventListener("input", () => {
       state.radiusMiles = Number(els.radiusRange.value);
@@ -1173,39 +1179,92 @@
     $$(".segment").forEach((button) => button.classList.toggle("active", button.dataset.window === state.selectedWindow));
   }
 
-  async function requestLocation() {
+  let locationRequest = null;
+  let locationGeneration = 0;
+  let approximatePosition = null;
+
+  function applyLocation(coords, source = "automatic") {
+    state.userLocation = { lat: coords.latitude, lon: coords.longitude, accuracy: coords.accuracy, source };
+    approximatePosition = null;
+    els.approximateLocationButton.hidden = true;
+    updateLocationLayers();
+    updateLocationUI();
+    updateLatestStrike();
+    updateProximityStats();
+    saveSettings();
+    state.map?.flyTo?.([state.userLocation.lat, state.userLocation.lon], 6, { duration: 1.1 });
+    els.permissionNote.textContent = source === "manual"
+      ? "Monitoring your manually chosen point. Stored on this device."
+      : `Location uncertainty: approximately ${formatMiles(coords.accuracy / 1609.344)}. Distances and alerts use the estimated centre.`;
+    toast("Location set", `${formatCoordinates(state.userLocation.lat, state.userLocation.lon)} · stored on this device.`);
+  }
+
+  function useApproximateLocation() {
+    if (!approximatePosition) return;
+    locationGeneration++;
+    applyLocation(approximatePosition.coords);
+  }
+
+  function setManualLocation(event) {
+    event.preventDefault();
+    const latitude = els.manualLatitude.value.trim();
+    const longitude = els.manualLongitude.value.trim();
+    const coords = { latitude: Number(latitude), longitude: Number(longitude), accuracy: 0 };
+    if (!latitude || !longitude || !validLocation(coords)) {
+      els.permissionNote.textContent = "Enter latitude from −90 to 90 and longitude from −180 to 180.";
+      return false;
+    }
+    // A pending automatic result must not overwrite a manually chosen point.
+    locationGeneration++;
+    applyLocation(coords, "manual");
+    return true;
+  }
+
+  function requestLocation() {
+    if (locationRequest) return locationRequest;
     if (!navigator.geolocation) {
-      toast("Location unavailable", "This app does not provide geolocation.");
-      return false;
+      els.permissionNote.textContent = "Automatic location is unavailable. Enter your coordinates below.";
+      toast("Location unavailable", els.permissionNote.textContent);
+      return Promise.resolve(false);
     }
+    const generation = ++locationGeneration;
+    approximatePosition = null;
+    els.approximateLocationButton.hidden = true;
     els.enableLocationButton.disabled = true;
+    els.locationButton.disabled = true;
     els.enableLocationButton.textContent = "Locating…";
-    try {
-      const position = await locate(navigator.geolocation);
-      state.userLocation = { lat: position.coords.latitude, lon: position.coords.longitude, accuracy: position.coords.accuracy };
-      updateLocationLayers();
-      updateLocationUI();
-      updateLatestStrike();
-      updateProximityStats();
-      saveSettings();
-      state.map?.flyTo([state.userLocation.lat, state.userLocation.lon], 6, { duration: 1.1 });
-      els.permissionNote.textContent = `Location accuracy: approximately ${formatMiles(position.coords.accuracy / 1609.344)}.`;
-      toast("Location set", `${formatCoordinates(state.userLocation.lat, state.userLocation.lon)} · stored on this device.`);
-      return true;
-    } catch (error) {
-      els.enableLocationButton.disabled = false;
-      els.enableLocationButton.textContent = "Try location again";
-      els.permissionNote.textContent = locationErrorMessage(error);
-      toast("Location not set", els.permissionNote.textContent);
-      return false;
-    }
+    locationRequest = (async () => {
+      try {
+        const position = await locate(navigator.geolocation);
+        if (generation !== locationGeneration) return false;
+        applyLocation(position.coords);
+        return true;
+      } catch (error) {
+        if (generation !== locationGeneration) return false;
+        els.permissionNote.textContent = locationErrorMessage(error);
+        if (error.code === "coarse" && validLocation(error.position?.coords)) {
+          approximatePosition = error.position;
+          const coords = error.position.coords;
+          els.approximateLocationButton.textContent = `Use ${formatCoordinates(coords.latitude, coords.longitude)} (±${formatMiles(coords.accuracy / 1609.344)})`;
+          els.approximateLocationButton.hidden = false;
+        }
+        toast("Location not updated", els.permissionNote.textContent);
+        return false;
+      } finally {
+        els.enableLocationButton.disabled = false;
+        els.locationButton.disabled = false;
+        els.enableLocationButton.textContent = state.userLocation ? "Update current location" : "Try location again";
+        locationRequest = null;
+      }
+    })();
+    return locationRequest;
   }
 
   function updateLocationUI() {
     if (!state.userLocation) return;
     els.locationState.innerHTML = `
       <span class="target-icon">⌾</span>
-      <div><strong>${formatCoordinates(state.userLocation.lat, state.userLocation.lon)}</strong><span>Monitoring a ${state.radiusMiles}-mile safety radius.</span></div>`;
+      <div><strong>${formatCoordinates(state.userLocation.lat, state.userLocation.lon)}</strong><span>${state.userLocation.source === "manual" ? "Manual monitoring point" : `Uncertainty ±${formatMiles(state.userLocation.accuracy / 1609.344)}`} · ${state.radiusMiles}-mile radius.</span></div>`;
     els.enableLocationButton.disabled = false;
     els.enableLocationButton.textContent = "Update current location";
   }

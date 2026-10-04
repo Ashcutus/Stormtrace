@@ -396,3 +396,11 @@ dialog::backdrop { background: transparent; }
   .radius-control { margin-top: 9px; }
   .proximity-stats { margin-top: 9px; }
 }
+
+.manual-location { margin-top: 10px; font-size: var(--font-xs); }
+.manual-location summary { cursor: pointer; }
+.manual-location form { display: grid; gap: 8px; margin-top: 8px; }
+.manual-location label { display: grid; gap: 4px; }
+.manual-location input { width: 100%; padding: 6px; color: var(--text-primary); background: var(--surface); border: 1px solid var(--line); }
+#approximateLocationButton { margin-top: 8px; white-space: normal; }
+#approximateLocationButton[hidden] { display: none; }

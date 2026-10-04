@@ -315,7 +315,7 @@ test("location waits for Warrington after a coarse London fix and releases the w
   const pending = app.locate({
     watchPosition(callback, error, options) {
       success = callback;
-      assert.equal(options.enableHighAccuracy, true);
+      assert.equal(options.enableHighAccuracy, false);
       assert.equal(options.maximumAge, 0);
       return 7;
     },
@@ -347,17 +347,17 @@ test("coarse location times out without replacing the saved position", async () 
   app.advance(30000);
   assert.equal(await pending, false);
   assert.equal(app.state.userLocation, previous);
-  assert.match(app.elements.get("#permissionNote").textContent, /broad estimate/);
+  assert.match(app.elements.get("#permissionNote").textContent, /approximate location/);
   assert.equal(app.elements.get("#enableLocationButton").disabled, false);
   assert.deepEqual(cleared, [8]);
 });
 
-test("coarse saved locations and malformed coordinates are rejected", () => {
+test("coarse saved locations survive reload and malformed coordinates are rejected", () => {
   const app = loadApp({ storage: {
     getItem: () => JSON.stringify({ userLocation: { lat: 51.5, lon: -0.12, accuracy: 100000 } }),
     setItem() {},
   } });
-  assert.equal(app.state.userLocation, null);
+  assert.equal(app.state.userLocation.accuracy, 100000);
   for (const coords of [null, {}, { latitude: 91, longitude: 0, accuracy: 1 },
     { latitude: 53, longitude: -2, accuracy: -1 }, { latitude: 53, longitude: NaN, accuracy: 1 }]) {
     assert.ok(!app.validLocation(coords));
@@ -375,5 +375,71 @@ test("location permission errors clean up the watch and timer", async () => {
   fail({ code: 1 });
   await assert.rejects(pending, (error) => error.code === 1);
   assert.deepEqual(cleared, [9]);
+  assert.equal(app.timers.size, 0);
+});
+
+
+test("Ethernet estimate requires review and persists its real uncertainty", async () => {
+  let saved;
+  const app = loadApp({ storage: { getItem: () => null, setItem(key, value) { saved = JSON.parse(value); } } });
+  app.navigator.geolocation = {
+    watchPosition(success) {
+      queueMicrotask(() => success({ coords: { latitude: 53.39, longitude: -2.597, accuracy: 30000 } }));
+      return 10;
+    }, clearWatch() {},
+  };
+  const pending = app.requestLocation();
+  assert.equal(app.requestLocation(), pending);
+  await Promise.resolve();
+  app.advance(30000);
+  assert.equal(await pending, false);
+  assert.equal(app.state.userLocation, null);
+  assert.equal(app.elements.get("#approximateLocationButton").hidden, false);
+  app.useApproximateLocation();
+  assert.equal(app.state.userLocation.accuracy, 30000);
+  assert.equal(saved.userLocation.accuracy, 30000);
+  assert.equal(app.elements.get("#approximateLocationButton").hidden, true);
+  assert.match(app.elements.get("#permissionNote").textContent, /uncertainty/);
+});
+
+test("manual coordinates work without geolocation and cannot be overwritten by a pending fix", async () => {
+  const app = loadApp();
+  let success;
+  app.navigator.geolocation = { watchPosition(callback) { success = callback; return 11; }, clearWatch() {} };
+  const pending = app.requestLocation();
+  app.els.manualLatitude.value = "53.39";
+  app.els.manualLongitude.value = "-2.597";
+  assert.equal(app.setManualLocation({ preventDefault() {} }), true);
+  success({ coords: { latitude: 51.5, longitude: -0.12, accuracy: 100 } });
+  assert.equal(await pending, false);
+  assert.equal(app.state.userLocation.lat, 53.39);
+  assert.equal(app.state.userLocation.source, "manual");
+  for (const value of ["", "91", "NaN"]) {
+    app.els.manualLatitude.value = value;
+    assert.equal(app.setManualLocation({ preventDefault() {} }), false);
+    assert.equal(app.state.userLocation.lat, 53.39);
+  }
+  delete app.navigator.geolocation;
+  app.els.manualLatitude.value = "0";
+  app.els.manualLongitude.value = "0";
+  assert.equal(app.setManualLocation({ preventDefault() {} }), true);
+  assert.equal(app.state.userLocation.lat, 0);
+});
+
+test("transient provider errors allow improvement and the best broad estimate is retained", async () => {
+  const app = loadApp();
+  let success, fail;
+  const cleared = [];
+  const pending = app.locate({
+    watchPosition(callback, error) { success = callback; fail = error; return 12; },
+    clearWatch(id) { cleared.push(id); },
+  });
+  fail({ code: 2 });
+  success({ coords: { latitude: 53, longitude: -2, accuracy: 30000 } });
+  success({ coords: { latitude: 51, longitude: 0, accuracy: 100000 } });
+  success({ coords: { latitude: NaN, longitude: 0, accuracy: 1 } });
+  app.advance(30000);
+  await assert.rejects(pending, error => error.code === "coarse" && error.position.coords.accuracy === 30000);
+  assert.deepEqual(cleared, [12]);
   assert.equal(app.timers.size, 0);
 });
