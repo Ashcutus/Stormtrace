@@ -6,7 +6,12 @@
   const MAX_STORED_STRIKES = 30000;
   const MAX_RENDERED_STRIKES = 4000;
   const ALERT_COOLDOWN_MS = 2 * 60 * 1000;
-  const FEED_URL = "wss://live2.lightningmaps.org/";
+  const core = globalThis.StormtraceCore;
+  const platform = globalThis.StormtracePlatform;
+  const liveProvider = globalThis.StormtraceProviders.live;
+  const providerRegistry = new core.ProviderRegistry();
+  providerRegistry.register(liveProvider);
+  const placeProvider = providerRegistry.register(new core.NominatimProvider({ log: globalThis.StormtraceProviders.log }));
   const isDemo = new URLSearchParams(location.search).get("demo") === "1";
 
   const FALLBACK_PALETTE = {
@@ -40,7 +45,7 @@
 
   const $ = (selector) => document.querySelector(selector);
   const $$ = (selector) => [...document.querySelectorAll(selector)];
-  const nativeBridge = window.webkit?.messageHandlers?.stormtrace || null;
+  const nativeBridge = platform.systemAdapter.available() ? platform.systemAdapter : null;
   const { readSettings, readRangeSetting, saveSettings: writeSettings } = globalThis.StormtraceSettings;
   const { locationErrorMessage, validLocation, locate } = globalThis.StormtraceLocation;
 
@@ -148,6 +153,8 @@
     hotspots: [],
     hotspotSignature: null,
     db: null,
+    revisionHistory: null,
+    providerHealth: {},
     demoTimer: null,
     loadedHistoryCount: 0,
     themeSource: persisted.themeSource === "custom" ? "custom" : "system",
@@ -166,6 +173,9 @@
 
   async function init() {
     bindControls();
+    $("#sourceAuthority").textContent = liveProvider.source.authority;
+    $("#sourceTerms").textContent = liveProvider.source.licence.displayText;
+    $("#sourceTermsDetail").textContent = liveProvider.source.licence.detailText;
     refreshAppMetadata();
     updateClock();
     setInterval(() => { updateClock(); updateRelativeTimes(); }, 10000);
@@ -208,6 +218,7 @@
     if (state.db) scheduleDatabaseMaintenance(5000);
     // Open storage before receiving live strikes so early arrivals can persist.
     // Cached and provider history can then merge without delaying the feed.
+    initializeRevisionHistory();
     connectFeed();
     await loadHistory();
     await loadProviderHistory();
@@ -574,38 +585,35 @@
     }
 
     setStatus("connecting", "CONNECTING", state.retryCount ? `Retry ${state.retryCount}…` : "Opening global stream…");
-    const socket = new WebSocket(FEED_URL);
+    liveProvider.attempted();
+    const socket = new WebSocket(liveProvider.url);
     state.socket = socket;
 
     socket.onopen = () => {
       state.connectedAt = Date.now();
       state.retryCount = 0;
-      const subscription = {
-        v: 24, i: {}, s: false, x: 0, w: 0, tx: 0, tw: 1,
-        a: 4, z: 2, b: true, h: "", l: 1, t: 1,
-        p: [85, 180, -85, -180], r: "A",
-      };
-      socket.send(JSON.stringify(subscription));
+      socket.send(JSON.stringify(liveProvider.subscription()));
       setStatus("live", "LIVE", "Global receiver connected");
       toast("Live receiver ready", "Listening for worldwide strikes.");
     };
 
     socket.onmessage = (event) => {
       try {
-        const payload = JSON.parse(event.data);
-        if (Array.isArray(payload.strokes) && payload.strokes.length) {
-          ingestStrikes(payload.strokes, true);
-        } else if (payload.cid) {
-          setStatus("live", "LIVE", `${Number(payload.con || 0).toLocaleString()} viewers · receiver ${payload.port || "ready"}`);
-        }
+        const result = liveProvider.message(event.data);
+        state.providerHealth[liveProvider.id] = result.health;
+        if (result.records.length) ingestStrikes(result.records, true);
+        else if (result.receiver) setStatus("live", "LIVE", `${result.receiver.viewers.toLocaleString()} viewers · receiver ${result.receiver.name}`);
       } catch (error) {
+        state.providerHealth[liveProvider.id] = { ...liveProvider.health, freshness: core.freshness(liveProvider.health) };
         console.warn("Ignored an unreadable feed message", error);
       }
     };
 
-    socket.onerror = () => setStatus("error", "DEGRADED", "Live receiver interrupted");
+    socket.onerror = () => { liveProvider.failed(); state.providerHealth[liveProvider.id] = { ...liveProvider.health, freshness: core.freshness(liveProvider.health) }; setStatus("error", "DEGRADED", "Live receiver interrupted"); };
     socket.onclose = () => {
       if (state.socket !== socket || state.monitoringPaused) return;
+      if (!liveProvider.health.lastError) liveProvider.failed("unavailable");
+      state.providerHealth[liveProvider.id] = { ...liveProvider.health, freshness: core.freshness(liveProvider.health) };
       state.retryCount += 1;
       const delay = Math.min(30000, 1200 * 2 ** Math.min(5, state.retryCount));
       setStatus("error", "RECONNECTING", `Next attempt in ${Math.ceil(delay / 1000)}s`);
@@ -669,7 +677,7 @@
 
   function postNativeAction(action) {
     if (!nativeBridge) return false;
-    nativeBridge.postMessage(action);
+    nativeBridge.post(action);
     return true;
   }
 
@@ -722,24 +730,8 @@
   }
 
   function normalizeStrike(raw) {
-    const timeValue = raw.time || Date.now();
-    const rawTime = typeof timeValue === "string" && !/^\d+(\.\d+)?$/.test(timeValue)
-      ? Date.parse(timeValue.endsWith("Z") || /[+-]\d\d:\d\d$/.test(timeValue) ? timeValue : `${timeValue}Z`)
-      : Number(timeValue);
-    const time = rawTime > 1e15 ? Math.floor(rawTime / 1e6) : rawTime > 1e12 ? rawTime : rawTime * 1000;
-    const lat = Number(raw.lat);
-    const lon = Number(raw.lon);
-    if (!Number.isFinite(lat) || !Number.isFinite(lon) || !Number.isFinite(time)) return null;
-    const id = String(raw.id ?? `${time}:${lat.toFixed(5)}:${lon.toFixed(5)}`);
-    return {
-      id,
-      time,
-      lat,
-      lon,
-      region: describeRegion(lat, lon),
-      deviation: Number(raw.dev || raw.mds || 0),
-      polarity: Number(raw.pol || 0),
-    };
+    const strike = core.normalizeStrike(raw);
+    return strike ? { ...strike, region: describeRegion(strike.lat, strike.lon) } : null;
   }
 
   function ingestStrikes(rawStrikes, isNew = false, persist = true) {
@@ -1259,7 +1251,7 @@
 
   function requestLocation() {
     if (locationRequest) return locationRequest;
-    if (!navigator.geolocation) {
+    if (!platform.locationAdapter.available()) {
       els.permissionNote.textContent = "Automatic location is unavailable. Enter your coordinates below.";
       toast("Location unavailable", els.permissionNote.textContent);
       return Promise.resolve(false);
@@ -1272,7 +1264,7 @@
     els.enableLocationButton.textContent = "Locating…";
     locationRequest = (async () => {
       try {
-        const position = await locate(navigator.geolocation);
+        const position = await platform.locationAdapter.current();
         if (generation !== locationGeneration) return false;
         applyLocation(position.coords);
         return true;
@@ -1340,12 +1332,12 @@
       els.notificationToggle.checked = false;
       return;
     }
-    if (!("Notification" in window)) {
+    if (platform.notificationAdapter.permission() === "unsupported") {
       els.notificationToggle.checked = false;
       toast("Notifications unavailable", "This app does not support desktop notifications.");
       return;
     }
-    const permission = Notification.permission === "granted" ? "granted" : await Notification.requestPermission();
+    const permission = platform.notificationAdapter.permission() === "granted" ? "granted" : await platform.notificationAdapter.requestPermission();
     state.notificationsEnabled = permission === "granted";
     updateNotificationUI();
     saveSettings();
@@ -1355,7 +1347,7 @@
 
   function updateNotificationUI() {
     els.notificationToggle.checked = state.notificationsEnabled;
-    const permission = "Notification" in window ? Notification.permission : "unsupported";
+    const permission = platform.notificationAdapter.permission();
     if (permission === "denied") {
       els.permissionNote.textContent = "Desktop notifications are blocked. Location stays on this device.";
     } else if (state.notificationsEnabled) {
@@ -1395,12 +1387,12 @@
   }
 
   function checkProximityAlert(strike) {
-    if (!state.notificationsEnabled || !state.userLocation || !("Notification" in window) || Notification.permission !== "granted") return;
+    if (!state.notificationsEnabled || !state.userLocation || platform.notificationAdapter.permission() !== "granted") return;
     if (Date.now() - state.lastAlertAt < ALERT_COOLDOWN_MS) return;
     const distance = strikeDistance(strike);
     if (distance > state.radiusMiles) return;
     state.lastAlertAt = Date.now();
-    const notification = new Notification("Lightning inside your safety radius", {
+    const notification = platform.notificationAdapter.show({ title: "Lightning inside your safety radius",
       body: `${formatMiles(distance)} away · ${strike.region} · detected just now`,
       icon: "/icon.svg",
       tag: "stormtrace-nearby",
@@ -1432,13 +1424,11 @@
     els.searchResults.hidden = false;
     els.searchResults.innerHTML = '<div class="empty-state" style="padding:9px">Searching map index…</div>';
     try {
-      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&accept-language=en&q=${encodeURIComponent(value)}`, {
-        headers: { Accept: "application/json" },
-      });
-      if (!response.ok) throw new Error(`Search returned ${response.status}`);
-      const results = await response.json();
-      showSearchResults(results);
+      const result = await placeProvider.search(value);
+      state.providerHealth[placeProvider.id] = result.health;
+      showSearchResults(result.records);
     } catch {
+      state.providerHealth[placeProvider.id] = { ...placeProvider.health, freshness: core.freshness(placeProvider.health) };
       els.searchResults.innerHTML = '<div class="empty-state" style="padding:9px">Place search is offline. Coordinates still work.</div>';
     }
   }
@@ -1449,14 +1439,14 @@
       return;
     }
     els.searchResults.innerHTML = results.map((result, index) => {
-      const [primary, ...rest] = result.display_name.split(",");
-      return `<button class="search-result" data-index="${index}" role="option">${escapeHtml(primary)}<small>${escapeHtml(rest.slice(0, 3).join(",").trim())}</small></button>`;
+      const primary = result.name;
+      return `<button class="search-result" data-index="${index}" role="option">${escapeHtml(primary)}<small>${escapeHtml(result.description)}</small></button>`;
     }).join("");
     els.searchResults.querySelectorAll(".search-result").forEach((button) => {
       button.addEventListener("click", () => {
         const result = results[Number(button.dataset.index)];
         state.map?.flyTo([Number(result.lat), Number(result.lon)], 7, { duration: 1 });
-        els.placeSearch.value = result.display_name.split(",").slice(0, 2).join(",");
+        els.placeSearch.value = result.label;
         hideSearchResults();
       });
     });
@@ -1546,65 +1536,14 @@
     });
   }
 
-  function openDatabase() {
-    return new Promise((resolve, reject) => {
-      const request = indexedDB.open("stormtrace", 1);
-      request.onupgradeneeded = () => {
-        const store = request.result.createObjectStore("strikes", { keyPath: "id" });
-        store.createIndex("time", "time");
-      };
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
-  }
+  function openDatabase() { return platform.strikeStorage.open(); }
 
-  function loadHistory() {
-    if (!state.db) return Promise.resolve();
-    return new Promise((resolve) => {
-      const transaction = state.db.transaction("strikes", "readonly");
-      const index = transaction.objectStore("strikes").index("time");
-      const range = IDBKeyRange.lowerBound(Date.now() - HISTORY_HOURS * 60 * 60 * 1000);
-      const finish = (records) => {
-        state.loadedHistoryCount = records.length;
-        ingestStrikes(records, false, false);
-        els.historyState.textContent = records.length ? `${records.length.toLocaleString()} cached strikes` : "Building from this session";
-        resolve();
-      };
-      const readFrom = (lowerBound, trim = false) => {
-        const request = index.getAll(lowerBound);
-        request.onsuccess = () => {
-          const records = request.result || [];
-          finish(trim ? records.slice(-MAX_STORED_STRIKES) : records);
-        };
-        request.onerror = () => resolve();
-      };
-      const count = index.count(range);
-      count.onerror = () => resolve();
-      transaction.onabort = () => resolve();
-      count.onsuccess = () => {
-        if (count.result <= MAX_STORED_STRIKES) {
-          // Keep the usual startup path as one bulk read.
-          readFrom(range);
-          return;
-        }
-        // Skip discarded keys without materializing every retained record in a
-        // cursor callback. Include the boundary timestamp's ties in the bulk
-        // read, then trim their oldest primary keys to keep exactly the newest.
-        const request = index.openKeyCursor(range);
-        let skipped = false;
-        request.onerror = () => resolve();
-        request.onsuccess = () => {
-          const cursor = request.result;
-          if (!cursor) { finish([]); return; }
-          if (!skipped) {
-            skipped = true;
-            cursor.advance(count.result - MAX_STORED_STRIKES);
-          } else {
-            readFrom(IDBKeyRange.lowerBound(cursor.key), true);
-          }
-        };
-      };
-    });
+  async function loadHistory() {
+    if (!state.db) return;
+    const records = await platform.strikeStorage.load(state.db, Date.now() - HISTORY_HOURS * 60 * 60 * 1000, MAX_STORED_STRIKES);
+    state.loadedHistoryCount = records.length;
+    ingestStrikes(records, false, false);
+    els.historyState.textContent = records.length ? `${records.length.toLocaleString()} cached strikes` : "Building from this session";
   }
 
   function storeStrikes(strikes) {
@@ -1620,10 +1559,8 @@
     const strikes = [...state.pendingWrites.values()];
     state.pendingWrites.clear();
     try {
-      const transaction = state.db.transaction("strikes", "readwrite");
-      const store = transaction.objectStore("strikes");
-      strikes.forEach((strike) => store.put(strike));
-      transaction.oncomplete = () => scheduleDatabaseMaintenance();
+      platform.strikeStorage.write(state.db, strikes, () => scheduleDatabaseMaintenance());
+      persistRevisions(strikes);
     } catch { /* private-mode quota or a closing tab */ }
   }
 
@@ -1637,50 +1574,38 @@
 
   function pruneDatabase() {
     if (!state.db) return;
-    try {
-      const transaction = state.db.transaction("strikes", "readwrite");
-      const store = transaction.objectStore("strikes");
-      const index = store.index("time");
-      const range = IDBKeyRange.upperBound(Date.now() - HISTORY_HOURS * 60 * 60 * 1000);
-      index.openCursor(range).onsuccess = (event) => {
-        const cursor = event.target.result;
-        if (cursor) { cursor.delete(); cursor.continue(); }
-      };
-      transaction.oncomplete = capDatabase;
-    } catch { /* database may be closing */ }
+    try { platform.strikeStorage.prune(state.db, Date.now() - HISTORY_HOURS * 60 * 60 * 1000, MAX_STORED_STRIKES); }
+    catch { /* profile may be closing */ }
+    for (const provider of ["lightningmaps", "lightning-history"]) state.revisionHistory?.retain({ before: Date.now() - HISTORY_HOURS * 60 * 60 * 1000, keepLatest: false, provider, maxEvents: MAX_STORED_STRIKES }).catch(reportStorageError);
   }
 
-  function capDatabase() {
-    if (!state.db) return;
+  function reportStorageError() { console.warn("Stormtrace revision storage unavailable"); }
+
+  async function initializeRevisionHistory() {
     try {
-      const transaction = state.db.transaction("strikes", "readwrite");
-      const store = transaction.objectStore("strikes");
-      const countRequest = store.count();
-      countRequest.onsuccess = () => {
-        let remaining = Math.max(0, countRequest.result - MAX_STORED_STRIKES);
-        if (!remaining) return;
-        store.index("time").openCursor().onsuccess = (event) => {
-          const cursor = event.target.result;
-          if (cursor && remaining > 0) {
-            cursor.delete();
-            remaining -= 1;
-            cursor.continue();
-          }
-        };
-      };
-    } catch { /* database may be closing */ }
+      const storage = await platform.IndexedDBStorageAdapter.open();
+      state.revisionHistory = new core.RevisionHistory(storage);
+      await persistRevisions([...state.strikes.values()]);
+    } catch { reportStorageError(); }
+  }
+
+  async function persistRevisions(strikes) {
+    if (!state.revisionHistory || isDemo) return;
+    try { for (const strike of strikes) { const event = core.lightningEvent(strike); if (event) await state.revisionHistory.record(event); } }
+    catch { reportStorageError(); }
   }
 
   async function loadProviderHistory() {
     try {
       const response = await fetch("/api/history?since_minutes=1440");
-      if (!response.ok) return;
       const payload = await response.json();
+      if (payload.health) state.providerHealth["lightning-history"] = payload.health;
+      if (!response.ok) return;
       if (payload.configured && Array.isArray(payload.flashes)) {
-        ingestStrikes(payload.flashes, false, true);
+        ingestStrikes(core.normalizeBackfillResponse(payload), false, true);
         els.historyState.textContent = `${payload.flashes.length.toLocaleString()} provider strikes`;
       }
-    } catch { /* optional backfill is deliberately silent */ }
+    } catch { state.providerHealth["lightning-history"] = { lastError: { code: "network" }, freshness: "provider_error" }; }
   }
 
   function startDemo() {

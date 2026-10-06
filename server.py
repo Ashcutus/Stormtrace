@@ -3,14 +3,13 @@
 
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from datetime import datetime, timezone
-from urllib.error import HTTPError
 from urllib.parse import parse_qs, urlparse
 from urllib.request import Request, urlopen
 import json
 import os
 import re
-import subprocess
+from stormtrace_platform import local_api_key, read_omarchy_theme
+from providers.lightning_history import LightningHistoryProvider, ProviderError, normalize_history_flashes
 
 
 ROOT = Path(__file__).resolve().parent
@@ -24,20 +23,8 @@ UPDATE_MANIFEST_URL = os.environ.get(
 REPOSITORY_URL = "https://github.com/Ashcutus/Stormtrace"
 
 
-def local_api_key():
-    if os.environ.get("LIGHTNING_API_KEY"):
-        return os.environ["LIGHTNING_API_KEY"]
-    env_file = ROOT / ".env"
-    if not env_file.exists():
-        return ""
-    for line in env_file.read_text(encoding="utf-8").splitlines():
-        if line.startswith("LIGHTNING_API_KEY="):
-            return line.split("=", 1)[1].strip()
-    return ""
-
-
-API_KEY = local_api_key()
-
+API_KEY = local_api_key(ROOT)
+HISTORY_PROVIDER = LightningHistoryProvider(API_KEY)
 
 class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
@@ -96,19 +83,15 @@ class Handler(SimpleHTTPRequestHandler):
             minutes = max(1, min(1440, int(query.get("since_minutes", ["1440"])[0])))
         except ValueError:
             minutes = 1440
-        request = Request(
-            f"https://api.lightningapi.dev/v1/flashes?since_minutes={minutes}&limit=20000",
-            headers={"X-API-Key": API_KEY, "Accept": "application/json"},
-        )
         try:
-            with urlopen(request, timeout=15) as upstream:
-                body = json.load(upstream)
-            flashes = normalize_history_flashes(body.get("flashes"))
-            return self.send_json(200, {"configured": True, "flashes": flashes})
-        except HTTPError as error:
-            return self.send_json(error.code, {"configured": True, "error": f"History provider returned {error.code}"})
-        except Exception:
-            return self.send_json(502, {"configured": True, "error": "The history provider could not be reached."})
+            result = HISTORY_PROVIDER.history(minutes)
+            return self.send_json(200, {"configured": True, **result})
+        except ProviderError as error:
+            return self.send_json(error.status or 502, {
+                "configured": True,
+                "error": f"History provider returned {error.status}" if error.status else "The history provider could not be reached.",
+                "providerError": error.as_dict(), "health": HISTORY_PROVIDER.health,
+            })
 
     def update_check(self):
         request = Request(
@@ -144,45 +127,6 @@ class Handler(SimpleHTTPRequestHandler):
     def log_message(self, fmt, *args):
         if self.path.startswith("/api/") and self.path != "/api/health":
             super().log_message(fmt, *args)
-
-
-def read_omarchy_theme():
-    try:
-        name = subprocess.run(["omarchy", "theme", "current"], check=True, capture_output=True, text=True, timeout=2).stdout.strip()
-        output = subprocess.run(["omarchy", "theme", "color", "--all"], check=True, capture_output=True, text=True, timeout=2).stdout
-        colors = dict(line.split("\t", 1) for line in output.splitlines() if "\t" in line)
-        return {"available": True, "name": name or "Omarchy", "mode": colors.get("mode", "dark"), "colors": colors}
-    except Exception:
-        return {"available": False, "name": "Stormtrace default", "mode": "dark", "colors": {}}
-
-
-def normalize_history_flashes(input_value):
-    flashes = []
-    if not isinstance(input_value, list):
-        return flashes
-    for raw in input_value:
-        if not isinstance(raw, dict) or raw.get("flash_id") is None:
-            continue
-        try:
-            timestamp = str(raw.get("flash_timestamp_utc") or "")
-            parsed_time = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
-            if parsed_time.tzinfo is None:
-                parsed_time = parsed_time.replace(tzinfo=timezone.utc)
-            latitude = float(raw.get("lat"))
-            longitude = float(raw.get("lon"))
-            if not (-90 <= latitude <= 90 and -180 <= longitude <= 180):
-                continue
-            flashes.append({
-                "id": f"provider:{raw['flash_id']}",
-                "time": int(parsed_time.timestamp() * 1000),
-                "lat": latitude,
-                "lon": longitude,
-                "polarity": 0,
-                "deviation": 0,
-            })
-        except (TypeError, ValueError, OverflowError):
-            continue
-    return flashes
 
 
 def normalize_version(value):

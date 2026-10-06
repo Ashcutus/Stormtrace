@@ -3,7 +3,7 @@
 
   const SETTINGS_KEY = "stormtrace:settings";
 
-  function readSettings(storage = localStorage) {
+  function readSettings(storage = globalThis.StormtracePlatform.settingsStorage) {
     try {
       return JSON.parse(storage.getItem(SETTINGS_KEY) || "{}");
     } catch {
@@ -16,7 +16,7 @@
     return Number.isFinite(number) ? Math.min(max, Math.max(min, number)) : fallback;
   }
 
-  function saveSettings(settings, storage = localStorage) {
+  function saveSettings(settings, storage = globalThis.StormtracePlatform.settingsStorage) {
     try {
       storage.setItem(SETTINGS_KEY, JSON.stringify(settings));
       return true;

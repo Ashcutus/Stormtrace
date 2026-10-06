@@ -11,6 +11,8 @@ import sys
 from pathlib import Path
 from urllib.parse import urlparse
 
+from stormtrace_platform import profile_paths, show_notification
+
 import gi
 
 gi.require_version("Gdk", "3.0")
@@ -70,10 +72,7 @@ class StormtraceApplication(Gtk.Application):
             self.window.present()
             return
 
-        data_dir = Path(GLib.get_user_data_dir()) / "stormtrace"
-        cache_dir = Path(GLib.get_user_cache_dir()) / "stormtrace"
-        data_dir.mkdir(parents=True, exist_ok=True)
-        cache_dir.mkdir(parents=True, exist_ok=True)
+        data_dir, cache_dir = profile_paths(GLib)
 
         data_manager = WebKit2.WebsiteDataManager(
             base_data_directory=str(data_dir),
@@ -298,16 +297,7 @@ class StormtraceApplication(Gtk.Application):
     def _on_show_notification(
         self, _web_view: WebKit2.WebView, notification: WebKit2.Notification
     ) -> bool:
-        desktop_notification = Gio.Notification.new(notification.get_title() or APP_NAME)
-        if notification.get_body():
-            desktop_notification.set_body(notification.get_body())
-        if ICON_PATH.is_file():
-            desktop_notification.set_icon(
-                Gio.FileIcon.new(Gio.File.new_for_path(str(ICON_PATH)))
-            )
-        desktop_notification.set_default_action("app.present")
-        self.send_notification(f"stormtrace-{notification.get_id()}", desktop_notification)
-        return True
+        return show_notification(self, Gio, notification, ICON_PATH, APP_NAME)
 
     def _on_decide_policy(
         self,

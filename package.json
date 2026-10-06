@@ -6,9 +6,12 @@
   "scripts": {
     "start": "node server.js",
     "test": "node --test tests/*.test.js",
-    "check": "node --check server.js && node --check app.js && node --check client/location.js && node --check client/settings.js && python3 -c \"import ast, pathlib; [ast.parse(pathlib.Path(name).read_text()) for name in ('server.py', 'stormtrace_app.py')]\""
+    "check": "node scripts/check.mjs"
   },
   "engines": {
     "node": ">=20"
+  },
+  "devDependencies": {
+    "fake-indexeddb": "^6.2.5"
   }
 }

@@ -1,0 +1,6 @@
+<alert xmlns="urn:oasis:names:tc:emergency:cap:1.2">
+<identifier>imperfect</identifier><sender>test</sender><sent>bad date</sent><status>Test</status><msgType>Alert</msgType><scope>Public</scope>
+<references>broken</references>
+<info><category>Geo</category><event>Exercise</event><severity>Unknown</severity><expires>2026-10-01T00:00:00</expires>
+<area><areaDesc>Unclosed polygon and malformed extras</areaDesc><polygon>0,0 0,1 1,1</polygon><polygon>nan,bad</polygon><circle>0,0 0</circle><circle>bad</circle></area>
+</info></alert>

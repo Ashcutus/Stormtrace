@@ -2,12 +2,14 @@ import { createReadStream, existsSync, readFileSync, statSync } from "node:fs";
 import { createServer } from "node:http";
 import { extname, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { execFileSync } from "node:child_process";
+import core from "./core/index.js";
+import "./providers/lightning.js";
+import { readLocalKey, readOmarchyTheme } from "./platform/node.js";
 
 const ROOT = fileURLToPath(new URL(".", import.meta.url));
 const HOST = process.env.STORMTRACE_HOST || "127.0.0.1";
 const PORT = Number(process.env.STORMTRACE_PORT || 4177);
-const API_KEY = process.env.LIGHTNING_API_KEY || readLocalKey();
+const API_KEY = process.env.LIGHTNING_API_KEY || readLocalKey(ROOT);
 const APP_VERSION = JSON.parse(readFileSync(resolve(ROOT, "manifest.json"), "utf8")).version;
 const UPDATE_MANIFEST_URL = process.env.STORMTRACE_UPDATE_MANIFEST_URL
   || "https://raw.githubusercontent.com/Ashcutus/Stormtrace/main/manifest.json";
@@ -105,42 +107,20 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   });
 }
 
+const historyProvider = new core.LightningHistoryProvider({ apiKey: API_KEY, log: (entry) => console.info(JSON.stringify(entry)) });
+
 async function proxyHistory(url, response) {
   if (!API_KEY) return json(response, 200, { configured: false, flashes: [] });
-  const requestedMinutes = clamp(Number(url.searchParams.get("since_minutes") || 1440), 1, 1440);
   try {
-    const upstream = await fetch(`https://api.lightningapi.dev/v1/flashes?since_minutes=${requestedMinutes}&limit=20000`, {
-      headers: { "X-API-Key": API_KEY, Accept: "application/json" },
-      signal: AbortSignal.timeout(15000),
-    });
-    const payload = await upstream.json().catch(() => ({}));
-    if (!upstream.ok) {
-      return json(response, upstream.status, { configured: true, error: `History provider returned ${upstream.status}` });
-    }
-    const flashes = normalizeHistoryFlashes(payload.flashes);
-    return json(response, 200, { configured: true, flashes });
-  } catch {
-    return json(response, 502, { configured: true, error: "The history provider could not be reached." });
+    const result = await historyProvider.history(url.searchParams.get("since_minutes") || 1440);
+    return json(response, 200, { configured: true, flashes: result.records, health: result.health });
+  } catch (error) {
+    const status = error.status || 502;
+    return json(response, status, { configured: true, error: error.status ? `History provider returned ${error.status}` : "The history provider could not be reached.", providerError: error.toJSON(), health: { ...historyProvider.health, freshness: core.freshness(historyProvider.health) } });
   }
 }
 
-export function normalizeHistoryFlashes(input) {
-  if (!Array.isArray(input)) return [];
-  return input.map((flash) => {
-    const timestamp = String(flash?.flash_timestamp_utc || "");
-    if (flash?.flash_id == null || flash?.lat == null || flash?.lon == null) return null;
-    return {
-      id: `provider:${flash?.flash_id}`,
-      time: Date.parse(`${timestamp}${timestamp.endsWith("Z") || /[+-]\d\d:\d\d$/.test(timestamp) ? "" : "Z"}`),
-      lat: Number(flash?.lat),
-      lon: Number(flash?.lon),
-      polarity: 0,
-      deviation: 0,
-    };
-  }).filter((flash) => flash
-    && Number.isFinite(flash.time) && Number.isFinite(flash.lat) && Number.isFinite(flash.lon)
-    && Math.abs(flash.lat) <= 90 && Math.abs(flash.lon) <= 180);
-}
+export const normalizeHistoryFlashes = core.normalizeHistoryFlashes;
 
 async function checkForUpdate(response) {
   try {
@@ -181,10 +161,6 @@ function json(response, status, body) {
   response.end(JSON.stringify(body));
 }
 
-function clamp(value, min, max) {
-  return Math.min(max, Math.max(min, Number.isFinite(value) ? value : min));
-}
-
 function normalizeVersion(value) {
   const match = String(value || "").trim().match(/^v?(\d+)\.(\d+)\.(\d+)$/);
   return match ? match.slice(1).map(Number).join(".") : "";
@@ -197,25 +173,4 @@ function compareVersions(left, right) {
     if (leftParts[index] !== rightParts[index]) return leftParts[index] - rightParts[index];
   }
   return 0;
-}
-
-function readLocalKey() {
-  const envPath = resolve(ROOT, ".env");
-  if (!existsSync(envPath)) return "";
-  const line = readFileSync(envPath, "utf8").split(/\r?\n/).find((item) => item.startsWith("LIGHTNING_API_KEY="));
-  return line ? line.slice("LIGHTNING_API_KEY=".length).trim() : "";
-}
-
-function readOmarchyTheme() {
-  try {
-    const name = execFileSync("omarchy", ["theme", "current"], { encoding: "utf8", timeout: 2000 }).trim();
-    const output = execFileSync("omarchy", ["theme", "color", "--all"], { encoding: "utf8", timeout: 2000 });
-    const colors = Object.fromEntries(output.split(/\r?\n/).filter(Boolean).map((line) => {
-      const split = line.indexOf("\t");
-      return split > 0 ? [line.slice(0, split), line.slice(split + 1)] : [line, ""];
-    }));
-    return { available: true, name: name || "Omarchy", mode: colors.mode || "dark", colors };
-  } catch {
-    return { available: false, name: "Stormtrace default", mode: "dark", colors: {} };
-  }
 }

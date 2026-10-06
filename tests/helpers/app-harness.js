@@ -7,7 +7,7 @@ const source = readFileSync(new URL("../../app.js", import.meta.url), "utf8");
 const settingsSource = readFileSync(new URL("../../client/settings.js", import.meta.url), "utf8");
 const locationSource = readFileSync(new URL("../../client/location.js", import.meta.url), "utf8");
 const exports = [
-  "state", "els", "ingestStrikes", "appendStrikeTimeline", "trimMemory",
+  "state", "els", "connectFeed", "initializeRevisionHistory", "persistRevisions", "loadProviderHistory", "ingestStrikes", "appendStrikeTimeline", "trimMemory",
   "timelineIndexAtOrAfter", "displayLongitude", "strikeIsInBounds", "render",
   "scheduleStats", "selectWindow", "handleVisibilityChange", "strikeDistance",
   "updateProximityStats", "loadHistory", "storeStrikes", "flushStrikes", "startDemo",
@@ -35,7 +35,7 @@ function element() {
   };
 }
 
-export function loadApp({ search = "", indexedDB, storage, fetch = async () => ({ ok: true, json: async () => ({ available: false }) }) } = {}) {
+export function loadApp({ search = "", indexedDB, keyRange, storage, fetch = async () => ({ ok: true, json: async () => ({ available: false }) }) } = {}) {
   let now = 1800000000000;
   let nextTimer = 1;
   const timers = new Map();
@@ -84,7 +84,7 @@ export function loadApp({ search = "", indexedDB, storage, fetch = async () => (
       return id;
     },
     clearInterval(id) { timers.delete(id); },
-    IDBKeyRange: { lowerBound: (lower) => ({ lower }) },
+    IDBKeyRange: keyRange || { lowerBound: (lower) => ({ lower }) },
     L: {
       circleMarker([lat, lng], options) {
         return {
@@ -110,6 +110,14 @@ export function loadApp({ search = "", indexedDB, storage, fetch = async () => (
       },
     },
   });
+  vm.runInContext(readFileSync(new URL("../../core/model.js", import.meta.url), "utf8"), context);
+  vm.runInContext(readFileSync(new URL("../../core/geometry.js", import.meta.url), "utf8"), context);
+  vm.runInContext(readFileSync(new URL("../../core/history.js", import.meta.url), "utf8"), context);
+  vm.runInContext(readFileSync(new URL("../../providers/registry.js", import.meta.url), "utf8"), context);
+  vm.runInContext(readFileSync(new URL("../../providers/lightning.js", import.meta.url), "utf8"), context);
+  vm.runInContext(readFileSync(new URL("../../providers/geocoding.js", import.meta.url), "utf8"), context);
+  vm.runInContext(readFileSync(new URL("../../platform/browser.js", import.meta.url), "utf8"), context);
+  vm.runInContext(readFileSync(new URL("../../platform/strike-cache.js", import.meta.url), "utf8"), context);
   vm.runInContext(settingsSource, context);
   vm.runInContext(locationSource, context);
   vm.runInContext(source.replace("  init();", `  globalThis.app = {${exports.join(",")}};`), context);

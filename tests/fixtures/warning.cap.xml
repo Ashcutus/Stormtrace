@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<cap:alert xmlns:cap="urn:oasis:names:tc:emergency:cap:1.2" xmlns:other="urn:example">
+  <cap:identifier>warning-2</cap:identifier><cap:sender>alerts@example.test</cap:sender>
+  <cap:sent>2026-10-01T12:00:00Z</cap:sent><cap:status>Actual</cap:status><cap:msgType>Update</cap:msgType><cap:scope>Public</cap:scope>
+  <cap:source>Example official authority</cap:source>
+  <cap:references>alerts@example.test,warning-1,2026-10-01T11:00:00Z</cap:references>
+  <other:extension key="test">retained</other:extension>
+  <cap:info><cap:language>en-GB</cap:language><cap:category>Met</cap:category><cap:event>Heavy rain</cap:event>
+    <cap:urgency>Expected</cap:urgency><cap:severity>Severe</cap:severity><cap:certainty>Likely</cap:certainty>
+    <cap:effective>2026-10-01T12:00:00Z</cap:effective><cap:onset>2026-10-01T13:00:00Z</cap:onset><cap:expires>2026-10-02T00:00:00Z</cap:expires>
+    <cap:headline>Rain &amp; flooding</cap:headline><cap:description><![CDATA[Water may rise <rapidly>.]]></cap:description><cap:instruction>Follow official advice.</cap:instruction>
+    <cap:parameter><cap:valueName>warningColour</cap:valueName><cap:value>Amber</cap:value></cap:parameter>
+    <cap:area><cap:areaDesc>Example region</cap:areaDesc><cap:polygon>50,-2 50,0 52,0 52,-2 50,-2</cap:polygon><cap:circle>51,-1 25</cap:circle>
+      <cap:geocode><cap:valueName>region</cap:valueName><cap:value>ABC</cap:value></cap:geocode>
+    </cap:area>
+  </cap:info>
+  <cap:info><cap:language>fr</cap:language><cap:category>Met</cap:category><cap:event>Pluie</cap:event><cap:severity>Severe</cap:severity></cap:info>
+</cap:alert>

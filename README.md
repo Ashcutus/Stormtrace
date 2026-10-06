@@ -10,6 +10,12 @@ Stormtrace opens as a centred, resizable desktop window. Expand it to fullscreen
 
 > The product images use Stormtrace's built-in demo feed so the tour remains consistent. The installed app connects to the live LightningMaps/Blitzortung feed by default.
 
+## Rollout status
+
+Stormtrace's working product is the V1 lightning viewer described below. Phase 0 adds the provider, core and platform foundations for a staged expansion. Radar, official weather warnings, earthquakes and the other intended hazard sources are not available features yet.
+
+Phase 0 is implemented in this branch and covered by deterministic regression tests. A native Omarchy smoke test remains outstanding before rollout. See the [rollout status and phase gates](docs/rollout.md) for the maintained status, open checks and proposed next work. Phase completion and an application release are separate decisions.
+
 ## What Stormtrace gives you
 
 - **A live global map** with draggable, zoomable coverage and clear strike-age colours.
@@ -210,9 +216,10 @@ For a stable interface walkthrough without waiting for live activity, open:
 http://127.0.0.1:4177/?demo=1
 ```
 
-Run the project checks before committing:
+Install the test-only dependencies and run the project checks before committing:
 
 ```bash
+npm ci
 npm run check
 npm test
 bash -n start.sh start-app.sh install-omarchy.sh uninstall-omarchy.sh
@@ -220,12 +227,9 @@ git diff --check
 omarchy plugin validate .
 ```
 
-The regression tests cover archive ordering and retention, bulk reads of oversized
-history with timestamp ties, live reception during backfill, demo isolation,
-wrapped marker positions, deferred statistics, distance caching, and bar health
-validation. They run without a desktop session or external feed.
+The deterministic tests cover V1 archive/map/location behaviour and the shared provider, provenance, revision storage, freshness/error, GeoJSON, CAP and adapter boundaries. They run without a desktop session or external feed. Native desktop checks are tracked separately in the [rollout gates](docs/rollout.md#completion-gates).
 
-The repository includes the marketplace manifest, QML bar entry point, native GTK shell, local servers, safe launcher scripts, and a [publishing checklist](PUBLISHING.md).
+Start with the [documentation index](docs/README.md), then use the [architecture guide](docs/architecture.md), [provider development guide](docs/providers.md) or [Phase 0 audit and delivery record](docs/phase-0.md) for the relevant work. The repository also includes a [publishing checklist](PUBLISHING.md).
 
 ## Licence
 
