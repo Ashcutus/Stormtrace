@@ -50,7 +50,7 @@ Automated checks on this implementation:
 - `STORMTRACE_RADAR_PYTHON=/tmp/stormtrace-radar-venv/bin/python npm test`: 85 deterministic tests pass, including the optional radar decoder and existing V1 regressions. New synthetic fixtures exercise Atom namespaces/links, malformed XML/GeoJSON, all official colour priorities, source identity/timestamps/text/geometry, update/cancellation snapshots, empty success, missing configuration, authentication/rate-limit/network/timeout/schema errors and recovery.
 - Node/Python parity covers normalized fixtures, feed parsing, cache lifecycle and HTTP contracts. Local HTTP tests deny hidden credential files for GET and HEAD. No tests use a live subscription key.
 - IndexedDB tests cover warning history deduplication/replay, cancellation persistence and reopen, snapshot restore, scoped retention and storage failure. A user preview exposed a browser-fetch receiver issue: default transports now call fetch through the global receiver, with regressions for the warnings controller and existing place/history providers. Presentation tests cover official text, UK daylight-saving dates, relevance, safe text insertion, cancellation history and demo isolation.
-- `npm run check`: production JavaScript/Python syntax and manifest validation pass. `git diff --check`: pass at handoff.
+- `npm run check`: production JavaScript/Python syntax and manifest validation pass. `git diff --check`, launcher `bash -n` and `omarchy plugin validate .`: pass at handoff.
 
 The user reviewed the warnings and radar previews positively. Implementation is ready for PR review; the remaining checks below are release gates.
 
@@ -60,6 +60,6 @@ Open checks before release:
 - [ ] Browser/native visual inspection of warning dialog sizing, scroll, focus, keyboard dismissal and all official colours. Automated presentation tests exercise a lightweight DOM; browser inventory was unavailable in this session.
 - [ ] Native GTK launch/focus/exit, saved-location relevance, warnings open/close/visibility polling and coexistence with lightning reception/map/theme/settings.
 - [ ] Existing native location and desktop-notification smoke gates from the rollout tracker.
-- [ ] Review/merge and publication under the publishing checklist. Phase 1 is prepared for PR review; merge and publication remain pending.
+- [ ] Review/merge and publication under the publishing checklist. [PR #22](https://github.com/Ashcutus/Stormtrace/pull/22) is open for review; merge and publication remain pending.
 
 The user subsequently approved public radar first. Anonymous Met Office ASDI observations and a real-file renderer are now implemented as an optional overlay; paid radar access remains deferred. See the [radar record](radar.md) for source, decoder setup and open map/native validation. The user confirmed the warnings preview looks good; this is separate from authenticated live access and a native smoke test.

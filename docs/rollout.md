@@ -8,7 +8,7 @@ This is the canonical tracker for implementation scope, readiness and release st
 | --- | --- | --- |
 | V1 lightning viewer | Existing working product: live feed, local archive, place search, saved location, map and proximity alerts | Existing baseline preserved by automated regressions |
 | Phase 0: foundations | Merged to main; [audit and delivery record](phase-0.md) | [PR #21](https://github.com/Ashcutus/Stormtrace/pull/21) merged; user applied the update and reported no visible changes; automated checks pass; detailed native smoke gates remain unrecorded |
-| Phase 1: UK warnings and public radar | Implemented on `feat/phase-1`; [warnings record](phase-1.md) and [radar setup/evidence](radar.md) | Automated checks and user preview reviews pass; prepared for PR review; authenticated DataHub and native smoke gates outstanding; merge/publication pending |
+| Phase 1: UK warnings and public radar | Implemented on `feat/phase-1`; [warnings record](phase-1.md) and [radar setup/evidence](radar.md) | Automated checks and user preview reviews pass; [PR #22](https://github.com/Ashcutus/Stormtrace/pull/22) open for review; authenticated DataHub and native smoke gates outstanding; merge/publication pending |
 | Paid UK radar | Public ASDI route approved and implemented first | Paid product/access remains deferred |
 
 Phase 0 implementation has provider contracts/metadata, provenance, event revisions, freshness/errors, GeoJSON/CAP and platform adapters. Metadata placeholders for future sources do not make those sources operational. Use the root manifest for the application version; phase numbers do not define version numbers.
