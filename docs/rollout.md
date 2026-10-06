@@ -7,14 +7,15 @@ This is the canonical tracker for implementation scope, readiness and release st
 | Work | Implementation | Validation / release status |
 | --- | --- | --- |
 | V1 lightning viewer | Existing working product: live feed, local archive, place search, saved location, map and proximity alerts | Existing baseline preserved by automated regressions |
-| Phase 0: foundations | Implemented on the Phase 0 branch; [audit and delivery record](phase-0.md) | [PR #21](https://github.com/Ashcutus/Stormtrace/pull/21) open for review; automated checks pass; native smoke checks outstanding; release not recorded |
-| Next implementation phase | Scope and ordering not yet agreed | No additional hazard source/UI is implemented or released |
+| Phase 0: foundations | Merged to main; [audit and delivery record](phase-0.md) | [PR #21](https://github.com/Ashcutus/Stormtrace/pull/21) merged; user applied the update and reported no visible changes; automated checks pass; detailed native smoke gates remain unrecorded |
+| Phase 1: UK warnings and public radar | Implemented on `feat/phase-1`; [warnings record](phase-1.md) and [radar setup/evidence](radar.md) | Automated checks and user preview reviews pass; prepared for PR review; authenticated DataHub and native smoke gates outstanding; merge/publication pending |
+| Paid UK radar | Public ASDI route approved and implemented first | Paid product/access remains deferred |
 
 Phase 0 implementation has provider contracts/metadata, provenance, event revisions, freshness/errors, GeoJSON/CAP and platform adapters. Metadata placeholders for future sources do not make those sources operational. Use the root manifest for the application version; phase numbers do not define version numbers.
 
-## Proposed next work
+## Agreed scope and later candidates
 
-Met Office UK radar, Met Office official warnings and USGS earthquakes are candidates for independently scoped implementation. Their order, grouping and UI scope remain to be agreed. Cyclones, volcanoes, tsunamis and space weather remain intended future domains, with source candidates listed in the [provider matrix](providers.md#source-matrix). No delivery dates are committed here.
+Phase 1 delivers optional Met Office UK warnings first. After warnings, the user approved public ASDI radar first. Anonymous access and real-file rendering are verified; native/browser map alignment remains an open gate. Paid access is deferred; do not substitute precipitation forecasts for observations. USGS earthquakes remain a candidate for later implementation; no later phase number, grouping or ordering is agreed. Cyclones, volcanoes, tsunamis and space weather remain intended future domains, with source candidates listed in the [provider matrix](providers.md#source-matrix). No delivery dates are committed here.
 
 Before selecting a slice, verify the actual endpoint, coverage, terms, authentication, upstream history, source timestamps and update cadence. Capture representative data fixtures and decide domain retention/storage budgets. For CAP warnings include updates/cancellations, references, native classifications and malformed areas; for radar include frame timestamps, bounds and resource lifetimes; for earthquakes include updates and source IDs.
 
@@ -38,9 +39,14 @@ Use these gates for each agreed phase. Record evidence against the relevant comm
 - [ ] Automatic location through WebKit/GeoClue, approximate-location review and manual/map location persistence.
 - [ ] Desktop notification permission/delivery, proximity behaviour and cooldown.
 - [ ] Interactive map pan/zoom, strike selection and available basemap/fallback behaviour.
-- [ ] Final PR review/merge and release validation/publication, if a release is chosen.
+- [x] Phase 0 PR review/merge (PR #21); user applied the update.
+- [ ] Detailed native validation and publication checklist evidence, if a release is chosen.
 
 Automated Phase 0 evidence is recorded in the [delivery record](phase-0.md#validation-evidence). The native checks above have not been recorded as performed. Capture results here as they occur, including the tested commit and any follow-up issue; do not include secrets or private location data.
+
+## Outstanding Phase 1 checks
+
+The user reviewed both warning and radar previews successfully. Authenticated live warnings retrieval, detailed native inspection/coexistence and release review/publication remain outstanding. See the [Phase 1 evidence and open checks](phase-1.md#validation-evidence). Public radar requires its optional local decoder; paid access remains deferred. See [radar evidence and open checks](radar.md#implementation-and-validation).
 
 ## Status maintenance
 

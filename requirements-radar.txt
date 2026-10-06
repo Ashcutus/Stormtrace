@@ -1,0 +1,4 @@
+# Optional local radar decoding only. Lightning/warnings do not need these.
+h5py>=3.11,<4
+numpy>=2,<3
+pyproj>=3.6,<4

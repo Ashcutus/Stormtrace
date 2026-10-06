@@ -53,7 +53,7 @@ test('notification intent and location use replaceable browser adapters', async 
 });
 
 test('core and presentation boundaries prevent Linux APIs, raw upstream payloads and persistence APIs leaking back', () => {
-  for (const file of ['core/model.js', 'core/geometry.js', 'core/history.js', 'core/cap.js']) assert.doesNotMatch(readFileSync(new URL(`../${file}`, import.meta.url), 'utf8'), /node:|GeoClue|DBus|Gio\.|GLib\.|hyprctl|localStorage|indexedDB|Notification|navigator\./);
+  for (const file of ['core/model.js', 'core/geometry.js', 'core/history.js', 'core/xml.js', 'core/cap.js']) assert.doesNotMatch(readFileSync(new URL(`../${file}`, import.meta.url), 'utf8'), /node:|GeoClue|DBus|Gio\.|GLib\.|hyprctl|localStorage|indexedDB|Notification|navigator\./);
   const app = readFileSync(new URL('../app.js', import.meta.url), 'utf8'); assert.doesNotMatch(app, /payload\.strokes|flash_timestamp_utc|display_name|navigator\.geolocation|new Notification|indexedDB\.|IDBKeyRange|localStorage|\.objectStore\(/);
 });
 

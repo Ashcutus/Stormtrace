@@ -41,6 +41,9 @@
             <svg class="monitor-pause-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M9 6v12M15 6v12" /></svg>
             <svg class="monitor-play-icon" aria-hidden="true" viewBox="0 0 24 24" hidden><path d="m9 6 9 6-9 6Z" /></svg>
           </button>
+          <button class="icon-button" id="warningsButton" title="Met Office Weather Warnings" aria-label="Met Office Weather Warnings">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m12 3 10 18H2L12 3Z M12 9v5 M12 17h.01"/></svg>
+          </button>
           <button class="icon-button" id="themeButton" title="Theme and colours" aria-label="Theme and colours">
             <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18h1.5a1.8 1.8 0 0 0 0-3.6h-1a1.8 1.8 0 0 1 0-3.6H16A5 5 0 0 0 21 9c0-3.3-4-6-9-6Z"/><circle cx="7.5" cy="10" r=".7"/><circle cx="10" cy="6.8" r=".7"/><circle cx="15" cy="7" r=".7"/></svg>
           </button>
@@ -76,6 +79,7 @@
           <button class="segment" data-window="1440" title="Rolling history collected on this device">24h</button>
         </div>
 
+        <button class="text-button" id="radarButton" type="button" aria-pressed="false">UK radar</button>
         <button class="text-button" id="locationButton">
           <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 21s6-5 6-11a6 6 0 1 0-12 0c0 6 6 11 6 11Z"/><circle cx="12" cy="10" r="2"/></svg>
           <span>Set location</span>
@@ -135,6 +139,19 @@
         </section>
 
         <aside class="sidebar">
+          <section id="radarPanel" class="radar-panel" hidden aria-label="UK rainfall radar">
+            <h2>UK rainfall radar</h2>
+            <p id="radarStatus" role="status">Not checked yet.</p>
+            <strong id="radarFrameTime"></strong>
+            <label for="radarTimeline">Observed frames — past 3 hours</label>
+            <input id="radarTimeline" type="range" min="0" max="0" value="0" step="1" disabled />
+            <button id="radarLatest" type="button" class="mini-button">Latest / refresh</button>
+            <p>Rainfall rate (mm/h)</p>
+            <div class="radar-legend"><span style="--rain:#62c7ff">0.1</span><span style="--rain:#3594ed">0.5</span><span style="--rain:#3dc76e">1</span><span style="--rain:#a9de45">2</span><span style="--rain:#ffda37">4</span><span style="--rain:#ff9738">8</span><span style="--rain:#ed4c55">16</span><span style="--rain:#c250db">32+</span></div>
+            <p>Transparent areas include no rain and missing coverage.</p>
+            <p id="radarAttribution"></p>
+            <p><a href="https://registry.opendata.aws/met-office-uk-radar-observations/" target="_blank" rel="noreferrer">Source and licence</a> · <a href="https://github.com/Ashcutus/Stormtrace/blob/main/docs/radar.md" target="_blank" rel="noreferrer">Radar setup</a></p>
+          </section>
           <section class="stats-grid" aria-label="Lightning statistics">
             <article class="stat-card accent">
               <span class="eyebrow">Visible strikes</span>
@@ -226,6 +243,23 @@
         <span class="footer-right" id="clock">UTC 00:00:00</span>
       </footer>
     </main>
+
+    <dialog id="warningsDialog" aria-labelledby="warningsTitle">
+      <section class="dialog-card warnings-dialog-card">
+        <h2 id="warningsTitle">Met Office Weather Warnings</h2>
+        <p id="warningAttribution"></p>
+        <p id="warningStatus" role="status" aria-live="polite">Not checked yet.</p>
+        <p><a href="https://weather.metoffice.gov.uk/warnings-and-advice/uk-warnings" target="_blank" rel="noopener noreferrer">Check the Met Office</a> · <a href="https://github.com/Ashcutus/Stormtrace/blob/main/docs/phase-1.md#setup" target="_blank" rel="noopener noreferrer">Connection setup</a></p>
+        <div class="warning-actions">
+          <button type="button" class="mini-button" id="warningRefresh">Refresh</button>
+          <button type="button" class="mini-button" id="warningHistory">Observed history</button>
+          <form method="dialog"><button class="mini-button" value="close">Close</button></form>
+        </div>
+        <p id="warningStorageStatus"></p>
+        <div id="warningList"></div>
+        <div id="warningArchive" aria-live="polite"></div>
+      </section>
+    </dialog>
 
     <dialog id="infoDialog">
       <form method="dialog" class="dialog-card">
@@ -319,6 +353,7 @@
     <script src="/core/model.js"></script>
     <script src="/core/geometry.js"></script>
     <script src="/core/history.js"></script>
+    <script src="/core/xml.js"></script>
     <script src="/core/cap.js"></script>
     <script src="/providers/registry.js"></script>
     <script src="/providers/lightning.js"></script>
@@ -327,6 +362,8 @@
     <script src="/platform/strike-cache.js"></script>
     <script src="/client/settings.js"></script>
     <script src="/client/location.js"></script>
+    <script src="/client/warnings.js"></script>
+    <script src="/client/radar.js"></script>
     <script src="/app.js" defer></script>
   </body>
 </html>

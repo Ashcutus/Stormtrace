@@ -173,6 +173,7 @@
 
   async function init() {
     bindControls();
+    globalThis.StormtraceWarnings.mountWarnings({ getLocation: () => state.userLocation, demo: isDemo });
     $("#sourceAuthority").textContent = liveProvider.source.authority;
     $("#sourceTerms").textContent = liveProvider.source.licence.displayText;
     $("#sourceTermsDetail").textContent = liveProvider.source.licence.detailText;
@@ -196,6 +197,7 @@
     }
 
     initMap();
+    globalThis.StormtraceRadar.mountRadar({ map: state.map, demo: isDemo });
     await startReceiver();
   }
 

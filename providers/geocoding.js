@@ -2,7 +2,7 @@
   "use strict";
   const C = globalThis.StormtraceCore;
   class NominatimProvider {
-    constructor({ fetch: fetcher = globalThis.fetch, now = Date.now, log } = {}) { this.id = "nominatim"; this.source = C.getSource(this.id); this.fetch = fetcher; this.now = now; this.runner = new C.ProviderRunner(this.source, { now, log }); }
+    constructor({ fetch: fetcher = (...args) => globalThis.fetch(...args), now = Date.now, log } = {}) { this.id = "nominatim"; this.source = C.getSource(this.id); this.fetch = fetcher; this.now = now; this.runner = new C.ProviderRunner(this.source, { now, log }); }
     get health() { return this.runner.health; }
     async search(query) {
       return this.runner.run("search", async () => {

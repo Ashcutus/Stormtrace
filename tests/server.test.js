@@ -28,6 +28,8 @@ test("server rejects malformed and non-file paths without terminating", async (c
   assert.equal(malformed.status, 400);
   assert.deepEqual(JSON.parse(malformed.body), { error: "Invalid request path" });
 
+  for (const path of ["/.env", "/%2eenv", "/.git/config", "/providers/../.env"]) assert.equal((await request(port, path)).status, 404);
+
   const directory = await request(port, "/vendor/");
   assert.equal(directory.status, 404);
 
@@ -63,4 +65,58 @@ test("manifest is the only hard-coded application version", () => {
     const source = readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
     assert.equal(source.includes(version), false, `${file} duplicates ${version}`);
   }
+});
+
+
+test("warnings endpoint keeps optional setup and typed failures distinct from empty success", async (context) => {
+  const provider = { apiKey: "", health: { available: false }, current: async () => ({ records: [], observations: [], health: { available: true } }) };
+  const server = createStormtraceServer({ warningsProvider: provider });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  context.after(() => new Promise((resolve) => server.close(resolve)));
+  const { port } = server.address();
+  const missing = JSON.parse((await request(port, "/api/warnings")).body); assert.equal(missing.configured, false); assert.equal(missing.health.freshness, "unavailable");
+  provider.apiKey = "test-secret"; const empty = JSON.parse((await request(port, "/api/warnings")).body); assert.equal(empty.configured, true); assert.deepEqual(empty.records, []); assert.doesNotMatch(JSON.stringify(empty), /test-secret/);
+  provider.current = async () => { throw new Error("test-secret"); };
+  const failed = await request(port, "/api/warnings"); assert.equal(failed.status, 502); assert.equal(JSON.parse(failed.body).providerError.code, "network"); assert.doesNotMatch(failed.body, /test-secret/);
+});
+
+test("Python fallback exposes warnings setup, normalized success, errors and hidden-file denial", () => {
+  const output = execFileSync("python3", ["-c", `
+import json,threading,urllib.request,urllib.error,server
+from providers.metoffice_warnings import WarningError
+class Stub:
+    api_key=''
+    health={'available':False}
+    mode='success'
+    def current(self):
+        if self.mode=='failure': raise WarningError('authentication',401)
+        return {'records':[], 'observations':[], 'health':{'available':True}}
+server.WARNINGS_PROVIDER=Stub()
+http=server.ThreadingHTTPServer(('127.0.0.1',0),server.Handler)
+t=threading.Thread(target=http.serve_forever,daemon=True); t.start()
+def get(path):
+    try:
+        with urllib.request.urlopen('http://127.0.0.1:'+str(http.server_port)+path) as r: return r.status,json.load(r)
+    except urllib.error.HTTPError as e: return e.code,json.load(e)
+assert get('/api/warnings')[1]['configured'] is False
+server.WARNINGS_PROVIDER.api_key='test-secret'
+assert get('/api/warnings')[1]['records']==[]
+server.WARNINGS_PROVIDER.mode='failure'
+status,body=get('/api/warnings'); assert status==502 and body['providerError']['code']=='authentication'
+assert 'test-secret' not in json.dumps(body)
+for path in ['/.env','/%2eenv','/.git/config']:
+    assert get(path)[0]==404
+    try: urllib.request.urlopen(urllib.request.Request('http://127.0.0.1:'+str(http.server_port)+path,method='HEAD')); raise AssertionError('HEAD exposed hidden file')
+    except urllib.error.HTTPError as e: assert e.code==404
+http.shutdown(); http.server_close(); print('ok')
+`], { encoding: 'utf8' }); assert.equal(output.trim(), 'ok');
+});
+
+test('radar HTTP routes serve normalized frames and PNG resources and sanitize failures', async (context) => {
+  const provider = { health: {}, frames: async () => ({ records: [], missingDependencies: [] }), image: async (key) => { if (key !== 'test-frame') throw new Error('private details'); return Buffer.from([137,80,78,71]); } };
+  const server = createStormtraceServer({ radarProvider: provider }); await new Promise((resolve) => server.listen(0,'127.0.0.1',resolve));
+  context.after(() => new Promise((resolve) => server.close(resolve))); const { port } = server.address();
+  const metadata=await request(port,'/api/radar');assert.equal(metadata.status,200);assert.deepEqual(JSON.parse(metadata.body).records,[]);
+  const image=await request(port,'/api/radar/frame?key=test-frame');assert.equal(image.status,200);assert.equal(image.headers['content-type'],'image/png');
+  const error=await request(port,'/api/radar/frame?key=arbitrary');assert.equal(error.status,502);assert.doesNotMatch(error.body,/private details/);
 });
