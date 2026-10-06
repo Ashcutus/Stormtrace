@@ -1,5 +1,7 @@
 # Provider development and source registry
 
+Use the [architecture guide](architecture.md) for core/platform boundaries and the [rollout tracker](rollout.md) for phase and release status. This guide owns provider development and source metadata interpretation.
+
 `providers/registry.js` is the canonical immutable source/authority/attribution registry. `ProviderRegistry` separately tracks active implementations; metadata placeholders do not call APIs or create subscriptions. V1's application registers its live and place providers; the local Node server composes the historical provider. Retrieve metadata with `StormtraceCore.getSource(id)`.
 
 Each entry describes ID/name/authority, purpose, geographic coverage, categories, homepage, attribution, licence/terms URL and notes, authentication, expected cadence (milliseconds or null), upstream historical availability, commercial-use review status, implementation status and caveats. Classification is a discovery/access category, **not a legal permission grant**. Supported categories are `OPEN_DATA`, `PUBLIC_GOVERNMENT`, `FREE_HOSTED_NONCOMMERCIAL`, `FREE_HOSTED_BEST_EFFORT`, `AUTH_REQUIRED_FREE` and `COMMERCIAL_PERMISSION_REQUIRED`. Conservative permission-review placeholders do not assert that a provider actually charges or prohibits commercial use. Government publication alone does not resolve all endpoint/third-party terms.
@@ -8,7 +10,7 @@ Only existing V1 access is active. Future sources deliberately use unknown caden
 
 ## Source matrix
 
-| Registry ID | Source / authority | Domain | Phase 0 state |
+| Registry ID | Source / authority | Domain | Implementation state |
 | --- | --- | --- | --- |
 | lightningmaps | LightningMaps / Blitzortung community network | Live lightning | Existing feed normalized, provenance and health |
 | lightning-history | Lightning API | Historical lightning | Existing optional server-key backfill, Node/Python transport |
@@ -34,7 +36,7 @@ None of the deferred entries are treated as the sole source for a domain. Multip
 4. Normalize inside `providers/`, retaining native ID, observation/issue/update time, classifications and geometry. Build provenance from `getSource(id)` and an actual fetch timestamp. Build events with `core.event`; preserve domain-specific payloads. Call `parseCAP` for CAP, examine its diagnostics and retain update/cancellation relationships. Invalid essential identity must not create a seemingly healthy warning. Use `normalizeGeometry` and explicitly handle rejected/missing shapes.
 5. At the composition root register the implementation, expose normalized models to the relevant application consumer, and call `RevisionHistory.record` for observed discrete events. History is local even when upstream only exposes current alerts. Set explicit provider-scoped retention; do not reuse lightning's 24-hour policy for warnings. Measurement/radar archives may use `StorageAdapter` with their distinct resource/time-series models.
 6. Add captured/synthetic fixtures: schema validity, malformed records, native classifications, source IDs/times, freshness, error codes and recovery, local revision deduplication and update/cancellation semantics. Stub transport; CI must not fetch live feeds. Add regression coverage if touching existing presentation or lifecycle.
-7. Update provider docs, version the root manifest once for the release scope, run `npm test` and `npm run check`. New browser modules need an explicit script/composition entry; authenticated transport may use a local server route. A future Python fallback route must implement the same normalized endpoint contract or explicitly report unsupported capability; never expose an API key to the browser.
+7. Update provider docs and the rollout tracker when scope/status changes, version the root manifest once per PR relative to its base branch, and run `npm test` and `npm run check`. New browser modules need an explicit script/composition entry; authenticated transport may use a local server route. A future Python fallback route must implement the same normalized endpoint contract or explicitly report unsupported capability; never expose an API key to the browser.
 
 ## Examples using the core
 

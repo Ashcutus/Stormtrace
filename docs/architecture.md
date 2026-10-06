@@ -1,16 +1,6 @@
-# Stormtrace Phase 0 architecture
+# Stormtrace architecture
 
-## Audit and decisions
-
-V1 is a local lightning viewer. It has no general weather forecast provider or hazard backend. The browser uses plain JavaScript, Leaflet overlays, and an existing MapLibre/OpenFreeMap basemap bridge with an OpenStreetMap fallback. `server.js` serves assets, proxies optional Lightning API history, checks the published manifest, and reads the system theme. `server.py` provides the same local endpoints when Node is absent. `stormtrace_app.py` is the GTK/WebKit desktop shell; `start-app.sh`, the installer, and `BarWidget.qml` implement Omarchy launch/service integration.
-
-The live source is the unofficial LightningMaps/Blitzortung WebSocket. Optional backfill comes from Lightning API. Place search uses Nominatim. Existing normalization already retained stable strike IDs and UTC times. Settings use `stormtrace:settings` in localStorage. The rolling cache is IndexedDB `stormtrace`, version 1, store `strikes`, keyed by `id` with a `time` index. V1 retains 24 hours and at most 30,000 strikes. The GTK profile uses the existing GLib user data/cache directories under `stormtrace`.
-
-GeoClue is not called by the browser application. WebKit implements browser geolocation through the Linux location stack. `client/location.js` already has the useful watch/precision policy, permission handling, best coarse estimate and cleanup. Browser notifications are forwarded to Gio by the GTK shell. These working mechanisms were reused. The baseline had 37 deterministic Node tests, including Python/Node normalization parity and map movement regressions; all passed before changes.
-
-The original coupling was in `app.js`: WebSocket subscription/payload decoding, Nominatim result fields, browser platform APIs and database operations lived beside rendering. Theme subprocesses and native profile/notification code were embedded in the servers/shell. Phase 0 extracts those responsibilities without replacing map libraries, launch scripts, settings or UI flows.
-
-Implementation sequence: establish core/provider contracts and metadata; normalize V1 providers behind those contracts; isolate browser and Linux platform mechanisms; add additive revision persistence, geometry and CAP; exercise them with fixtures and regression tests; review compatibility and run the complete suite.
+This guide describes the current code boundaries and compatibility rules. The historical [Phase 0 audit and delivery record](phase-0.md) explains how the foundations were introduced. Implementation and release status live in the [rollout tracker](rollout.md).
 
 ## Boundaries
 
@@ -68,10 +58,11 @@ Health tracks attempted/successful fetches, source timestamp, expected cadence, 
 
 Provider errors distinguish network, upstream, timeout, authentication, rate limit, malformed response, unsupported schema, stale upstream, configuration, parse and unavailable. Public errors contain provider/operation/code/status/retry context, not original exception messages, credentials or raw payloads. Errors are isolated per provider. Partial record rejection retains usable records but reports malformed health. `ProviderRunner` validates batch result shape, records health and emits aggregate structured logs. Live logging is sampled to at most one healthy summary per minute; failures/rejection counts are emitted separately. Logs contain duration/count/source timestamp/freshness rather than per-record payloads. The application exposes `state.providerHealth` for consumers without a new dashboard.
 
-## Compatibility, remaining debt and Phase 1
+## Compatibility and technical debt
 
 The existing feed subscription, strike IDs/time units, region presentation, history endpoint shape, settings, manual/coarse-location behaviour, reconnect/pause/demo logic, cooldown and launch behaviour are retained. Node and Python history responses add health/provenance metadata without removing `configured`/`flashes`. Polarity and deviation now survive normalized cache reloads instead of being discarded. The manifest remains the sole application version source.
 
 Deliberate debt: the application still owns WebSocket reconnect/pause lifecycle and strike-specific relevance/rendering; the V1 cache is separate from general revisions to avoid a risky migration. Python maintains a small duplicate historical transport/normalizer, tested against Node, because Node is an optional runtime. Linux window management stays in the GTK shell adapter. Declaration contracts do not replace runtime provider fixture validation. Large revision archives will need indexed time queries and explicit domain retention/storage budgets; current queries favor a small local implementation. Native GTK/GeoClue/desktop notification delivery still needs a manual smoke check in the real desktop session; automated tests cover the shared boundaries and policies rather than real location/network feeds.
 
-Before Phase 1: choose and verify each actual upstream endpoint, authentication and terms; capture representative fixtures, especially CAP updates/cancellations and radar time/resource metadata; set cadence/retention budgets from real source semantics; smoke-test native launch, location, notifications and map behaviour on Omarchy. Keep each feature's provider and presentation separately reviewable. No radar/hazard UI, new remote APIs, backend service, accounts, platform ports or map migration is part of Phase 0.
+
+See the [rollout completion gates](rollout.md#completion-gates) for release validation and preparation for the next implementation scope.
