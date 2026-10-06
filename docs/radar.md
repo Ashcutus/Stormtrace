@@ -12,20 +12,37 @@ The earlier access audit identified the retired DataPoint imagery API and paid r
 
 ## Setup
 
-Radar decoding is optional. Lightning and warnings keep their existing dependencies. In the installed app directory (normally `~/.config/omarchy/plugins/stormtrace.lightning`), create a dedicated Python environment:
+Radar decoding is optional. Lightning and warnings keep their existing dependencies. **Create the Python environment outside the plugin directory.** Omarchy rejects symlinks anywhere inside a plugin, including ignored files; Python environments contain symlinks and can block updates.
+
+From the installed app directory (normally `~/.config/omarchy/plugins/stormtrace.lightning`):
 
 ```bash
-python3 -m venv .venv-radar
-.venv-radar/bin/python -m pip install -r requirements-radar.txt
+radar_env="${XDG_DATA_HOME:-$HOME/.local/share}/stormtrace/radar-venv"
+python3 -m venv "$radar_env"
+"$radar_env/bin/python" -m pip install -r requirements-radar.txt
 ```
 
-Add its **absolute Python executable path** to the existing `.env`, preserving other settings:
+Add the **expanded absolute Python executable path** to the existing `.env`, preserving other settings. For example:
 
 ```dotenv
-STORMTRACE_RADAR_PYTHON=/absolute/path/to/Stormtrace/.venv-radar/bin/python
+STORMTRACE_RADAR_PYTHON=/home/your-user/.local/share/stormtrace/radar-venv/bin/python
 ```
 
-Do not add quotes around the value. Restart Stormtrace to read it. Both Node and the Python fallback use the same worker/decoder. If unset, Node uses `python3`; the fallback uses its own Python executable. If the selected interpreter lacks HDF5/projection packages, the UI explains that decoder setup is required. The environment is ignored by Git and hidden files are not served.
+Use the actual path printed by `printf '%s\n' "$radar_env/bin/python"`; `.env` values do not expand `$HOME`, `$XDG_DATA_HOME` or `~`. Do not add quotes around the value. Restart Stormtrace to read it. Both Node and the Python fallback use the same worker/decoder. If unset, Node uses `python3`; the fallback uses its own Python executable. If the selected interpreter lacks HDF5/projection packages, the UI explains that decoder setup is required. The decoder survives plugin replacement because it is outside the plugin folder.
+
+### Recover an existing in-plugin environment
+
+If an update reports `.venv-radar/lib64` or another decoder symlink, create the external environment above and update `.env` first. Move the old environment out of the plugin folder (preserve it as a backup), then validate and retry:
+
+```bash
+backup_dir="${XDG_DATA_HOME:-$HOME/.local/share}/stormtrace/radar-backups"
+mkdir -p "$backup_dir"
+mv .venv-radar "$backup_dir/venv-$(date +%Y%m%d-%H%M%S)"
+omarchy plugin validate .
+omarchy plugin update stormtrace.lightning --yes
+```
+
+Run these commands from the installed plugin directory. Do not replace the environment with a symlink pointing to its new location; that also fails validation. An old environment's scripts can retain absolute paths, so use the newly created external environment rather than assuming a moved environment is relocatable.
 
 ## Controls and limits
 
