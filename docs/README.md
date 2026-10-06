@@ -1,6 +1,6 @@
 # Stormtrace documentation
 
-The [main README](../README.md) describes the currently usable lightning viewer, installation, controls, data limitations and troubleshooting. Use the following guides for development and rollout work.
+The [main README](../README.md) describes the lightning viewer and optional UK warnings, installation, controls, data limitations and troubleshooting. Use the following guides for development and rollout work.
 
 | Document | Purpose | Update when |
 | --- | --- | --- |
@@ -8,6 +8,8 @@ The [main README](../README.md) describes the currently usable lightning viewer,
 | [Architecture](architecture.md) | Current UI/core/provider/platform boundaries, event/provenance models, storage compatibility and technical debt | A boundary, model, persistence policy or compatibility assumption changes |
 | [Providers](providers.md) | Provider implementation workflow, source matrix and registry/licence interpretation | A provider is introduced or its capabilities/metadata change |
 | [Phase 0 record](phase-0.md) | Historical audit, decisions, delivery scope and initial validation evidence | Correcting the record or recording a material Phase 0 scope change |
+| [Phase 1 record](phase-1.md) | UK warnings scope, verified source, subscription setup, local history and outstanding gates | Phase 1 scope, access or validation changes |
+| [Radar guide](radar.md) | Public source verification, optional decoder setup, raster limits and validation | Radar source, rendering, setup or readiness changes |
 | [Location review](location-review.md) | Detailed V1 automatic/manual/coarse-location behaviour and rationale | Location behaviour changes |
 | [Publishing checklist](../PUBLISHING.md) | Release and marketplace validation | Release procedures or requirements change |
 | [Repository instructions](../AGENTS.md) | Lasting contributor rules | A reusable architecture, compatibility or documentation rule is established |

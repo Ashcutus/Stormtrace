@@ -408,3 +408,32 @@ dialog::backdrop { background: transparent; }
 .manual-location input { width: 100%; padding: 6px; color: var(--text-primary); background: var(--surface); border: 1px solid var(--line); }
 #approximateLocationButton { margin-top: 8px; white-space: normal; }
 #approximateLocationButton[hidden] { display: none; }
+
+/* NSWWS colours remain official across all custom/Omarchy palettes. */
+.warnings-dialog-card { width: min(820px, calc(100vw - 40px)); }
+.warnings-dialog-card a { color: var(--violet-bright); }
+.warning-actions { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+.warning-actions form { margin: 0 0 0 auto; }
+.warning-card { border: 1px solid var(--line-bright); border-left: 6px solid #FFE923; padding: 18px; margin-top: 18px; overflow-wrap: anywhere; }
+.warning-card[data-level="AMBER"] { border-left-color: #FF9900; }
+.warning-card[data-level="RED"] { border-left-color: #CC0033; }
+.warning-badge { display: inline-block; padding: 4px 10px; background: #FFE923; color: #000; font-weight: 700; }
+.warning-card[data-level="AMBER"] .warning-badge { background: #FF9900; }
+.warning-card[data-level="RED"] .warning-badge { background: #CC0033; color: #fff; }
+.warning-card h3 { margin: 12px 0; }
+.warning-card h4 { margin: 16px 0 6px; }
+.warning-text { white-space: pre-line; }
+.warning-card ul { padding-left: 22px; font-size: var(--font-sm); line-height: 1.7; }
+.warning-history, #warningArchive { border-top: 1px solid var(--line-bright); margin-top: 14px; }
+.warning-history:empty, #warningArchive:empty { display: none; }
+.warning-relevance { font-weight: 700; }
+
+.radar-panel { padding: 18px; border: 1px solid var(--line-bright); background: var(--surface-2); }
+.radar-panel[hidden] { display: none; }
+.radar-panel h2 { font-size: var(--font-md); }
+.radar-panel p, .radar-panel label { font-size: var(--font-xs); line-height: 1.6; }
+.radar-panel label { display: block; margin-top: 12px; }
+.radar-panel input { width: 100%; }
+.radar-panel a { color: var(--violet-bright); }
+.radar-legend { display: flex; gap: 3px; }
+.radar-legend span { flex: 1; border-top: 7px solid var(--rain); text-align: center; padding-top: 4px; font-size: var(--font-xs); }

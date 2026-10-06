@@ -1,0 +1,73 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "issuedDate": "2026-10-06T08:00:00Z",
+        "modifiedDate": "2026-10-06T10:00:00Z",
+        "validFromDate": "2026-10-06T12:00:00Z",
+        "validToDate": "2026-10-07T18:00:00Z",
+        "weatherType": [
+          "RAIN",
+          "WIND"
+        ],
+        "warningLikelihood": 3,
+        "warningImpact": 2,
+        "warningLevel": "AMBER",
+        "warningStatus": "CANCELLED",
+        "warningHeadline": "Synthetic fixture: rain and wind across the test area",
+        "whatToExpect": [
+          "Synthetic travel disruption.",
+          "Synthetic interruption to services."
+        ],
+        "warningId": "00000000-0000-4000-8000-000000000001",
+        "warningVersion": "3.0",
+        "warningFurtherDetails": "Synthetic details.\n\nSecond paragraph.",
+        "whatShouldIDo": "Synthetic advice for testing only.",
+        "affectedAreas": [
+          {
+            "regionName": "Test region",
+            "regionCode": "TT",
+            "subRegions": [
+              "Test district"
+            ]
+          }
+        ],
+        "futureSourceField": {
+          "retained": true
+        },
+        "warningUpdateDescription": "Synthetic cancellation."
+      },
+      "geometry": {
+        "type": "MultiPolygon",
+        "coordinates": [
+          [
+            [
+              [
+                -2,
+                50
+              ],
+              [
+                0,
+                50
+              ],
+              [
+                0,
+                52
+              ],
+              [
+                -2,
+                52
+              ],
+              [
+                -2,
+                50
+              ]
+            ]
+          ]
+        ]
+      }
+    }
+  ]
+}

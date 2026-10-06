@@ -13,7 +13,7 @@ export interface SpaceWeatherEventPayload { eventType: string; linkedEvents: str
 export interface LightningPayload { polarity: number; deviation: number }
 export interface GeoQuery { bounds?: [number, number, number, number] }
 export interface TimeWindow { from: number; to: number }
-export interface ProviderHealth { lastAttemptedFetch: number | null; lastSuccessfulFetch: number | null; sourceDataTimestamp: number | null; expectedUpdateInterval: number | null; lastError: ProviderError | null; consecutiveFailures: number; available: boolean }
+export interface ProviderHealth { lastAttemptedFetch: number | null; lastSuccessfulFetch: number | null; sourceDataTimestamp: number | null; expectedUpdateInterval: number | null; lastError: ProviderError | null; consecutiveFailures: number; available: boolean; freshnessBasis?: 'source' | 'fetch' }
 export interface ProviderError { code: 'network' | 'upstream' | 'timeout' | 'authentication' | 'rate_limited' | 'malformed' | 'unsupported_schema' | 'stale' | 'configuration' | 'parse' | 'unavailable'; provider: string; operation: string; status: number | null; retryAfter: string | null }
 export type SourceClassification = 'OPEN_DATA' | 'PUBLIC_GOVERNMENT' | 'FREE_HOSTED_NONCOMMERCIAL' | 'FREE_HOSTED_BEST_EFFORT' | 'AUTH_REQUIRED_FREE' | 'COMMERCIAL_PERMISSION_REQUIRED';
 export interface ProviderSource { id: string; name: string; authority: string; description: string; categories: string[]; coverage: string; homepage: string; attribution: string; licence: { classification: SourceClassification; termsUrl: string; notes: string }; authentication: string; expectedUpdateInterval: number | null; historicalData: boolean | 'verify_before_implementation'; commercialUse: string; status: string; notes: string }
@@ -39,3 +39,5 @@ export interface NotificationIntent { title: string; body: string; icon?: string
 export interface NotificationAdapter { permission(): string; requestPermission(): Promise<string>; show(intent: NotificationIntent): { close(): void; onclick?: () => void } }
 /** update is atomic, including across connections; null deletes; returned values are detached. */
 export interface StorageAdapter { get(key: string): Promise<unknown>; update(key: string, mutate: (existing: any) => any): Promise<void>; entries(): Promise<[string, any][]> }
+
+export interface MetOfficeWarningPayload extends WeatherWarningPayload { status: 'ISSUED' | 'CANCELLED' | 'EXPIRED'; version: string; weatherTypes: string[]; whatToExpect: string[]; updateReason: string; affectedAreas: { regionName: string; regionCode: string; subRegions: string[] }[]; sourceFields: Record<string, unknown> }

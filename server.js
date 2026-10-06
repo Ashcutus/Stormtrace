@@ -4,7 +4,10 @@ import { extname, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import core from "./core/index.js";
 import "./providers/lightning.js";
-import { readLocalKey, readOmarchyTheme } from "./platform/node.js";
+import { readLocalKey, readLocalSetting, readOmarchyTheme, radarWorker } from "./platform/node.js";
+
+import { MetOfficeRadarProvider } from "./providers/metoffice-radar.js";
+import { MetOfficeWarningsProvider } from "./providers/metoffice-warnings.js";
 
 const ROOT = fileURLToPath(new URL(".", import.meta.url));
 const HOST = process.env.STORMTRACE_HOST || "127.0.0.1";
@@ -24,9 +27,9 @@ const contentTypes = {
   ".webmanifest": "application/manifest+json; charset=utf-8",
 };
 
-export function createStormtraceServer() {
+export function createStormtraceServer({ radarProvider = new MetOfficeRadarProvider({ worker: (operation, key) => radarWorker(ROOT, operation, key) }), warningsProvider = new MetOfficeWarningsProvider({ apiKey: readLocalSetting(ROOT, "METOFFICE_WARNINGS_API_KEY"), log: (entry) => console.info(JSON.stringify(entry)) }) } = {}) {
   return createServer((request, response) => {
-    handleRequest(request, response).catch((error) => {
+    handleRequest(request, response, warningsProvider, radarProvider).catch((error) => {
       console.error(`Request failed: ${error.message}`);
       if (!response.headersSent) json(response, 500, { error: "Internal server error" });
       else response.destroy();
@@ -34,7 +37,7 @@ export function createStormtraceServer() {
   });
 }
 
-async function handleRequest(request, response) {
+async function handleRequest(request, response, warningsProvider, radarProvider) {
   let url;
   try {
     url = new URL(request.url || "/", `http://${request.headers.host || `${HOST}:${PORT}`}`);
@@ -61,6 +64,29 @@ async function handleRequest(request, response) {
     return proxyHistory(url, response);
   }
 
+  if (url.pathname === "/api/radar" || url.pathname === "/api/radar/frame") {
+    try {
+      if (url.pathname === "/api/radar") return json(response, 200, await radarProvider.frames());
+      const image = await radarProvider.image(url.searchParams.get("key"));
+      response.writeHead(200, { "Content-Type": "image/png", "Cache-Control": "private, max-age=300", "X-Content-Type-Options": "nosniff" });
+      return response.end(image);
+    } catch (error) {
+      const typed = core.providerError(error, "metoffice-radar", "frames");
+      return json(response, 502, { providerError: typed.toJSON(), health: { ...radarProvider.health, lastError: typed.toJSON() } });
+    }
+  }
+
+  if (url.pathname === "/api/warnings") {
+    if (!warningsProvider.apiKey) return json(response, 200, { configured: false, records: [], observations: [], health: { ...warningsProvider.health, freshness: "unavailable" } });
+    try {
+      const result = await warningsProvider.current();
+      return json(response, 200, { configured: true, ...result });
+    } catch (error) {
+      const typed = core.providerError(error, "metoffice-warnings", "current");
+      return json(response, 502, { configured: true, providerError: typed.toJSON(), health: { ...warningsProvider.health, freshness: core.freshness(warningsProvider.health) } });
+    }
+  }
+
   if (url.pathname === "/api/theme") {
     return json(response, 200, readOmarchyTheme());
   }
@@ -71,6 +97,8 @@ async function handleRequest(request, response) {
   } catch {
     return json(response, 400, { error: "Invalid request path" });
   }
+  // Keys live in .env; hidden files must never be served as application assets.
+  if (pathname.split("/").some((part) => part.startsWith("."))) return json(response, 404, { error: "Not found" });
   const filePath = resolve(ROOT, `.${pathname}`);
   if (!filePath.startsWith(`${resolve(ROOT)}${sep}`) || !existsSync(filePath) || !statSync(filePath).isFile()) {
     return json(response, 404, { error: "Not found" });

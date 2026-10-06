@@ -27,15 +27,15 @@
     if (state.lastError) return state.lastError.code === "unavailable" || state.lastError.code === "configuration" ? "unavailable" : "provider_error";
     if (state.lastSuccessfulFetch == null) return state.lastAttemptedFetch == null ? "never_loaded" : "unavailable";
     if (!state.available) return "unavailable";
-    const age = now - Math.min(state.lastSuccessfulFetch, state.sourceDataTimestamp ?? state.lastSuccessfulFetch);
+    const age = now - (state.freshnessBasis === "fetch" ? state.lastSuccessfulFetch : Math.min(state.lastSuccessfulFetch, state.sourceDataTimestamp ?? state.lastSuccessfulFetch));
     if (!state.expectedUpdateInterval) return "fresh";
     if (age > state.expectedUpdateInterval * 3) return "stale";
     return age > state.expectedUpdateInterval * 1.5 ? "delayed" : "fresh";
   }
   class ProviderRunner {
-    constructor(source, { now = Date.now, log = () => {} } = {}) {
+    constructor(source, { now = Date.now, log = () => {}, freshnessBasis = "source" } = {}) {
       this.source = source; this.now = now; this.log = log;
-      this.health = health(source.expectedUpdateInterval);
+      this.health = { ...health(source.expectedUpdateInterval), freshnessBasis };
     }
     async run(operation, retrieve) {
       const started = this.now();

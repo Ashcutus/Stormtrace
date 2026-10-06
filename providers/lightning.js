@@ -60,7 +60,7 @@
     }
   }
   class LightningHistoryProvider {
-    constructor({ fetch: fetcher = globalThis.fetch, apiKey, now = Date.now, log } = {}) { this.id = historySource.id; this.source = historySource; this.fetch = fetcher; this.apiKey = apiKey; this.runner = new C.ProviderRunner(this.source, { now, log }); this.now = now; }
+    constructor({ fetch: fetcher = (...args) => globalThis.fetch(...args), apiKey, now = Date.now, log } = {}) { this.id = historySource.id; this.source = historySource; this.fetch = fetcher; this.apiKey = apiKey; this.runner = new C.ProviderRunner(this.source, { now, log }); this.now = now; }
     get health() { return this.runner.health; }
     async history(minutes = 1440) {
       return this.runner.run("history", async () => {

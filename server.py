@@ -3,12 +3,14 @@
 
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlparse, unquote
 from urllib.request import Request, urlopen
 import json
 import os
 import re
-from stormtrace_platform import local_api_key, read_omarchy_theme
+from stormtrace_platform import local_api_key, local_setting, read_omarchy_theme, RadarAdapter
+from providers.metoffice_radar import RadarError
+from providers.metoffice_warnings import MetOfficeWarningsProvider, WarningError
 from providers.lightning_history import LightningHistoryProvider, ProviderError, normalize_history_flashes
 
 
@@ -25,6 +27,9 @@ REPOSITORY_URL = "https://github.com/Ashcutus/Stormtrace"
 
 API_KEY = local_api_key(ROOT)
 HISTORY_PROVIDER = LightningHistoryProvider(API_KEY)
+WARNINGS_PROVIDER = MetOfficeWarningsProvider(local_setting(ROOT, "METOFFICE_WARNINGS_API_KEY"))
+
+RADAR_PROVIDER = RadarAdapter(ROOT)
 
 class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
@@ -45,9 +50,38 @@ class Handler(SimpleHTTPRequestHandler):
             return self.update_check()
         if parsed.path == "/api/theme":
             return self.send_json(200, read_omarchy_theme())
+        if parsed.path in ("/api/radar", "/api/radar/frame"):
+            try:
+                if parsed.path == "/api/radar": return self.send_json(200, RADAR_PROVIDER.frames())
+                key = parse_qs(parsed.query).get('key', [None])[0]
+                image = RADAR_PROVIDER.image(key)
+                self.send_response(200)
+                self.send_header('Content-Type', 'image/png')
+                self.send_header('Content-Length', str(len(image)))
+                self.send_header('Cache-Control', 'private, max-age=300')
+                self.end_headers()
+                return self.wfile.write(image)
+            except RadarError as e:
+                error = {'code': e.code, 'provider': 'metoffice-radar', 'operation': 'frames', 'status': None, 'retryAfter': None}
+                return self.send_json(502, {'providerError': error, 'health': {**RADAR_PROVIDER.health, 'lastError': error}})
+        if parsed.path == "/api/warnings":
+            if not WARNINGS_PROVIDER.api_key:
+                return self.send_json(200, {"configured": False, "records": [], "observations": [], "health": {**WARNINGS_PROVIDER.health, "freshness": "unavailable"}})
+            try:
+                return self.send_json(200, {"configured": True, **WARNINGS_PROVIDER.current()})
+            except WarningError as error:
+                freshness = "malformed" if error.code in ("parse", "malformed", "unsupported_schema") else "provider_error"
+                return self.send_json(502, {"configured": True, "providerError": error.as_dict(), "health": {**WARNINGS_PROVIDER.health, "freshness": freshness}})
         if parsed.path == "/api/history":
             return self.history(parsed)
+        if any(part.startswith(".") for part in unquote(parsed.path).split("/")):
+            return self.send_json(404, {"error": "Not found"})
         return super().do_GET()
+
+    def do_HEAD(self):
+        if any(part.startswith(".") for part in unquote(urlparse(self.path).path).split("/")):
+            return self.send_json(404, {"error": "Not found"})
+        return super().do_HEAD()
 
     def end_headers(self):
         if not self.path.startswith("/api/"):

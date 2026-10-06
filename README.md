@@ -12,9 +12,9 @@ Stormtrace opens as a centred, resizable desktop window. Expand it to fullscreen
 
 ## Rollout status
 
-Stormtrace's working product is the V1 lightning viewer described below. Phase 0 adds the provider, core and platform foundations for a staged expansion. Radar, official weather warnings, earthquakes and the other intended hazard sources are not available features yet.
+Phase 0 foundations are merged; the user applied the update and reported no visible changes. Phase 1 in this branch adds optional **Met Office UK weather warnings**, with official colour labels, affected areas and observed local history. It requires a Weather DataHub warnings subscription key; see the [setup guide](docs/phase-1.md#setup).
 
-Phase 0 is implemented in this branch and covered by deterministic regression tests. A native Omarchy smoke test remains outstanding before rollout. See the [rollout status and phase gates](docs/rollout.md) for the maintained status, open checks and proposed next work. Phase completion and an application release are separate decisions.
+Phase 1 also adds optional **UK rainfall radar** from public Met Office observations, with no subscription key. A local decoder environment is required; see [radar setup](docs/radar.md#setup). Paid radar access remains deferred. Earthquakes and the other intended hazard sources remain planned. Phase 1 is ready for PR review with automated coverage and user-reviewed previews; authenticated live access and native visual/smoke checks remain outstanding. See the [rollout tracker](docs/rollout.md) for readiness and release status.
 
 ## What Stormtrace gives you
 
@@ -23,6 +23,8 @@ Phase 0 is implemented in this branch and covered by deterministic regression te
 - **Useful time windows** for live activity, the past hour, six hours, or the rolling 24-hour local archive.
 - **Activity intelligence** with visible-strike totals, estimated global rate, hotspot ranking, and the latest detected strike.
 - **Private nearby alerts** with a configurable 5–50 mile safety radius and a two-minute notification cooldown.
+- **Optional UK weather warnings** in a dedicated Met Office view, with full warning text, UK-local validity times and observed update/cancellation history. Requires a server-side subscription key.
+- **Optional UK rainfall radar** with observed timestamps, rainfall-rate colours and recent frame selection, using free Met Office data.
 - **A native Omarchy experience** with a contained GTK window, one-click fullscreen and restore & single-instance focus behaviour.
 - **Theme-aware presentation** that follows the active Omarchy palette or uses a saved Stormtrace colour scheme.
 - **A built-in update check** that compares the installed app with the version currently published for Omarchy.
@@ -85,10 +87,22 @@ To make Stormtrace available from `SUPER + SPACE` as well as the bar:
 
 The plugin does not use install hooks, `sudo`, or a boot-enabled service. Its local service starts on demand and stops when you exit Stormtrace.
 
+## Met Office Weather Warnings
+
+Configure `METOFFICE_WARNINGS_API_KEY` in the installed app's `.env` and restart Stormtrace; follow the [warnings setup guide](docs/phase-1.md#setup) for subscription and installation details. Select the warning triangle in the header to open the view. It refreshes once a minute while open and visible, labels stale/error states, and links to the Met Office. Without a key it shows a setup message.
+
+Warnings are shown in a list with official colour names, complete wording and affected areas. A saved monitoring point inside a warning polygon is highlighted in the list. **Observed history** includes locally recorded updates and cancellations, retained for up to 90 days with a 5,000-warning limit. This is not a complete upstream archive; periods when the view/app is closed or offline can miss changes. No warning polygons or new warning notifications are added to the lightning map. Live warnings are disabled in demo mode.
+
+## UK rainfall radar
+
+Follow [radar setup](docs/radar.md#setup), then select **UK radar** to enable the overlay and recent-frame selector. No Met Office/AWS account or key is required. Frames arrive every 15 minutes and can be published up to 20 minutes later. Observation times and delayed/stale/error states stay visible. Transparent regions include missing coverage as well as no rain; this is observed rainfall, not a forecast. Radar is disabled in demo mode.
+
 ## Everyday controls
 
 | Action | Result |
 | --- | --- |
+| `UK radar` | Toggle the observed-rainfall overlay and frame selector; requires optional decoder setup. |
+| Warning triangle | Open Met Office Weather Warnings; requires optional setup. |
 | Hover a strike | Show a stable summary with region, age, and coordinates. |
 | Select a strike | Keep its extended details open through live updates. |
 | Drag / scroll | Move or zoom the map. |

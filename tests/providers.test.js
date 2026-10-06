@@ -57,3 +57,14 @@ test('geocoding UI receives only normalized place models and provenance', async 
   const { records } = await p.search('Warrington'); assert.equal(records[0].name, 'Warrington'); assert.equal(records[0].label, 'Warrington, England'); assert.equal(records[0].lat, 53.39); assert.equal(records[0].provenance.upstreamId, '12'); assert.equal(records[0].display_name, undefined);
   p.fetch = async () => response({ bad: true }); await assert.rejects(p.search('test'), { code: 'malformed' });
 });
+
+
+test('default provider transports preserve browser fetch receiver', async () => {
+  const original = globalThis.fetch;
+  globalThis.fetch = async function () { assert.equal(this, globalThis); return response([]); };
+  try {
+    assert.deepEqual((await new C.NominatimProvider().search('test')).records, []);
+    globalThis.fetch = async function () { assert.equal(this, globalThis); return response({ flashes: [] }); };
+    assert.deepEqual((await new C.LightningHistoryProvider({ apiKey: 'test-key' }).history()).records, []);
+  } finally { globalThis.fetch = original; }
+});
