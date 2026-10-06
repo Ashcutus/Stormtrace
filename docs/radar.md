@@ -29,7 +29,7 @@ Do not add quotes around the value. Restart Stormtrace to read it. Both Node and
 
 ## Controls and limits
 
-Select **UK radar** to enable it and focus the UK; select again to remove it. The sidebar shows the actual loaded observation time, rainfall-rate legend, recent frame selector and **Latest / refresh** button. Radar draws below lightning markers and above the existing basemap. Warnings remain in their separate list; no warning polygons are overlaid.
+Select **UK radar** to enable it; select again to remove it. Toggling radar preserves the current map centre and zoom. The sidebar shows the actual loaded observation time, rainfall-rate legend, recent frame selector and **Latest / refresh** button. Radar draws below lightning markers and above the existing basemap. Warnings remain in their separate list; no warning polygons are overlaid.
 
 Metadata refreshes every five minutes while radar is enabled and the page is visible. New frames arrive at the upstream 15-minute cadence. Frame age over 22.5 minutes is labelled delayed, and over 45 minutes stale. Failed image/metadata requests retain a last-loaded frame with its original time and an error message. An empty recent listing removes old imagery; older archive data is not presented as current. Demo mode does not request live radar.
 
