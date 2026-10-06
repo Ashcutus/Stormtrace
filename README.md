@@ -230,3 +230,9 @@ The repository includes the marketplace manifest, QML bar entry point, native GT
 ## Licence
 
 Stormtrace is released under the [MIT Licence](LICENSE). Lightning data remains subject to the source network's private, non-commercial usage terms.
+
+## Architecture foundations
+
+Phase 0 preserves the existing lightning viewer while preparing independent data providers and platform adapters. See [architecture and compatibility notes](docs/architecture.md) and the [provider guide and future source matrix](docs/providers.md). Shared foundations cover provenance, source-native classifications, local event revisions, freshness/errors, GeoJSON and CAP. Future hazard APIs and UI remain deferred.
+
+For deterministic development checks, run `npm ci`, `npm test`, and `npm run check`. The IndexedDB emulator is a test-only dependency; starting Stormtrace still requires no npm production dependencies.

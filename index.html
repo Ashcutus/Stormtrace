@@ -211,9 +211,9 @@
           </section>
 
           <section class="source-note">
-            <div class="source-line"><span>Source</span><strong>Blitzortung community network</strong></div>
+            <div class="source-line"><span>Source</span><strong id="sourceAuthority"></strong></div>
             <div class="source-line"><span>History</span><strong id="historyState">Local rolling archive</strong></div>
-            <p>Private, non-commercial viewer. Coverage and detection latency vary by region.</p>
+            <p id="sourceTerms"></p>
           </section>
         </aside>
       </div>
@@ -233,7 +233,7 @@
         <span class="eyebrow">About the signal</span>
         <h2>Real strikes, local history</h2>
         <p>Stormtrace listens to a viewport-aware community lightning feed and keeps a rolling 24-hour cache in this app. On a new install, the older time filters fill up as the app runs.</p>
-        <p>The live interface is unofficial and may change. Data is provided for private, non-commercial use and must not be treated as a safety-critical warning system.</p>
+        <p id="sourceTermsDetail"></p>
         <section class="update-check" id="updatePanel" aria-labelledby="updateStatus">
           <div class="update-copy" role="status" aria-live="polite">
             <span class="eyebrow">Application updates</span>
@@ -316,6 +316,15 @@
     <script src="/vendor/leaflet/leaflet.js"></script>
     <script src="/vendor/maplibre/maplibre-gl.js"></script>
     <script src="/vendor/maplibre/leaflet-maplibre-gl.js"></script>
+    <script src="/core/model.js"></script>
+    <script src="/core/geometry.js"></script>
+    <script src="/core/history.js"></script>
+    <script src="/core/cap.js"></script>
+    <script src="/providers/registry.js"></script>
+    <script src="/providers/lightning.js"></script>
+    <script src="/providers/geocoding.js"></script>
+    <script src="/platform/browser.js"></script>
+    <script src="/platform/strike-cache.js"></script>
     <script src="/client/settings.js"></script>
     <script src="/client/location.js"></script>
     <script src="/app.js" defer></script>
