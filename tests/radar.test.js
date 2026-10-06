@@ -96,14 +96,14 @@ print('ok')
   assert.equal(execFileSync(python,['-c',script],{encoding:'utf8'}).trim(),'ok');
 });
 
-test('radar UI swaps successfully loaded frames, retains the last image on failure, and disables live calls in demo', async () => {
+test('radar UI preserves the map view on toggles, swaps loaded frames, retains failures, and isolates demo', async () => {
   const original={document:globalThis.document,L:globalThis.L, warnings:globalThis.StormtraceWarnings};
   const elements=Object.fromEntries(['radarButton','radarPanel','radarStatus','radarTimeline','radarAttribution','radarFrameTime','radarLatest'].map(id=>[id,{listeners:{},addEventListener(n,f){this.listeners[n]=f;},setAttribute(n,v){this[n]=v;}}]));
   const pane={style:{}}, removed=[];let imageFails=false,requests=0;
   globalThis.document={hidden:false,getElementById:id=>elements[id],addEventListener(){}};
   globalThis.StormtraceWarnings={ukDate:at=>'time '+at};
   globalThis.L={imageOverlay(url,bounds,options){ assert.equal(options.pane,'radar');assert.deepEqual(bounds,[[48,-13],[62,4]]);return {listeners:{},once(n,f){this.listeners[n]=f;},addTo(){this.listeners[imageFails?'error':'load']();}};}};
-  const map={createPane(){},getPane:()=>pane,fitBounds(){},removeLayer(v){removed.push(v);}};
+  const map={createPane(){},getPane:()=>pane,fitBounds(){assert.fail('Radar toggles must preserve map centre and zoom');},removeLayer(v){removed.push(v);}};
   const value=payload();value.health={...C.health(900000),lastSuccessfulFetch:at,available:true};
   const fetch=async()=>{requests++;return {ok:true,json:async()=>value};};
   try {

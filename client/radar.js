@@ -59,7 +59,7 @@
       enabled = !enabled; panel.hidden = !enabled; button.setAttribute('aria-pressed', String(enabled));
       if (!enabled) { generation++; clearInterval(timer); if (overlay) map.removeLayer(overlay); if (pending) map.removeLayer(pending); overlay = pending = displayed = null; return; }
       if (demo) { status.textContent = 'Live radar is disabled in demo mode.'; return; }
-      map.fitBounds([[49, -9], [61, 3]]); refresh(); timer = setInterval(refresh, 300000);
+      refresh(); timer = setInterval(refresh, 300000);
     });
     slider.addEventListener('input', () => { followLatest = false; show(records[Number(slider.value)]); });
     $('radarLatest').addEventListener('click', () => { followLatest = true; slider.value = records.length - 1; show(records.at(-1)); refresh(); });
