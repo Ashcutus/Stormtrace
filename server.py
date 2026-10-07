@@ -8,6 +8,8 @@ from urllib.request import Request, urlopen
 import json
 import os
 import re
+import time
+import math
 from stormtrace_platform import local_api_key, local_setting, read_omarchy_theme, RadarAdapter
 from providers.metoffice_radar import RadarError
 from providers.metoffice_warnings import MetOfficeWarningsProvider, WarningError
@@ -31,12 +33,31 @@ WARNINGS_PROVIDER = MetOfficeWarningsProvider(local_setting(ROOT, "METOFFICE_WAR
 
 RADAR_PROVIDER = RadarAdapter(ROOT)
 
+DIAGNOSTICS_ENABLED = os.environ.get("STORMTRACE_DIAGNOSTICS") == "1"
+DIAGNOSTICS_SAMPLE = None
+DIAGNOSTICS_FIELDS = json.loads((ROOT / "platform/diagnostics-fields.json").read_text())
+
 class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT), **kwargs)
 
+    def do_POST(self):
+        global DIAGNOSTICS_SAMPLE
+        if self.path != "/api/diagnostics": return self.send_json(404, {})
+        if not DIAGNOSTICS_ENABLED or self.headers.get("Origin", "http://" + self.headers.get("Host", "")) != "http://" + self.headers.get("Host", ""): return self.send_json(403, {})
+        try:
+            size = int(self.headers.get("Content-Length", "0"))
+            if size < 0 or size > 4096: return self.send_json(413, {})
+            value = json.loads(self.rfile.read(size))
+            DIAGNOSTICS_SAMPLE = {k: min(value[k], 9007199254740991) for k in DIAGNOSTICS_FIELDS if isinstance(value.get(k), (int, float)) and not isinstance(value[k], bool) and math.isfinite(value[k]) and value[k] >= 0}
+            DIAGNOSTICS_SAMPLE["receivedAt"] = int(time.time() * 1000)
+            return self.send_json(200, {})
+        except (ValueError, TypeError, AttributeError): return self.send_json(400, {})
+
     def do_GET(self):
         parsed = urlparse(self.path)
+        if parsed.path == "/api/diagnostics":
+            return self.send_json(200, {"enabled": DIAGNOSTICS_ENABLED, "sample": DIAGNOSTICS_SAMPLE if DIAGNOSTICS_ENABLED else None})
         if parsed.path == "/api/health":
             return self.send_json(200, {
                 "ok": True,

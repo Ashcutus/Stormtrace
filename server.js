@@ -9,6 +9,9 @@ import { readLocalKey, readLocalSetting, readOmarchyTheme, radarWorker } from ".
 import { MetOfficeRadarProvider } from "./providers/metoffice-radar.js";
 import { MetOfficeWarningsProvider } from "./providers/metoffice-warnings.js";
 
+import { sanitizeDiagnostics } from "./platform/diagnostics.js";
+const diagnosticsEnabled = process.env.STORMTRACE_DIAGNOSTICS === "1";
+let diagnosticsSample = null;
 const ROOT = fileURLToPath(new URL(".", import.meta.url));
 const HOST = process.env.STORMTRACE_HOST || "127.0.0.1";
 const PORT = Number(process.env.STORMTRACE_PORT || 4177);
@@ -45,6 +48,17 @@ async function handleRequest(request, response, warningsProvider, radarProvider)
     return json(response, 400, { error: "Invalid request URL" });
   }
 
+  if (url.pathname === "/api/diagnostics") {
+    if (request.method === "POST") {
+      if (!diagnosticsEnabled || request.headers.origin && request.headers.origin !== `http://${request.headers.host}`) return json(response, 403, {});
+      let body = "";
+      for await (const chunk of request) { body += chunk; if (body.length > 4096) return json(response, 413, {}); }
+      try { diagnosticsSample = { ...sanitizeDiagnostics(JSON.parse(body)), receivedAt: Date.now() }; }
+      catch { return json(response, 400, {}); }
+      return json(response, 200, {});
+    }
+    return json(response, 200, { enabled: diagnosticsEnabled, sample: diagnosticsEnabled ? diagnosticsSample : null });
+  }
   if (url.pathname === "/api/health") {
     return json(response, 200, {
       ok: true,
