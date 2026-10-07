@@ -248,3 +248,7 @@ Start with the [documentation index](docs/README.md), then use the [architecture
 ## Licence
 
 Stormtrace is released under the [MIT Licence](LICENSE). Lightning data remains subject to the source network's private, non-commercial usage terms.
+
+## Soak diagnostics
+
+Optional bounded, private JSONL diagnostics are available for long-running tests, with no monitoring UI. See [enable, record, analyse and clean](docs/diagnostics.md). Disabled by default.

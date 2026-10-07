@@ -578,6 +578,8 @@
     els.statusDetail.textContent = detail;
   }
 
+  globalThis.StormtraceDiagnostics?.start(() => ({ markers: state.strikeMarkers.size, strikes: state.strikes.size, pendingWrites: state.pendingWrites.size, paused: Number(state.monitoringPaused) }));
+
   function connectFeed() {
     if (state.monitoringPaused) return;
     clearTimeout(state.socketRetry);
@@ -587,6 +589,7 @@
     }
 
     setStatus("connecting", "CONNECTING", state.retryCount ? `Retry ${state.retryCount}…` : "Opening global stream…");
+    globalThis.StormtraceDiagnostics?.count("connections");
     liveProvider.attempted();
     const socket = new WebSocket(liveProvider.url);
     state.socket = socket;
@@ -602,20 +605,24 @@
     socket.onmessage = (event) => {
       try {
         const result = liveProvider.message(event.data);
+        globalThis.StormtraceDiagnostics?.count("received", result.records.length);
+        globalThis.StormtraceDiagnostics?.lightning();
         state.providerHealth[liveProvider.id] = result.health;
         if (result.records.length) ingestStrikes(result.records, true);
         else if (result.receiver) setStatus("live", "LIVE", `${result.receiver.viewers.toLocaleString()} viewers · receiver ${result.receiver.name}`);
       } catch (error) {
         state.providerHealth[liveProvider.id] = { ...liveProvider.health, freshness: core.freshness(liveProvider.health) };
+        globalThis.StormtraceDiagnostics?.count("errors");
         console.warn("Ignored an unreadable feed message", error);
       }
     };
 
-    socket.onerror = () => { liveProvider.failed(); state.providerHealth[liveProvider.id] = { ...liveProvider.health, freshness: core.freshness(liveProvider.health) }; setStatus("error", "DEGRADED", "Live receiver interrupted"); };
+    socket.onerror = () => { globalThis.StormtraceDiagnostics?.count("networkFailures"); liveProvider.failed(); state.providerHealth[liveProvider.id] = { ...liveProvider.health, freshness: core.freshness(liveProvider.health) }; setStatus("error", "DEGRADED", "Live receiver interrupted"); };
     socket.onclose = () => {
       if (state.socket !== socket || state.monitoringPaused) return;
       if (!liveProvider.health.lastError) liveProvider.failed("unavailable");
       state.providerHealth[liveProvider.id] = { ...liveProvider.health, freshness: core.freshness(liveProvider.health) };
+      globalThis.StormtraceDiagnostics?.count("reconnects");
       state.retryCount += 1;
       const delay = Math.min(30000, 1200 * 2 ** Math.min(5, state.retryCount));
       setStatus("error", "RECONNECTING", `Next attempt in ${Math.ceil(delay / 1000)}s`);
@@ -747,6 +754,7 @@
       additions.push(strike);
     }
 
+    globalThis.StormtraceDiagnostics?.count("processed", additions.length);
     if (!additions.length) return;
     additions.sort((a, b) => a.time - b.time);
     appendStrikeTimeline(additions);

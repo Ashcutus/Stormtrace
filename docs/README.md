@@ -5,6 +5,7 @@ The [main README](../README.md) describes the lightning viewer and optional UK w
 | Document | Purpose | Update when |
 | --- | --- | --- |
 | [Rollout tracker](rollout.md) | Canonical phase status, agreed/proposed scope, completion gates and outstanding evidence | Scope, validation, merge or release status changes |
+| [Diagnostics](diagnostics.md) | Opt-in soak recorder, metrics interpretation, retention and analysis workflow | Diagnostic measurements or workflow changes |
 | [Architecture](architecture.md) | Current UI/core/provider/platform boundaries, event/provenance models, storage compatibility and technical debt | A boundary, model, persistence policy or compatibility assumption changes |
 | [Providers](providers.md) | Provider implementation workflow, source matrix and registry/licence interpretation | A provider is introduced or its capabilities/metadata change |
 | [Phase 0 record](phase-0.md) | Historical audit, decisions, delivery scope and initial validation evidence | Correcting the record or recording a material Phase 0 scope change |

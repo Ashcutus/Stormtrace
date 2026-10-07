@@ -32,17 +32,22 @@
         $('radarFrameTime').textContent = `Observation: ${stamp(frame)}`;
         status.textContent = `${Date.now() - frame.observedAt > 2700000 ? 'Stale' : Date.now() - frame.observedAt > 1350000 ? 'Delayed' : 'Observed'} radar · 15-minute frames, publication can lag by 20 minutes.`;
       } catch {
+        globalThis.StormtraceDiagnostics?.count("errors");
         map.removeLayer(next);
         if (request === generation && enabled) status.textContent = `Radar image unavailable.${displayed ? ` Keeping observation ${stamp(displayed)}.` : ''} Check the decoder setup.`;
       }
     }
     async function refresh() {
       if (!enabled || document.hidden || loading || demo) return;
+      const diagnosticStart = Date.now();
+      globalThis.StormtraceDiagnostics?.count("radarAttempts");
       loading = true; const controller = new AbortController(), timeout = setTimeout(() => controller.abort(), 60000);
       try {
         const response = await fetcher('/api/radar', { signal: controller.signal, cache: 'no-store' });
         if (!response.ok) throw new Error('provider');
         const data = validate(await response.json());
+        globalThis.StormtraceDiagnostics?.count("radarSuccesses");
+        globalThis.StormtraceDiagnostics?.radar(Date.now() - diagnosticStart, data.records.at(-1)?.observedAt);
         if (!enabled) return;
         if (data.missingDependencies.length) { status.textContent = 'Radar decoder is not configured. Follow the radar setup guide; no API key is needed.'; return; }
         records = data.records.slice().sort((a, b) => a.observedAt - b.observedAt);
@@ -52,7 +57,7 @@
         if (index < 0) { followLatest = true; index = records.length - 1; }
         slider.value = index;
         await show(records[index]);
-      } catch { if (enabled) status.textContent = `Radar feed unavailable.${displayed ? ` Showing last loaded observation ${stamp(displayed)}.` : ''}`; }
+      } catch { globalThis.StormtraceDiagnostics?.count("radarFailures"); globalThis.StormtraceDiagnostics?.count("networkFailures"); if (enabled) status.textContent = `Radar feed unavailable.${displayed ? ` Showing last loaded observation ${stamp(displayed)}.` : ''}`; }
       finally { clearTimeout(timeout); loading = false; }
     }
     button.addEventListener('click', () => {

@@ -51,3 +51,7 @@ The user reviewed both warning and radar previews successfully. Authenticated li
 ## Status maintenance
 
 Update this tracker in the same PR when agreed scope, capability readiness or validation status changes. After merge/publication, replace branch/review wording with the actual milestone and evidence. Add later phase rows and linked records only after their scope is agreed. Keep outstanding checks visible until verified or explicitly deferred with a reason; a planned feature is never an available feature merely because its contract exists.
+
+## Soak diagnostics validation
+
+An opt-in bounded recorder is implemented independently of hazard rollout scope; see [diagnostics](diagnostics.md). Deterministic tests cover its storage and disabled paths. Native GTK/WebKit overhead measurement and an overnight run remain outstanding; implementation does not imply merge/publication.
