@@ -76,3 +76,70 @@ test('V1 application receives normalized live/backfill data and persists source 
   assert.equal(app.state.providerHealth['lightningmaps'].freshness, 'fresh');
   app.state.revisionHistory.storage.close();
 });
+
+test('routine retention opens no write transactions for unchanged or unrelated rows', async () => {
+  const storage = await P.IndexedDBStorageAdapter.open(new IDBFactory());
+  const history = new C.RevisionHistory(storage, { now: () => 140 });
+  await history.record(warning());
+  let writes = 0;
+  const update = storage.update.bind(storage);
+  storage.update = (...args) => { writes++; return update(...args); };
+  assert.equal(await history.retain({ before: 1000, provider: 'lightningmaps', keepLatest: false, maxEvents: 0 }), 0);
+  assert.equal(await history.retain({ before: 0, provider: source.id, keepLatest: false, maxEvents: 30000 }), 0);
+  assert.equal(await history.retain({ before: 1000, provider: source.id, keepLatest: true }), 0);
+  assert.equal(writes, 0);
+  assert.equal(await history.retain({ before: 1000, provider: source.id, keepLatest: false }), 1);
+  assert.equal(writes, 1);
+  assert.deepEqual(await storage.entries(), []);
+  storage.close();
+});
+
+test('retention rechecks an expired candidate atomically after a concurrent revision', async () => {
+  const storage = await P.IndexedDBStorageAdapter.open(new IDBFactory());
+  let now = 140;
+  const history = new C.RevisionHistory(storage, { now: () => now });
+  await history.record(warning());
+  const entries = storage.entries.bind(storage);
+  let injected = false;
+  storage.entries = async () => {
+    const snapshot = await entries();
+    if (!injected) {
+      injected = true; now = 300;
+      await history.record({ ...warning(), updatedAt: 250 });
+    }
+    return snapshot;
+  };
+  assert.equal(await history.retain({ before: 200, provider: source.id, keepLatest: false }), 1);
+  const kept = await history.revisions(source.id, 'w1');
+  assert.equal(kept.length, 1);
+  assert.equal(kept[0].event.updatedAt, 250);
+  storage.close();
+});
+
+test('bulk revision entries pair ordered keys with detached values without cursor traversal', async () => {
+  const storage = await P.IndexedDBStorageAdapter.open(new IDBFactory());
+  const previousRange = globalThis.IDBKeyRange;
+  globalThis.IDBKeyRange = IDBKeyRange;
+  for (let i = 0; i < 600; i++) await storage.update(`m${String(i).padStart(3, '0')}`, () => ({ provider: 'test', value: i }));
+  await storage.update('z', () => ({ provider: 'test', value: 2 }));
+  await storage.update('a', () => ({ provider: 'test', value: 1 }));
+  const transaction = storage.db.transaction.bind(storage.db);
+  storage.db.transaction = (...args) => {
+    const tx = transaction(...args), objectStore = tx.objectStore.bind(tx);
+    tx.objectStore = (...names) => {
+      const store = objectStore(...names);
+      store.openCursor = () => { throw new Error('per-row cursor traversal'); };
+      return store;
+    };
+    return tx;
+  };
+  const entries = await storage.entries();
+  assert.equal(entries.length, 602);
+  assert.deepEqual(entries[0], ['a', { provider: 'test', value: 1 }]);
+  assert.deepEqual(entries.at(-1), ['z', { provider: 'test', value: 2 }]);
+  for (let i = 0; i < 600; i++) assert.deepEqual(entries[i + 1], [`m${String(i).padStart(3, '0')}`, { provider: 'test', value: i }]);
+  entries[0][1].value = 99;
+  assert.equal((await storage.get('a')).value, 1);
+  globalThis.IDBKeyRange = previousRange;
+  storage.close();
+});

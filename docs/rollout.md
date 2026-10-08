@@ -54,4 +54,4 @@ Update this tracker in the same PR when agreed scope, capability readiness or va
 
 ## Soak diagnostics validation
 
-An opt-in bounded recorder is implemented independently of hazard rollout scope; see [diagnostics](diagnostics.md). Deterministic tests cover its storage and disabled paths. Native GTK/WebKit overhead measurement and an overnight run remain outstanding; implementation does not imply merge/publication.
+An opt-in bounded recorder is implemented independently of hazard rollout scope; see [diagnostics](diagnostics.md). Deterministic tests cover its storage and disabled paths. The [7 October soak investigation](performance-2026-10-07.md) records a 5h 51m native run and isolated WebKit storage benchmarks. A repeat full viewer soak after the storage fix, an overnight run and a controlled enabled/disabled overhead comparison remain outstanding; implementation does not imply merge/publication.

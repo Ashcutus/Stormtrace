@@ -31,6 +31,8 @@
 - Reproject native radar grids to the map CRS before using image bounds. Validate ODIM quantity/origin/gain/offset/no-data and source time against the object key. Preserve observation time, label latency, and distinguish missing coverage from no rain. Keep radar resources out of discrete-event history.
 - Optional radar decoding must not prevent lightning/warnings startup. Keep scientific imports lazy, decoder selection in platform adapters, bounded on-demand resources, and deterministic tests alongside separately recorded live-access evidence.
 
+- For recurring IndexedDB archive maintenance, avoid per-row cursor enumeration and unchanged-row writes. The native WebKit soak investigation reproduced rising RSS with cursor scans; bounded bulk reads and provider-scoped mutation checks reduced that pressure. Preserve atomic rechecks and verify full viewer stability separately from isolated storage benchmarks.
+
 - Keep installed runtime environments outside the Omarchy plugin directory (for example under XDG_DATA_HOME/stormtrace). Plugin validation rejects symlinks even in ignored files; Python venvs and symlink shortcuts inside the plugin can block updates. Recreate environments at their final path instead of assuming relocated scripts still work.
 
 ## Multi-phase documentation
