@@ -45,3 +45,7 @@ Enabled browser work consists of integer counters and one small POST every ten s
 A local 100-sample microbenchmark of one `/proc` read plus JSONL/atomic-summary writes measured about 0.14 ms per sample (excluding HTTP/process-tree work); this is indicative, not a native soak result.
 
 Automated tests cover sanitization, disabled behavior, bounded retention, summaries and current RSS sampling. Native overnight stability, GTK/WebKit resource scope and real UI responsiveness remain manual validation gates. Record actual overhead/environment with each soak run; microbenchmarks do not establish native overhead.
+
+## Recorded soak evidence
+
+The [7 October 2026 investigation](performance-2026-10-07.md) records the first native run, journal shutdown evidence, isolated WebKit retention benchmarks and a storage fix. A full native soak after the fix remains outstanding.

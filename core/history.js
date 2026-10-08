@@ -41,14 +41,21 @@
       if (!Number.isFinite(before)) throw new TypeError("Retention cutoff is required");
       if (maxEvents != null && (!Number.isInteger(maxEvents) || maxEvents < 0)) throw new TypeError("Invalid event retention limit");
       let removed = 0;
-      for (const [key] of await this.storage.entries()) await this.storage.update(key, (row) => {
-        if (!row) return null;
-        if (provider && row.provider !== provider) return row;
-        const last = row.revisions.at(-1);
-        const kept = row.revisions.filter((r) => r.persistedAt >= before || (keepLatest && r === last));
-        removed += row.revisions.length - kept.length;
-        return kept.length ? { ...row, revisions: kept } : null;
-      });
+      for (const [key, snapshot] of await this.storage.entries()) {
+        // Most rows survive routine maintenance. Avoid opening a write
+        // transaction for them (or for another provider's archive).
+        if (provider && snapshot.provider !== provider) continue;
+        const latest = snapshot.revisions.at(-1);
+        if (!snapshot.revisions.some((r) => r.persistedAt < before && !(keepLatest && r === latest))) continue;
+        await this.storage.update(key, (row) => {
+          if (!row) return null;
+          if (provider && row.provider !== provider) return row;
+          const last = row.revisions.at(-1);
+          const kept = row.revisions.filter((r) => r.persistedAt >= before || (keepLatest && r === last));
+          removed += row.revisions.length - kept.length;
+          return kept.length ? { ...row, revisions: kept } : null;
+        });
+      }
       if (maxEvents != null) {
         const rows = (await this.storage.entries()).filter(([, row]) => !provider || row.provider === provider)
           .sort((a, b) => b[1].revisions.at(-1).persistedAt - a[1].revisions.at(-1).persistedAt || a[0].localeCompare(b[0]));

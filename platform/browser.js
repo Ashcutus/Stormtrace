@@ -31,7 +31,24 @@
         tx.oncomplete = () => resolve(); tx.onabort = tx.onerror = () => reject(failure || tx.error || request.error);
       });
     }
-    entries() { return new Promise((resolve, reject) => { const result = [], tx = this.db.transaction("events", "readonly"), request = tx.objectStore("events").openCursor(); request.onsuccess = () => { const cursor = request.result; if (cursor) { result.push([cursor.key, detached(cursor.value)]); cursor.continue(); } }; tx.oncomplete = () => resolve(result); tx.onabort = tx.onerror = () => reject(tx.error); }); }
+    entries() {
+      return new Promise((resolve, reject) => {
+        const result = [], tx = this.db.transaction("events", "readonly"), store = tx.objectStore("events");
+        // IndexedDB already returns detached structured clones. Bulk reads
+        // avoid a cursor callback and an extra JSON clone for every row.
+        const read = (range) => {
+          const keys = store.getAllKeys(range, 256), values = store.getAll(range, 256);
+          values.onsuccess = () => {
+            const batch = keys.result;
+            for (let index = 0; index < batch.length; index++) result.push([batch[index], values.result[index]]);
+            if (batch.length === 256) read(globalThis.IDBKeyRange.lowerBound(batch.at(-1), true));
+          };
+        };
+        read();
+        tx.oncomplete = () => resolve(result);
+        tx.onabort = tx.onerror = () => reject(tx.error);
+      });
+    }
     close() { this.db.close(); }
   }
   const locationAdapter = { available: () => Boolean(globalThis.navigator?.geolocation), current: () => globalThis.StormtraceLocation.locate(globalThis.navigator.geolocation) };
