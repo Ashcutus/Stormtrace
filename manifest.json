@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "id": "stormtrace.lightning",
   "name": "Stormtrace",
-  "version": "1.8.1",
+  "version": "1.9.0",
   "author": "Stormtrace Contributors",
-  "description": "A theme-aware bar launcher for a real-time global lightning map with local history and proximity alerts.",
+  "description": "A local weather and hazard viewer with lightning alerts, radar, warnings, earthquakes, cyclones, volcano reports, tsunami bulletins and space weather.",
   "kinds": [
     "bar-widget"
   ],
@@ -13,7 +13,7 @@
   },
   "barWidget": {
     "displayName": "Stormtrace",
-    "description": "Open the real-time global lightning monitor",
+    "description": "Open Stormtrace weather and hazard monitoring",
     "category": "Info",
     "allowMultiple": false,
     "defaultSection": "right"

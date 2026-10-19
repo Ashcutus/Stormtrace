@@ -5,11 +5,11 @@ export type Geometry = { type: 'Point'; coordinates: Position } | { type: 'LineS
 export interface Provenance { provider: string; sourceAuthority: string; sourceUrl: string; upstreamId: string | null; fetchedAt: number; observedAt: number | null; updatedAt: number | null; transformations: string[] }
 export interface StormtraceEvent<K extends EventKind, P, S = unknown> { id: string; kind: K; provider: string; sourceAuthority: string; observedAt: number | null; updatedAt: number | null; validFrom: number | null; validTo: number | null; geometry: Geometry | null; sourceSeverity: S; displayPriority: 'low' | 'normal' | 'high' | 'urgent'; provenance: Provenance; domainPayload: P }
 export interface WeatherWarningPayload { headline: string; description: string; instruction: string; cap?: unknown; classification: string }
-export interface EarthquakePayload { magnitude: number; magnitudeType: string; depthKm: number; status: string }
+export interface EarthquakePayload { magnitude: number | null; magnitudeType: string | null; depthKm: number; status: string; place: string; url: string; network: string; sourceCode: string; sourceFields: Record<string, unknown> }
 export interface CyclonePayload { classification: string; tracks: Geometry[]; forecast: { at: number; geometry: Geometry; classification: string }[]; cones: Geometry[] }
 export interface VolcanoPayload { volcanoId: string; activity: string; aviationColour?: string; bulletin: string }
 export interface TsunamiPayload { bulletin: string; areas: string[]; waveForecast?: { at: number; heightMetres: number; location: Position }[] }
-export interface SpaceWeatherEventPayload { eventType: string; linkedEvents: string[]; nativeScales: { scale: string; value: string }[] }
+export interface SpaceWeatherEventPayload { eventType: string; linkedEvents: string[]; nativeScales: { scale: string; value: string | null }[] }
 export interface LightningPayload { polarity: number; deviation: number }
 export interface GeoQuery { bounds?: [number, number, number, number] }
 export interface TimeWindow { from: number; to: number }
@@ -41,3 +41,12 @@ export interface NotificationAdapter { permission(): string; requestPermission()
 export interface StorageAdapter { get(key: string): Promise<unknown>; update(key: string, mutate: (existing: any) => any): Promise<void>; entries(): Promise<[string, any][]> }
 
 export interface MetOfficeWarningPayload extends WeatherWarningPayload { status: 'ISSUED' | 'CANCELLED' | 'EXPIRED'; version: string; weatherTypes: string[]; whatToExpect: string[]; updateReason: string; affectedAreas: { regionName: string; regionCode: string; subRegions: string[] }[]; sourceFields: Record<string, unknown> }
+
+/** Shared presentation fields are produced by providers, never parsed in UI. */
+export interface PublicHazardPresentation { title: string; badge: string; url: string; details: string[]; body: string; instruction: string; mode: 'current' | 'notice' | 'report' | 'bulletin' | 'measurement' | 'forecast'; sourceFields: Record<string, unknown> }
+export interface PublicCycloneSummary extends CyclonePayload, PublicHazardPresentation { status: 'CURRENT_SUMMARY'; classificationLabel: string; links: { label: string; url: string; issuedAt: number | null; advisoryNumber: string | null }[] }
+export interface TsunamiBulletin extends TsunamiPayload, PublicHazardPresentation { status: string; msgType: string; centre: string; references: { sender: string; identifier: string; sent: number | null }[] }
+export interface SpaceWeatherSnapshot extends SpaceWeatherEventPayload, PublicHazardPresentation { referenceTime?: number; status: 'SNAPSHOT' | 'ISSUED_MESSAGE' }
+
+export interface HazardComponentState { id: 'NTWC' | 'PTWC' | 'conditions' | 'messages'; lastSuccessfulFetch?: number | null; error: { code: string; status: number | null } | null; retryAt: number; cached: boolean }
+export interface PublicHazardResult extends DataResult<StormtraceEvent<EventKind, PublicHazardPresentation>> { observations: StormtraceEvent<EventKind, PublicHazardPresentation>[]; components?: HazardComponentState[]; partial?: boolean; retryAt?: number }

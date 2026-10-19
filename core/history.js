@@ -40,13 +40,15 @@
     async retain({ before, keepLatest = true, provider = null, maxEvents = null }) {
       if (!Number.isFinite(before)) throw new TypeError("Retention cutoff is required");
       if (maxEvents != null && (!Number.isInteger(maxEvents) || maxEvents < 0)) throw new TypeError("Invalid event retention limit");
-      let removed = 0;
-      for (const [key, snapshot] of await this.storage.entries()) {
+      let removed = 0, written = false;
+      const entries = await this.storage.entries();
+      for (const [key, snapshot] of entries) {
         // Most rows survive routine maintenance. Avoid opening a write
         // transaction for them (or for another provider's archive).
         if (provider && snapshot.provider !== provider) continue;
         const latest = snapshot.revisions.at(-1);
         if (!snapshot.revisions.some((r) => r.persistedAt < before && !(keepLatest && r === latest))) continue;
+        written = true;
         await this.storage.update(key, (row) => {
           if (!row) return null;
           if (provider && row.provider !== provider) return row;
@@ -57,7 +59,8 @@
         });
       }
       if (maxEvents != null) {
-        const rows = (await this.storage.entries()).filter(([, row]) => !provider || row.provider === provider)
+        // Reuse the first bulk read unless the age pass changed rows.
+        const rows = (written ? await this.storage.entries() : entries).filter(([, row]) => !provider || row.provider === provider)
           .sort((a, b) => b[1].revisions.at(-1).persistedAt - a[1].revisions.at(-1).persistedAt || a[0].localeCompare(b[0]));
         for (const [key, snapshot] of rows.slice(maxEvents)) await this.storage.update(key, (row) => {
           // Do not evict an event updated after selecting the retention candidates.
@@ -68,5 +71,5 @@
       return removed;
     }
   }
-  Object.assign(C, { canonical, RevisionHistory });
+  Object.assign(C, { canonical, revisionContent, RevisionHistory });
 })();

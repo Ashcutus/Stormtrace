@@ -5,6 +5,7 @@ import { execFileSync } from 'node:child_process';
 import { IDBFactory } from 'fake-indexeddb';
 import C from '../core/index.js';
 import '../platform/browser.js';
+import '../client/presentation.js';
 import '../client/warnings.js';
 import { MetOfficeWarningsProvider, WARNINGS_BASE, normalizeWarningCollection, parseWarningFeed, warningLink } from '../providers/metoffice-warnings.js';
 const W = globalThis.StormtraceWarnings, P = globalThis.StormtracePlatform;
@@ -171,7 +172,7 @@ test('warnings dialog renders normalized text safely, exposes cancellation histo
   class Element {
     constructor(tag = 'div') { this.tag = tag; this.children = []; this.listeners = {}; this.dataset = {}; this.textContent = ''; this.open = false; }
     append(node) { this.children.push(node); }
-    replaceChildren() { this.children = []; }
+    replaceChildren(...nodes) { this.children = nodes; }
     addEventListener(name, fn) { this.listeners[name] = fn; }
     showModal() { this.open = true; }
     get content() { return [this.textContent, ...this.children.map((n) => n.content)].join('\n'); }
@@ -215,4 +216,26 @@ test('default browser fetch keeps its Window receiver instead of receiving the w
     const controller = new W.WarningController(); await controller.refresh();
     assert.equal(calls, 1); assert.equal(controller.state.configured, true); assert.equal(controller.state.records.length, 1); assert.equal(controller.state.health.lastError, null);
   } finally { globalThis.fetch = original; }
+});
+
+test('status counts the displayed set, and an all-inactive feed is not reported as issued warnings', () => {
+  const state = { records: [{}, {}, {}], health: { ...C.health(60000), lastSuccessfulFetch: start, available: true, freshnessBasis: 'fetch' } };
+  assert.match(globalThis.StormtraceUI.healthMessage(state, start, 'issued warnings', 1), / 1 issued warnings\.$/);
+  assert.match(globalThis.StormtraceUI.healthMessage(state, start, 'issued warnings', 0), / 0 issued warnings\. An empty feed is not an all-clear\.$/);
+  assert.match(globalThis.StormtraceUI.healthMessage(state, start, 'items'), / 3 items\.$/);
+});
+
+test('overlapping observations are recorded once and archive retention is bounded independently of polling', async () => {
+  const warning = normalizeWarningCollection(collection(), start)[0];
+  let clock = start, retains = 0, revisionReads = 0;
+  const storage = new P.MemoryStorageAdapter(), history = new C.RevisionHistory(storage, { now: () => clock });
+  const retain = history.retain.bind(history), revisions = history.revisions.bind(history);
+  history.retain = (options) => { retains++; return retain(options); };
+  history.revisions = (...args) => { revisionReads++; return revisions(...args); };
+  const controller = new W.WarningController({ now: () => clock, history, fetch: async () => reply({ configured: true, records: [warning], observations: [warning], health: { ...C.health(60000), lastSuccessfulFetch: clock, available: true, freshnessBasis: 'fetch' } }) });
+  await controller.refresh(); assert.equal(revisionReads, 1); assert.equal(retains, 1);
+  for (let i = 0; i < 5; i++) { clock += 60000; await controller.refresh(); }
+  assert.equal(retains, 1);
+  clock += 3600000; await controller.refresh(); assert.equal(retains, 2);
+  assert.equal((await history.query({ provider: 'metoffice-warnings' })).length, 1);
 });

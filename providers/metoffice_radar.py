@@ -118,7 +118,7 @@ def png(rgba):
     return b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', width, height, 8, 6, 0, 0, 0)) + chunk(b'IDAT', zlib.compress(rows)) + chunk(b'IEND', b'')
 
 
-def render(data, expected_time, width=640, height=800):
+def render(data, expected_time, width=640, height=800, bounds=BOUNDS, product="metoffice"):
     try:
         import h5py
         import numpy as np
@@ -133,8 +133,15 @@ def render(data, expected_time, width=640, height=800):
             what, where = f['what'].attrs, f['where'].attrs
             native = datetime.strptime(text(what['date']) + text(what['time']), '%Y%m%d%H%M%S').replace(tzinfo=timezone.utc)
             props = f['dataset1/data1/what'].attrs
-            if int(native.timestamp() * 1000) != expected_time or text(props['quantity']) != 'RATE' or text(f['dataset1/how'].attrs['origin']) != 'UPPER LEFT':
+            if int(native.timestamp() * 1000) != expected_time or text(props['quantity']) != 'RATE' or (product == 'metoffice' and text(f['dataset1/how'].attrs['origin']) != 'UPPER LEFT'):
                 raise RadarError('unsupported_schema')
+            if product == 'opera':
+                if text(what['object']) != 'COMP' or text(f['dataset1/what'].attrs['prodname']) != 'OPERA NIMBUS instantaneous rain rate composite':
+                    raise RadarError('unsupported_schema')
+                # ODIM Cartesian composites use the upper-left row. Check all corners
+                # against grid scale before relying on that documented convention.
+                if 'origin' in f['dataset1/how'].attrs and text(f['dataset1/how'].attrs['origin']) != 'UPPER LEFT':
+                    raise RadarError('unsupported_schema')
             nx, ny = int(where['xsize']), int(where['ysize'])
             sx, sy = float(where['xscale']), float(where['yscale'])
             if not (1 <= nx <= 4000 and 1 <= ny <= 4000 and sx > 0 and sy > 0):
@@ -146,7 +153,14 @@ def render(data, expected_time, width=640, height=800):
             transform = Transformer.from_crs('EPSG:4326', text(where['projdef']), always_xy=True)
             left, bottom = transform.transform(float(where['LL_lon']), float(where['LL_lat']))
             # Sample at Mercator pixel centres, not linearly spaced latitude.
-            west, south, east, north = BOUNDS
+            if product == 'opera':
+                ul = transform.transform(float(where['UL_lon']), float(where['UL_lat']))
+                lr = transform.transform(float(where['LR_lon']), float(where['LR_lat']))
+                ur = transform.transform(float(where['UR_lon']), float(where['UR_lat']))
+                expected = [(left, bottom + ny * sy), (left + nx * sx, bottom), (left + nx * sx, bottom + ny * sy)]
+                if any(abs(a - b) > 2 for actual, target in zip([ul, lr, ur], expected) for a, b in zip(actual, target)):
+                    raise RadarError('unsupported_schema')
+            west, south, east, north = bounds
             lon = west + (np.arange(width) + .5) / width * (east - west)
             merc = lambda lat: np.log(np.tan(np.pi / 4 + np.radians(lat) / 2))
             y = merc(north) - (np.arange(height) + .5) / height * (merc(north) - merc(south))

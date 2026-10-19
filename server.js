@@ -4,12 +4,17 @@ import { extname, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import core from "./core/index.js";
 import "./providers/lightning.js";
-import { readLocalKey, readLocalSetting, readOmarchyTheme, radarWorker } from "./platform/node.js";
+import { readLocalKey, readLocalSetting, readOmarchyTheme, radarWorker, publicHazardWorker } from "./platform/node.js";
 
-import { MetOfficeRadarProvider } from "./providers/metoffice-radar.js";
+import { MetOfficeRadarProvider, RadarResourceProvider } from "./providers/metoffice-radar.js";
+import { MapOverlayProvider } from "./providers/map-overlays.js";
+import { PublicHazardProvider, PUBLIC_HAZARD_IDS } from "./providers/public-hazards.js";
+import { USGSEarthquakeProvider } from "./providers/usgs.js";
+import { EnglandFloodProvider } from "./providers/ea-floods.js";
 import { MetOfficeWarningsProvider } from "./providers/metoffice-warnings.js";
 
 import { sanitizeDiagnostics } from "./platform/diagnostics.js";
+const mapOverlays = new MapOverlayProvider();
 const diagnosticsEnabled = process.env.STORMTRACE_DIAGNOSTICS === "1";
 let diagnosticsSample = null;
 const ROOT = fileURLToPath(new URL(".", import.meta.url));
@@ -30,9 +35,9 @@ const contentTypes = {
   ".webmanifest": "application/manifest+json; charset=utf-8",
 };
 
-export function createStormtraceServer({ radarProvider = new MetOfficeRadarProvider({ worker: (operation, key) => radarWorker(ROOT, operation, key) }), warningsProvider = new MetOfficeWarningsProvider({ apiKey: readLocalSetting(ROOT, "METOFFICE_WARNINGS_API_KEY"), log: (entry) => console.info(JSON.stringify(entry)) }) } = {}) {
+export function createStormtraceServer({ hazardProviders = Object.fromEntries(PUBLIC_HAZARD_IDS.map((id) => [id, new PublicHazardProvider({ id, worker: previous => publicHazardWorker(ROOT, id, previous) })])), publicRadarProviders = Object.fromEntries(['opera-radar', 'noaa-conus', 'noaa-alaska', 'noaa-hawaii', 'noaa-carib', 'noaa-guam'].map((source) => [source, new RadarResourceProvider({ id: source.startsWith('noaa-') ? 'noaa-radar' : source, source, worker: (operation, key) => radarWorker(ROOT, operation, key, source) })])), earthquakesProvider = new USGSEarthquakeProvider(), floodsProvider = new EnglandFloodProvider(), radarProvider = new MetOfficeRadarProvider({ worker: (operation, key) => radarWorker(ROOT, operation, key) }), warningsProvider = new MetOfficeWarningsProvider({ apiKey: readLocalSetting(ROOT, "METOFFICE_WARNINGS_API_KEY"), log: (entry) => console.info(JSON.stringify(entry)) }) } = {}) {
   return createServer((request, response) => {
-    handleRequest(request, response, warningsProvider, radarProvider).catch((error) => {
+    handleRequest(request, response, warningsProvider, radarProvider, floodsProvider, earthquakesProvider, publicRadarProviders, hazardProviders).catch((error) => {
       console.error(`Request failed: ${error.message}`);
       if (!response.headersSent) json(response, 500, { error: "Internal server error" });
       else response.destroy();
@@ -40,7 +45,7 @@ export function createStormtraceServer({ radarProvider = new MetOfficeRadarProvi
   });
 }
 
-async function handleRequest(request, response, warningsProvider, radarProvider) {
+async function handleRequest(request, response, warningsProvider, radarProvider, floodsProvider, earthquakesProvider, publicRadarProviders, hazardProviders) {
   let url;
   try {
     url = new URL(request.url || "/", `http://${request.headers.host || `${HOST}:${PORT}`}`);
@@ -79,15 +84,40 @@ async function handleRequest(request, response, warningsProvider, radarProvider)
   }
 
   if (url.pathname === "/api/radar" || url.pathname === "/api/radar/frame") {
+    const source = url.searchParams.get("source") || "metoffice-radar";
+    const selected = source === "metoffice-radar" ? radarProvider : Object.hasOwn(publicRadarProviders, source) ? publicRadarProviders[source] : null;
+    if (!selected) return json(response, 400, { error: "Unknown radar source" });
     try {
-      if (url.pathname === "/api/radar") return json(response, 200, await radarProvider.frames());
-      const image = await radarProvider.image(url.searchParams.get("key"));
+      if (url.pathname === "/api/radar") return json(response, 200, await selected.frames());
+      const image = await selected.image(url.searchParams.get("key"));
       response.writeHead(200, { "Content-Type": "image/png", "Cache-Control": "private, max-age=300", "X-Content-Type-Options": "nosniff" });
       return response.end(image);
     } catch (error) {
-      const typed = core.providerError(error, "metoffice-radar", "frames");
-      return json(response, 502, { providerError: typed.toJSON(), health: { ...radarProvider.health, lastError: typed.toJSON() } });
+      const typed = core.providerError(error, selected.id || "metoffice-radar", "frames");
+      return json(response, 502, { providerError: typed.toJSON(), health: { ...selected.health, lastError: typed.toJSON() } });
     }
+  }
+
+  if (["/api/floods/area", "/api/earthquakes/impact"].includes(url.pathname)) {
+    try { return json(response, 200, await (url.pathname === "/api/floods/area" ? mapOverlays.flood(url.searchParams.get("id")) : mapOverlays.earthquake(url.searchParams.get("id")))); }
+    catch { return json(response, 502, { error: "Map resource unavailable" }); }
+  }
+
+  if (url.pathname === "/api/hazards") {
+    const id = url.searchParams.get("source"), selected = hazardProviders[id];
+    if (!PUBLIC_HAZARD_IDS.includes(id) || !selected) return json(response, 400, { error: "Unknown hazard source" });
+    try { return json(response, 200, { configured: true, ...await selected.current() }); }
+    catch (error) { const typed = core.providerError(error, id, "current"); return json(response, 502, { configured: true, retryAt: selected.retryAt, providerError: typed.toJSON(), health: { ...selected.health, freshness: core.freshness(selected.health) } }); }
+  }
+
+  if (url.pathname === "/api/earthquakes") {
+    try { return json(response, 200, { configured: true, ...await earthquakesProvider.current() }); }
+    catch (error) { const typed = core.providerError(error, "usgs", "current"); return json(response, 502, { configured: true, providerError: typed.toJSON(), health: { ...earthquakesProvider.health, freshness: core.freshness(earthquakesProvider.health) } }); }
+  }
+
+  if (url.pathname === "/api/floods") {
+    try { return json(response, 200, { configured: true, ...await floodsProvider.current() }); }
+    catch (error) { const typed = core.providerError(error, "ea-floods", "current"); return json(response, 502, { configured: true, providerError: typed.toJSON(), health: { ...floodsProvider.health, freshness: core.freshness(floodsProvider.health) } }); }
   }
 
   if (url.pathname === "/api/warnings") {

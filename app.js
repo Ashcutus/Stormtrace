@@ -5,6 +5,10 @@
   const HISTORY_HOURS = 24;
   const MAX_STORED_STRIKES = 30000;
   const MAX_RENDERED_STRIKES = 4000;
+  const ALERT_MAX_AGE_MS = 2 * 60 * 1000;
+  // Tolerate a local clock slightly behind the detection network.
+  const ALERT_CLOCK_SKEW_MS = 30 * 1000;
+  const UI = globalThis.StormtraceUI;
   const ALERT_COOLDOWN_MS = 2 * 60 * 1000;
   const core = globalThis.StormtraceCore;
   const platform = globalThis.StormtracePlatform;
@@ -16,11 +20,11 @@
 
   const FALLBACK_PALETTE = {
     name: "Stormtrace default", mode: "dark",
-    bg: "#09080d", surface: "#111019", surface2: "#171321", surface3: "#1d172a",
-    text: "#f4efff", brightText: "#ffffff", muted: "#9d94ae", muted2: "#71697d",
-    violet: "#a73cff", violetBright: "#c45cff", magenta: "#ff4fd8", cyan: "#68f2dc",
-    blue: "#5960aa", yellow: "#ffd36b", danger: "#ff668b",
-    line: "#2d2638", lineBright: "#4e3c66",
+    bg: "#07101d", surface: "#0d1929", surface2: "#122137", surface3: "#172b43",
+    text: "#edf6ff", brightText: "#ffffff", muted: "#97adc5", muted2: "#6b829c",
+    violet: "#3d9cff", violetBright: "#75bcff", magenta: "#79aaff", cyan: "#68d8f2",
+    blue: "#427aaf", yellow: "#ffd36b", danger: "#ff668b",
+    line: "#263c55", lineBright: "#405e80",
   };
 
   const REGIONS = [
@@ -158,6 +162,7 @@
     demoTimer: null,
     loadedHistoryCount: 0,
     themeSource: persisted.themeSource === "custom" ? "custom" : "system",
+    readingScale: readRangeSetting(persisted.readingScale,1,1,1.4),
     mapBrightness: readRangeSetting(persisted.mapBrightness, 100, 70, 140),
     mapOpacity: readRangeSetting(persisted.mapOpacity, 100, 55, 100),
     mapShade: readRangeSetting(persisted.mapShade, 10, 0, 60),
@@ -173,7 +178,12 @@
 
   async function init() {
     bindControls();
+    document.documentElement.style.setProperty("--reading-scale",String(state.readingScale));
+    $("#readingScale").value=String(state.readingScale);
+    globalThis.StormtraceFloods.mountFloods({ demo: isDemo });
+    globalThis.StormtracePublicHazards.mount({ demo: isDemo, getMap: () => state.map });
     globalThis.StormtraceWarnings.mountWarnings({ getLocation: () => state.userLocation, demo: isDemo });
+    globalThis.StormtraceWarningMap?.mount({demo:isDemo});
     $("#sourceAuthority").textContent = liveProvider.source.authority;
     $("#sourceTerms").textContent = liveProvider.source.licence.displayText;
     $("#sourceTermsDetail").textContent = liveProvider.source.licence.detailText;
@@ -198,6 +208,8 @@
 
     initMap();
     globalThis.StormtraceRadar.mountRadar({ map: state.map, demo: isDemo });
+    const mapHazards = globalThis.StormtraceMapHazards.mount({ map: state.map, demo: isDemo });
+    globalThis.StormtraceEarthquakes.mountEarthquakes({ map: state.map, demo: isDemo, mapHazards });
     await startReceiver();
   }
 
@@ -242,6 +254,12 @@
     }
   }
 
+  function setLightningVisible(visible) {
+    if (visible) state.map.addLayer(state.strikeLayer); else state.map.removeLayer(state.strikeLayer);
+    document.querySelector('.map-overlay.legend').hidden = !visible;
+    document.querySelector('.latest-strip').hidden = !visible;
+  }
+
   function initMap() {
     state.map = L.map("map", {
       center: [18, 6],
@@ -269,6 +287,9 @@
     applyMapAppearance();
 
     state.strikeLayer = L.layerGroup().addTo(state.map);
+    $("#mapLightning").addEventListener("change", (event) => {
+      setLightningVisible(event.target.checked);
+    });
     state.rangeLayer = L.layerGroup().addTo(state.map);
     state.homeLayer = L.layerGroup().addTo(state.map);
 
@@ -282,9 +303,15 @@
   }
 
   function bindControls() {
+    $("#readingScale").addEventListener("change",event=>{state.readingScale=readRangeSetting(event.target.value,1,1,1.4);document.documentElement.style.setProperty("--reading-scale",String(state.readingScale));saveSettings();});
     els.monitorButton.addEventListener("click", toggleMonitoring);
     els.refreshButton.addEventListener("click", reconnectFeed);
     els.windowModeButton.addEventListener("click", () => postNativeAction("toggle-fullscreen"));
+    $('#domainChooser')?.addEventListener('change',event=>{const selected=$(`#${event.target.value}`);
+      // Toggle views (radar) stay open when chosen again; reveal the panel instead.
+      if(selected?.getAttribute('aria-pressed')==='true')$(`#${selected.getAttribute('aria-controls')}`)?.scrollIntoView?.({block:'nearest'});else selected?.click();event.target.value='';});
+    $('#retrySettingsSave')?.addEventListener('click',saveSettings);
+    $('#clearSelectedHazard')?.addEventListener('click',()=>document.dispatchEvent(new Event('clearselectedhazard')));
     els.exitButton.addEventListener("click", () => {
       els.exitButton.disabled = true;
       postNativeAction("quit");
@@ -298,6 +325,7 @@
     });
     els.infoButton.addEventListener("click", () => els.infoDialog.showModal());
     els.checkUpdateButton.addEventListener("click", checkForUpdates);
+    $('#map').addEventListener('click',event=>{if(event.target.closest?.('[data-close-popup]'))state.map?.closePopup?.();});
     els.mapMessageAction.addEventListener("click", () => location.reload());
     $("#zoomIn").addEventListener("click", () => state.map?.zoomIn());
     $("#zoomOut").addEventListener("click", () => state.map?.zoomOut());
@@ -329,6 +357,7 @@
         const key = input.dataset.paletteKey;
         state.customPalette = { ...(state.customPalette || editablePalette(state.systemPalette)), [key]: input.value };
         input.nextElementSibling.textContent = input.value;
+        $("#appearanceState").textContent="Colour edits are pending. Apply custom palette to use and save them; closing leaves the applied palette unchanged.";
       });
     });
     els.resetCustomTheme.addEventListener("click", () => {
@@ -341,7 +370,8 @@
       applyActivePalette();
       saveSettings();
       syncThemeDialog();
-      toast("Custom palette applied", "Stormtrace will keep this override until you return to Omarchy mode.");
+      $("#appearanceState").textContent="Custom palette applied. Theme source and map controls apply immediately.";
+      toast("Custom palette applied", "Check the save-status message if profile storage is unavailable.");
     });
 
     els.mapBrightness.addEventListener("input", () => {
@@ -365,10 +395,15 @@
     });
     syncWindowButtons();
 
+    // A highlighted result belongs to the query that produced it.
+    els.placeSearch.addEventListener("input", () => { if (searchSelection < 0) return; searchSelection = -1; els.searchResults.querySelectorAll('.search-result').forEach((n) => n.setAttribute('aria-selected', 'false')); els.placeSearch.removeAttribute?.('aria-activedescendant'); });
     els.placeSearch.addEventListener("keydown", (event) => {
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        const options=[...els.searchResults.querySelectorAll('.search-result')];if(options.length){event.preventDefault();searchSelection=(searchSelection+(event.key==='ArrowDown'?1:-1)+options.length)%options.length;options.forEach((n,i)=>n.setAttribute('aria-selected',String(i===searchSelection)));els.placeSearch.setAttribute('aria-activedescendant',options[searchSelection].id);}
+      }
       if (event.key === "Enter") {
         event.preventDefault();
-        runSearch(els.placeSearch.value);
+        if(searchSelection>=0&&!els.searchResults.hidden)els.searchResults.querySelectorAll('.search-result')[searchSelection]?.click();else runSearch(els.placeSearch.value);
       }
       if (event.key === "Escape") hideSearchResults();
     });
@@ -378,18 +413,18 @@
 
     document.addEventListener("keydown", (event) => {
       const key = event.key.toLowerCase();
-      if (key === "f11") {
+      if (key === "f11" && nativeBridge) {
         event.preventDefault();
         postNativeAction("toggle-fullscreen");
         return;
       }
-      if ((event.ctrlKey || event.metaKey) && key === "q") {
+      if ((event.ctrlKey || event.metaKey) && key === "q" && nativeBridge) {
         event.preventDefault();
         postNativeAction("quit");
         return;
       }
       if (key === "escape" && choosingMapLocation) toggleMapLocation();
-      if (event.target.matches("input, textarea")) return;
+      if (event.defaultPrevented || event.isComposing || event.ctrlKey || event.metaKey || event.altKey || document.querySelector('dialog[open]') || event.target.matches('input, textarea, select, [contenteditable="true"]')) return;
       if (key === "/") {
         event.preventDefault();
         els.placeSearch.focus();
@@ -535,7 +570,7 @@
   function syncThemeDialog() {
     if (!els.paletteGrid) return;
     els.currentThemeName.textContent = state.systemPalette.name || "Current system theme";
-    $$(".theme-source-button").forEach((button) => button.classList.toggle("active", button.dataset.themeSource === state.themeSource));
+    $$(".theme-source-button").forEach((button) => {button.classList.toggle("active", button.dataset.themeSource === state.themeSource);button.setAttribute("aria-pressed",String(button.dataset.themeSource===state.themeSource));});
     const sourcePalette = state.themeSource === "custom" ? (state.customPalette || editablePalette(state.systemPalette)) : editablePalette(state.systemPalette);
     els.paletteGrid.classList.toggle("system-locked", state.themeSource === "system");
     els.applyCustomTheme.disabled = state.themeSource === "system";
@@ -588,7 +623,7 @@
       state.socket.close();
     }
 
-    setStatus("connecting", "CONNECTING", state.retryCount ? `Retry ${state.retryCount}…` : "Opening global stream…");
+    setStatus("connecting", "CONNECTING", state.retryCount ? `Retry ${state.retryCount}…` : "Opening lightning stream…");
     globalThis.StormtraceDiagnostics?.count("connections");
     liveProvider.attempted();
     const socket = new WebSocket(liveProvider.url);
@@ -598,8 +633,8 @@
       state.connectedAt = Date.now();
       state.retryCount = 0;
       socket.send(JSON.stringify(liveProvider.subscription()));
-      setStatus("live", "LIVE", "Global receiver connected");
-      toast("Live receiver ready", "Listening for worldwide strikes.");
+      setStatus("live", "LIVE", "Lightning receiver connected");
+      toast("Lightning receiver ready", "Listening for worldwide strikes.");
     };
 
     socket.onmessage = (event) => {
@@ -608,16 +643,18 @@
         globalThis.StormtraceDiagnostics?.count("received", result.records.length);
         globalThis.StormtraceDiagnostics?.lightning();
         state.providerHealth[liveProvider.id] = result.health;
-        if (result.records.length) ingestStrikes(result.records, true);
+        if (result.records.length) { ingestStrikes(result.records,true);setStatus(result.health.lastError?"error":"live",result.health.lastError?"DEGRADED":"LIVE",result.health.lastError?"Some lightning records were rejected":"Lightning receiver connected"); }
+        else if (result.health.lastError) setStatus("error","DEGRADED","Some lightning data could not be read");
         else if (result.receiver) setStatus("live", "LIVE", `${result.receiver.viewers.toLocaleString()} viewers · receiver ${result.receiver.name}`);
       } catch (error) {
         state.providerHealth[liveProvider.id] = { ...liveProvider.health, freshness: core.freshness(liveProvider.health) };
         globalThis.StormtraceDiagnostics?.count("errors");
+        setStatus("error","DEGRADED","Lightning data could not be read · reconnect if this persists");
         console.warn("Ignored an unreadable feed message", error);
       }
     };
 
-    socket.onerror = () => { globalThis.StormtraceDiagnostics?.count("networkFailures"); liveProvider.failed(); state.providerHealth[liveProvider.id] = { ...liveProvider.health, freshness: core.freshness(liveProvider.health) }; setStatus("error", "DEGRADED", "Live receiver interrupted"); };
+    socket.onerror = () => { globalThis.StormtraceDiagnostics?.count("networkFailures"); liveProvider.failed(); state.providerHealth[liveProvider.id] = { ...liveProvider.health, freshness: core.freshness(liveProvider.health) }; setStatus("error", "DEGRADED", "Lightning receiver interrupted"); };
     socket.onclose = () => {
       if (state.socket !== socket || state.monitoringPaused) return;
       if (!liveProvider.health.lastError) liveProvider.failed("unavailable");
@@ -632,7 +669,7 @@
 
   function reconnectFeed() {
     if (state.monitoringPaused) {
-      toast("Monitoring paused", "Use the play control or press P to resume the live feed.");
+      toast("Lightning paused", "Use the play control or press P to resume the lightning feed.");
       return;
     }
     if (isDemo) {
@@ -660,9 +697,9 @@
       state.socket = null;
     }
     stopDemo();
-    setStatus("paused", "PAUSED", "Monitoring stopped · history remains available");
+    setStatus("paused", "PAUSED", "Lightning stopped · other views remain available");
     updateMonitoringButton();
-    toast("Monitoring paused", "Stormtrace is no longer listening for new strikes.");
+    toast("Lightning paused", "Stormtrace is no longer listening for new strikes.");
   }
 
   function resumeMonitoring() {
@@ -671,15 +708,15 @@
     updateMonitoringButton();
     if (isDemo) resumeDemo();
     else connectFeed();
-    toast("Monitoring resumed", "Stormtrace is listening for new strikes again.");
+    toast("Lightning resumed", "Stormtrace is listening for new strikes again.");
   }
 
   function updateMonitoringButton() {
     const paused = state.monitoringPaused;
     els.monitorButton.classList.toggle("is-paused", paused);
     els.monitorButton.setAttribute("aria-pressed", String(!paused));
-    els.monitorButton.setAttribute("aria-label", paused ? "Resume monitoring" : "Pause monitoring");
-    els.monitorButton.title = paused ? "Resume monitoring (P)" : "Pause monitoring (P)";
+    els.monitorButton.setAttribute("aria-label", paused ? "Resume lightning" : "Pause lightning");
+    els.monitorButton.title = paused ? "Resume lightning (P)" : "Pause lightning (P)";
     els.monitorButton.querySelector(".monitor-pause-icon").toggleAttribute("hidden", paused);
     els.monitorButton.querySelector(".monitor-play-icon").toggleAttribute("hidden", !paused);
   }
@@ -725,7 +762,7 @@
         setUpdateState("current", "Stormtrace is up to date", `${current} is the latest published version.`);
       }
     } catch (error) {
-      setUpdateState("error", "Could not check for updates", error.message || "Check your network connection and try again.");
+      setUpdateState("error", "Could not check for updates", "Check the connection, then select Check again. The installed app is unchanged.");
     } finally {
       els.checkUpdateButton.disabled = false;
       els.checkUpdateButton.textContent = "Check again";
@@ -931,6 +968,8 @@
     }
 
     els.visibleCount.textContent = String(visibleCount).padStart(3, "0");
+    const hidden = $('#mapLightning')?.checked === false;
+    $('#renderCoverage').textContent = hidden ? 'Lightning layer hidden; counts still include retained records.' : visibleCount > MAX_RENDERED_STRIKES ? `Showing newest ${MAX_RENDERED_STRIKES.toLocaleString()} of ${visibleCount.toLocaleString()} records in this area.` : `${visibleCount.toLocaleString()} points shown.`;
     const labels = { live: "Live · 15 min", 60: "Past hour", 360: "Past 6 hours", 1440: "Rolling 24 hours" };
     els.visibleWindow.textContent = `${labels[state.selectedWindow]} · map bounds`;
     if (state.latestStrikeDirty) {
@@ -1039,17 +1078,19 @@
     const age = relativeAge(strike.time);
     const deviation = strike.deviation > 0 ? `${Math.round(strike.deviation).toLocaleString()} m` : "Not reported";
     const polarity = strike.polarity > 0 ? "Positive" : strike.polarity < 0 ? "Negative" : "Unknown";
-    const distance = state.userLocation
-      ? `<div class="strike-detail"><span>Distance</span><strong>${formatMiles(strikeDistance(strike))}</strong></div>`
-      : "";
+    const distance = `<div class="strike-detail" data-strike-distance-row${state.userLocation?'':' hidden'}><span>Distance</span><strong data-strike-distance>${state.userLocation?formatMiles(strikeDistance(strike)):''}</strong></div>`;
     return `<div class="strike-popup-content">
       <div class="strike-popup-heading"><span class="strike-popup-icon">ϟ</span><div><strong>LIGHTNING STRIKE</strong><span>${escapeHtml(strike.region)}</span></div></div>
-      <div class="strike-detail"><span>Detected</span><strong>${age}</strong></div>
-      <div class="strike-detail"><span>Time (UTC)</span><strong>${formatStrikeTime(strike.time)}</strong></div>
+      <div class="strike-detail"><span>Detected</span><strong data-strike-age>${age}</strong></div>
+      <div class="strike-detail"><span>Time (UK local)</span><strong>${formatStrikeTime(strike.time)}</strong></div>
       <div class="strike-detail"><span>Coordinates</span><strong>${formatCoordinates(strike.lat, strike.lon)}</strong></div>
       <div class="strike-detail"><span>Location uncertainty</span><strong>${deviation}</strong></div>
       <div class="strike-detail"><span>Polarity</span><strong>${polarity}</strong></div>
       ${distance}
+      <div class="strike-detail"><span>Source</span><strong>${escapeHtml(strike.provenance?.sourceAuthority || 'Original source metadata unavailable')}</strong></div>
+      <p class="flood-map-note">Detection location and uncertainty are source estimates; this is not an official safety warning.</p>
+      <a class="flood-map-link" href="${escapeHtml(strike.provenance?.sourceUrl || liveProvider.source.homepage)}" target="_blank" rel="noopener noreferrer">Official network information</a>
+      <button type="button" data-close-popup class="mini-button">Close popup</button>
     </div>`;
   }
 
@@ -1058,7 +1099,7 @@
   }
 
   function formatStrikeTime(time) {
-    return new Date(time).toISOString().replace("T", " ").replace(".000Z", " UTC");
+    return UI.date(time);
   }
 
   function updateRate(start) {
@@ -1130,7 +1171,7 @@
 
   function focusHotspot(index) {
     const hotspot = state.hotspots[index];
-    if (hotspot) state.map?.flyTo([hotspot.lat, hotspot.lon], 5, { duration: 1.1 });
+    if (hotspot) state.map?.flyTo([hotspot.lat, hotspot.lon], 5, { ...UI.flyOptions(1.1) });
   }
 
   function activateHotspotRow(target) {
@@ -1162,6 +1203,7 @@
     if (document.hidden) return;
     updateOpenStrikeDetails(state.selectedStrikeId);
     if (state.hoveredStrikeId !== state.selectedStrikeId) updateOpenStrikeDetails(state.hoveredStrikeId);
+    UI.refreshPopupHealth();
     if (state.lastStrike) els.latestAge.textContent = relativeAge(state.lastStrike.time);
   }
 
@@ -1171,7 +1213,11 @@
     const strike = state.strikes.get(id);
     if (!marker || !strike) return;
     if (marker.isTooltipOpen()) marker.setTooltipContent(() => strikeTooltip(strike));
-    if (marker.isPopupOpen()) marker.setPopupContent(() => strikePopup(strike));
+    if (marker.isPopupOpen()) {
+      const node=marker.getPopup?.().getElement?.(),age=node?.querySelector('[data-strike-age]');
+      if(age){age.textContent=relativeAge(strike.time);const distance=node.querySelector('[data-strike-distance]'),row=node.querySelector('[data-strike-distance-row]');if(row)row.hidden=!state.userLocation;if(distance&&state.userLocation)distance.textContent=formatMiles(strikeDistance(strike));}
+      else marker.setPopupContent(() => strikePopup(strike));
+    }
   }
 
   function updateMapReadout() {
@@ -1190,7 +1236,7 @@
   }
 
   function syncWindowButtons() {
-    $$(".segment").forEach((button) => button.classList.toggle("active", button.dataset.window === state.selectedWindow));
+    $$(".segment").forEach((button) => {button.classList.toggle("active", button.dataset.window === state.selectedWindow);button.setAttribute("aria-pressed",String(button.dataset.window===state.selectedWindow));});
   }
 
   let choosingMapLocation = false;
@@ -1230,12 +1276,12 @@
     updateLocationUI();
     updateLatestStrike();
     updateProximityStats();
-    saveSettings();
-    if (recenter) state.map?.flyTo?.([state.userLocation.lat, state.userLocation.lon], 6, { duration: 1.1 });
-    els.permissionNote.textContent = source === "manual"
-      ? "Monitoring your manually chosen point. Stored on this device."
+    const locationSaved=saveSettings();
+    if (recenter) state.map?.flyTo?.([state.userLocation.lat, state.userLocation.lon], 6, { ...UI.flyOptions(1.1) });
+    ($("#locationFeedback") || els.permissionNote).textContent = source === "manual"
+      ? "Monitoring your manually chosen point. Distance calculations stay local."
       : `Location uncertainty: approximately ${formatMiles(coords.accuracy / 1609.344)}. Distances and alerts use the estimated centre.`;
-    toast("Location set", `${formatCoordinates(state.userLocation.lat, state.userLocation.lon)} · stored on this device.`);
+    toast("Location set", `${formatCoordinates(state.userLocation.lat, state.userLocation.lon)} · ${locationSaved ? "saved on this device" : "applied for this session; saving failed"}.`);
   }
 
   function useApproximateLocation() {
@@ -1250,7 +1296,7 @@
     const longitude = els.manualLongitude.value.trim();
     const coords = { latitude: Number(latitude), longitude: Number(longitude), accuracy: 0 };
     if (!latitude || !longitude || !validLocation(coords)) {
-      els.permissionNote.textContent = "Enter latitude from −90 to 90 and longitude from −180 to 180.";
+      ($("#locationFeedback") || els.permissionNote).textContent = "Enter latitude from −90 to 90 and longitude from −180 to 180.";
       return false;
     }
     // A pending automatic result must not overwrite a manually chosen point.
@@ -1262,8 +1308,8 @@
   function requestLocation() {
     if (locationRequest) return locationRequest;
     if (!platform.locationAdapter.available()) {
-      els.permissionNote.textContent = "Automatic location is unavailable. Enter your coordinates below.";
-      toast("Location unavailable", els.permissionNote.textContent);
+      ($("#locationFeedback") || els.permissionNote).textContent = "Automatic location is unavailable. Enter your coordinates below.";
+      toast("Location unavailable", ($("#locationFeedback") || els.permissionNote).textContent);
       return Promise.resolve(false);
     }
     const generation = ++locationGeneration;
@@ -1280,19 +1326,19 @@
         return true;
       } catch (error) {
         if (generation !== locationGeneration) return false;
-        els.permissionNote.textContent = locationErrorMessage(error);
+        ($("#locationFeedback") || els.permissionNote).textContent = locationErrorMessage(error);
         if (error.code === "coarse" && validLocation(error.position?.coords)) {
           approximatePosition = error.position;
           const coords = error.position.coords;
           els.approximateLocationButton.textContent = `Use ${formatCoordinates(coords.latitude, coords.longitude)} (±${formatMiles(coords.accuracy / 1609.344)})`;
           els.approximateLocationButton.hidden = false;
         }
-        toast("Location not updated", els.permissionNote.textContent);
+        toast("Location not updated", ($("#locationFeedback") || els.permissionNote).textContent);
         return false;
       } finally {
         els.enableLocationButton.disabled = false;
         els.locationButton.disabled = false;
-        els.enableLocationButton.textContent = state.userLocation ? "Update current location" : "Try location again";
+        els.enableLocationButton.textContent = state.userLocation ? state.userLocation?.source==="manual"?"Replace manual point with current location":"Update current location" : "Try location again";
         locationRequest = null;
       }
     })();
@@ -1305,7 +1351,7 @@
       <span class="target-icon">⌾</span>
       <div><strong>${formatCoordinates(state.userLocation.lat, state.userLocation.lon)}</strong><span>${state.userLocation.source === "manual" ? "Manual monitoring point" : `Uncertainty ±${formatMiles(state.userLocation.accuracy / 1609.344)}`} · ${state.radiusMiles}-mile radius.</span></div>`;
     els.enableLocationButton.disabled = false;
-    els.enableLocationButton.textContent = "Update current location";
+    els.enableLocationButton.textContent = state.userLocation?.source==="manual"?"Replace manual point with current location":"Update current location";
   }
 
   function updateLocationLayers() {
@@ -1334,7 +1380,7 @@
       state.notificationsEnabled = false;
       updateNotificationUI();
       saveSettings();
-      toast("Proximity alerts paused", "The 20-mile monitor remains visible on the map.");
+      toast("Lightning notifications paused", `Your ${state.radiusMiles}-mile monitoring radius remains configured.`);
       return;
     }
 
@@ -1363,7 +1409,7 @@
     } else if (state.notificationsEnabled) {
       els.permissionNote.textContent = `Armed with a 2-minute cooldown. Location and alerts remain on this device.`;
     } else {
-      els.permissionNote.textContent = "Notifications remain on this device. Location is never uploaded.";
+      els.permissionNote.textContent = "Notifications remain on this device. Monitoring points and distance calculations stay local. External maps, search and system location may make network requests.";
     }
   }
 
@@ -1398,12 +1444,14 @@
 
   function checkProximityAlert(strike) {
     if (!state.notificationsEnabled || !state.userLocation || platform.notificationAdapter.permission() !== "granted") return;
+    const age=Date.now()-strike.time;
+    if (!Number.isFinite(strike.time) || age < -ALERT_CLOCK_SKEW_MS || age > ALERT_MAX_AGE_MS || !Number.isFinite(strike.provenance?.observedAt) || strike.provenance.transformations?.includes('time-inferred-from-fetch')) return;
     if (Date.now() - state.lastAlertAt < ALERT_COOLDOWN_MS) return;
     const distance = strikeDistance(strike);
     if (distance > state.radiusMiles) return;
     state.lastAlertAt = Date.now();
-    const notification = platform.notificationAdapter.show({ title: "Lightning inside your safety radius",
-      body: `${formatMiles(distance)} away · ${strike.region} · detected just now`,
+    const notification = platform.notificationAdapter.show({ title: "Lightning inside your alert radius",
+      body: `${formatMiles(distance)} away · ${strike.region} · detected ${relativeAge(strike.time)}`,
       icon: "/icon.svg",
       tag: "stormtrace-nearby",
     });
@@ -1416,7 +1464,9 @@
     toast("Nearby lightning detected", `${formatMiles(distance)} from your location.`);
   }
 
+  let searchGeneration=0, searchSelection=-1;
   async function runSearch(query) {
+    const generation=++searchGeneration;searchSelection=-1;
     const value = query.trim();
     if (!value) return;
     const coordinateMatch = value.match(/^\s*(-?\d+(?:\.\d+)?)\s*[, ]\s*(-?\d+(?:\.\d+)?)\s*$/);
@@ -1424,20 +1474,25 @@
       const lat = Number(coordinateMatch[1]);
       const lon = Number(coordinateMatch[2]);
       if (Math.abs(lat) <= 90 && Math.abs(lon) <= 180) {
-        state.map?.flyTo([lat, lon], 7, { duration: 1 });
+        state.map?.flyTo([lat, lon], 7, { ...UI.flyOptions(1) });
         els.placeSearch.value = formatCoordinates(lat, lon);
         hideSearchResults();
         return;
       }
     }
 
-    els.searchResults.hidden = false;
+    if (coordinateMatch) { $('#searchStatus').textContent='Coordinates are out of range. Use latitude −90 to 90, longitude −180 to 180.';toast('Check coordinates',$('#searchStatus').textContent);return; }
+    els.searchResults.hidden = false;els.placeSearch.setAttribute('aria-expanded','true');
     els.searchResults.innerHTML = '<div class="empty-state" style="padding:9px">Searching map index…</div>';
     try {
       const result = await placeProvider.search(value);
+      if (generation !== searchGeneration) return;
+      $('#searchStatus').textContent=`Results for ${value}: ${result.records.length} matches.`;
       state.providerHealth[placeProvider.id] = result.health;
       showSearchResults(result.records);
     } catch {
+      if (generation !== searchGeneration) return;
+      $("#searchStatus").textContent="Place search unavailable. Retry or enter valid coordinates.";
       state.providerHealth[placeProvider.id] = { ...placeProvider.health, freshness: core.freshness(placeProvider.health) };
       els.searchResults.innerHTML = '<div class="empty-state" style="padding:9px">Place search is offline. Coordinates still work.</div>';
     }
@@ -1450,19 +1505,19 @@
     }
     els.searchResults.innerHTML = results.map((result, index) => {
       const primary = result.name;
-      return `<button class="search-result" data-index="${index}" role="option">${escapeHtml(primary)}<small>${escapeHtml(result.description)}</small></button>`;
+      return `<button class="search-result" id="place-result-${index}" data-index="${index}" role="option" aria-selected="false">${escapeHtml(primary)}<small>${escapeHtml(result.description)}</small></button>`;
     }).join("");
     els.searchResults.querySelectorAll(".search-result").forEach((button) => {
       button.addEventListener("click", () => {
         const result = results[Number(button.dataset.index)];
-        state.map?.flyTo([Number(result.lat), Number(result.lon)], 7, { duration: 1 });
+        state.map?.flyTo([Number(result.lat), Number(result.lon)], 7, { ...UI.flyOptions(1) });
         els.placeSearch.value = result.label;
         hideSearchResults();
       });
     });
   }
 
-  function hideSearchResults() { els.searchResults.hidden = true; }
+  function hideSearchResults() { searchGeneration++;searchSelection=-1;els.searchResults.hidden=true;els.placeSearch.setAttribute("aria-expanded","false");els.placeSearch.removeAttribute?.("aria-activedescendant"); }
 
   function showMapMessage(title, body) {
     els.mapMessageTitle.textContent = title;
@@ -1473,14 +1528,14 @@
   function toast(title, body) {
     const node = document.createElement("div");
     node.className = "toast";
-    node.innerHTML = `<i>ϟ</i><div><strong>${escapeHtml(title)}</strong><span>${escapeHtml(body)}</span></div>`;
+    node.innerHTML = `<i aria-hidden="true">ϟ</i><div><strong>${escapeHtml(title)}</strong><span>${escapeHtml(body)}</span></div>`;
     els.toastStack.append(node);
     setTimeout(() => node.remove(), 5000);
   }
 
   function updateClock() {
     if (document.hidden) return;
-    els.clock.textContent = `UTC ${new Date().toISOString().slice(11, 16)}`;
+    els.clock.textContent = `UK local ${new Intl.DateTimeFormat("en-GB",{timeZone:"Europe/London",timeStyle:"short"}).format(Date.now())}`;
   }
 
   function relativeAge(time) {
@@ -1533,17 +1588,19 @@
   }
 
   function saveSettings() {
-    return writeSettings({
+    const saved=writeSettings({
       window: state.selectedWindow,
       radiusMiles: state.radiusMiles,
       notificationsEnabled: state.notificationsEnabled,
       userLocation: state.userLocation,
       themeSource: state.themeSource,
       customPalette: state.customPalette,
+      readingScale: state.readingScale,
       mapBrightness: state.mapBrightness,
       mapOpacity: state.mapOpacity,
       mapShade: state.mapShade,
     });
+    const status=$('#settingsSaveStatus');if(status)status.hidden=saved;return saved;
   }
 
   function openDatabase() { return platform.strikeStorage.open(); }

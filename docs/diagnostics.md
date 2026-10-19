@@ -46,6 +46,6 @@ A local 100-sample microbenchmark of one `/proc` read plus JSONL/atomic-summary 
 
 Automated tests cover sanitization, disabled behavior, bounded retention, summaries and current RSS sampling. Native overnight stability, GTK/WebKit resource scope and real UI responsiveness remain manual validation gates. Record actual overhead/environment with each soak run; microbenchmarks do not establish native overhead.
 
-## Recorded soak evidence
+## Recording results
 
-The [7 October 2026 investigation](performance-2026-10-07.md) records the first native run, journal shutdown evidence, isolated WebKit retention benchmarks and a storage fix. A full native soak after the fix remains outstanding.
+Keep soak recordings and their analysis on your own machine. They are working evidence, not published documentation. A newly started run does not show that the current interface has passed extended native validation.

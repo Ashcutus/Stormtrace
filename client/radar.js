@@ -1,55 +1,100 @@
 (() => {
   'use strict';
   const C = globalThis.StormtraceCore;
+  function localResource(value) {
+    if (typeof value !== 'string' || !value.startsWith('/api/radar/frame?')) return false;
+    const url = new URL(value, 'http://localhost');
+    return url.pathname === '/api/radar/frame' && url.searchParams.has('key') && !url.hash;
+  }
   function validate(result) {
     if (!result || !Array.isArray(result.records) || result.records.length > 12 || !result.health || !Array.isArray(result.missingDependencies) || !result.legend) throw new Error('Invalid radar response');
-    for (const f of result.records) if (!f.id || !Number.isFinite(f.observedAt) || !Array.isArray(f.bounds) || f.bounds.length !== 4 || !f.bounds.every(Number.isFinite) || !f.resource?.url.startsWith('/api/radar/frame?key=') || f.resource.format !== 'image/png') throw new Error('Invalid radar frame');
+    for (const f of result.records) if (!f.id || !Number.isFinite(f.observedAt) || !Array.isArray(f.bounds) || f.bounds.length !== 4 || !f.bounds.every(Number.isFinite) || !localResource(f.resource?.url) || f.resource.format !== 'image/png') throw new Error('Invalid radar frame');
+    if (result.legend.image && !localResource(result.legend.image)) throw new Error('Invalid radar legend');
     return result;
   }
   function mountRadar({ map, demo = false, fetch: fetcher = (...args) => globalThis.fetch(...args) }) {
     const $ = (id) => document.getElementById(id), button = $('radarButton'), panel = $('radarPanel'), status = $('radarStatus'), slider = $('radarTimeline');
-    let enabled = false, loading = false, timer = null, generation = 0, overlay = null, displayed = null, pending = null, records = [], followLatest = true;
+    const selection = $('radarSource');
+    let source = selection?.value || 'metoffice-radar', selectionGeneration = 0;
+    const providerId = () => source.startsWith('noaa-') ? 'noaa-radar' : source;
+    const interval = () => C.getSource(providerId()).expectedUpdateInterval;
+    const context = () => source.startsWith('noaa-') ? 'Observed reflectivity (dBZ); not rainfall rate. Frames sampled across the available past 3 hours. Coverage gaps do not mean dry weather.' : source === 'opera-radar' ? 'Observed rain rate · 15-minute frames. European radar coverage varies; transparent areas include no rain and missing observations.' : 'Observed rain rate · 15-minute frames, publication can lag by 20 minutes. Transparent areas include no rain and missing observations.';
+    const ageLabel = (frame) => Date.now() - frame.observedAt > interval() * 3 ? 'Stale' : Date.now() - frame.observedAt > interval() * 1.5 ? 'Delayed' : 'Observed';
+    let enabled = false, loading = false, timer = null, generation = 0, overlay = null, displayed = null, pending = null, cancelPending = null, records = [], followLatest = true;
     map.createPane('radar'); map.getPane('radar').style.zIndex = 250;
     map.getPane('radar').style.pointerEvents = 'none';
-    $('radarAttribution').textContent = C.getSource('metoffice-radar').attribution;
-    function stamp(frame) { return globalThis.StormtraceWarnings.ukDate(frame.observedAt); }
+    function sourcePresentation() {
+      const metadata = C.getSource(providerId());
+      $('radarAttribution').textContent = metadata.attribution;
+      if ($('radarSourceLink')) $('radarSourceLink').href = metadata.homepage;
+      if ($('radarCoverage')) $('radarCoverage').textContent = context();
+      if ($('radarLegend')) $('radarLegend').replaceChildren();
+      if ($('radarUnit')) $('radarUnit').textContent = source.startsWith('noaa-') ? 'Radar reflectivity (dBZ)' : 'Rainfall rate (mm/h)';
+    }
+    sourcePresentation();
+    function legendPresentation(legend) {
+      const container = $('radarLegend');
+      if (!container) return;
+      container.replaceChildren();
+      if ($('radarUnit')) $('radarUnit').textContent = legend.unit === 'dBZ' ? 'Radar reflectivity (dBZ)' : 'Rainfall rate (mm/h)';
+      if (legend.image) {
+        const img = document.createElement('img'); img.src = legend.image; img.alt = 'NOAA radar reflectivity scale in dBZ';
+        img.addEventListener('error', () => { if (enabled) status.textContent = 'Radar legend unavailable. ' + context(); });
+        container.append(img);
+      } else {
+        for (const [i, level] of legend.levels.entries()) {
+          const span = document.createElement('span'); span.textContent = String(level) + (i === legend.levels.length - 1 ? '+' : '');
+          span.style.setProperty('--rain', legend.colours[i]); container.append(span);
+        }
+      }
+    }
+    function stamp(frame) { return globalThis.StormtraceUI.date(frame.observedAt); }
     async function show(frame) {
       if (!enabled || !frame) return;
-      if (displayed?.id === frame.id) { status.textContent = `${Date.now() - frame.observedAt > 2700000 ? 'Stale' : Date.now() - frame.observedAt > 1350000 ? 'Delayed' : 'Observed'} radar · 15-minute frames, publication can lag by 20 minutes.`; return; }
+      if (displayed?.id === frame.id) { status.textContent = `${ageLabel(frame)} radar · ${context()}`; return; }
       const request = ++generation;
+      cancelPending?.();
       if (pending) { map.removeLayer(pending); pending = null; }
       status.textContent = `Loading radar observation ${stamp(frame)}…`;
       const [west, south, east, north] = frame.bounds;
       const next = L.imageOverlay(frame.resource.url, [[south, west], [north, east]], { pane: 'radar', opacity: .8, interactive: false }); pending = next;
       try {
         await new Promise((resolve, reject) => {
-          const timeout = setTimeout(() => { map.removeLayer(next); reject(new Error('timeout')); }, 60000);
-          next.once('load', () => { clearTimeout(timeout); resolve(); });
-          next.once('error', () => { clearTimeout(timeout); reject(new Error('image')); }); next.addTo(map);
+          const finish = (failed) => {
+            clearTimeout(timeout); if (cancelPending === cancel) cancelPending = null;
+            if (failed) reject(new Error('image')); else resolve();
+          };
+          const cancel = () => finish(true);
+          const timeout = setTimeout(() => finish(true), 60000); cancelPending = cancel;
+          next.once('load', () => finish(false));
+          next.once('error', () => finish(true)); next.addTo(map);
         });
         if (request !== generation || !enabled) { map.removeLayer(next); return; }
         if (overlay) map.removeLayer(overlay); overlay = next; pending = null; displayed = frame;
         $('radarFrameTime').textContent = `Observation: ${stamp(frame)}`;
-        status.textContent = `${Date.now() - frame.observedAt > 2700000 ? 'Stale' : Date.now() - frame.observedAt > 1350000 ? 'Delayed' : 'Observed'} radar · 15-minute frames, publication can lag by 20 minutes.`;
+        status.textContent = `${ageLabel(frame)} radar · ${context()}`;
       } catch {
         globalThis.StormtraceDiagnostics?.count("errors");
-        map.removeLayer(next);
-        if (request === generation && enabled) status.textContent = `Radar image unavailable.${displayed ? ` Keeping observation ${stamp(displayed)}.` : ''} Check the decoder setup.`;
+        if (request === generation) map.removeLayer(next);
+        if (request === generation && enabled) status.textContent = `Radar image unavailable.${displayed ? ` Keeping observation ${stamp(displayed)}.` : ''} ${source.startsWith('noaa-') ? 'Try Latest / refresh.' : 'Check the decoder setup or retry.'}`;
       }
     }
     async function refresh() {
       if (!enabled || document.hidden || loading || demo) return;
+      const selected = source, epoch = selectionGeneration;
       const diagnosticStart = Date.now();
       globalThis.StormtraceDiagnostics?.count("radarAttempts");
-      loading = true; const controller = new AbortController(), timeout = setTimeout(() => controller.abort(), 60000);
+      loading = true;globalThis.StormtraceUI.sourceStatus('radarButton',{loading:true}); const controller = new AbortController(), timeout = setTimeout(() => controller.abort(), 60000);
       try {
-        const response = await fetcher('/api/radar', { signal: controller.signal, cache: 'no-store' });
+        const response = await fetcher(selected === 'metoffice-radar' ? '/api/radar' : '/api/radar?source=' + encodeURIComponent(selected), { signal: controller.signal, cache: 'no-store' });
         if (!response.ok) throw new Error('provider');
         const data = validate(await response.json());
         globalThis.StormtraceDiagnostics?.count("radarSuccesses");
         globalThis.StormtraceDiagnostics?.radar(Date.now() - diagnosticStart, data.records.at(-1)?.observedAt);
-        if (!enabled) return;
+        if (!enabled || epoch !== selectionGeneration) return;
         if (data.missingDependencies.length) { status.textContent = 'Radar decoder is not configured. Follow the radar setup guide; no API key is needed.'; return; }
+        legendPresentation(data.legend);
+        globalThis.StormtraceUI.sourceStatus('radarButton',{health:data.health});
         records = data.records.slice().sort((a, b) => a.observedAt - b.observedAt);
         slider.disabled = !records.length; slider.max = Math.max(0, records.length - 1);
         if (!records.length) { if (overlay) map.removeLayer(overlay); overlay = null; displayed = null; $('radarFrameTime').textContent = ''; status.textContent = 'No recent radar observations available. Older archive data is not shown as live.'; return; }
@@ -57,16 +102,30 @@
         if (index < 0) { followLatest = true; index = records.length - 1; }
         slider.value = index;
         await show(records[index]);
-      } catch { globalThis.StormtraceDiagnostics?.count("radarFailures"); globalThis.StormtraceDiagnostics?.count("networkFailures"); if (enabled) status.textContent = `Radar feed unavailable.${displayed ? ` Showing last loaded observation ${stamp(displayed)}.` : ''}`; }
-      finally { clearTimeout(timeout); loading = false; }
+      } catch { globalThis.StormtraceUI.sourceStatus('radarButton',{cached:Boolean(displayed),health:{lastError:{code:'network'}}});globalThis.StormtraceDiagnostics?.count("radarFailures"); globalThis.StormtraceDiagnostics?.count("networkFailures"); if (enabled && epoch === selectionGeneration) status.textContent = `Radar feed unavailable.${displayed ? ` Showing last loaded observation ${stamp(displayed)}.` : ''}`; }
+      finally { clearTimeout(timeout); loading = false; if (enabled && epoch !== selectionGeneration) refresh(); }
     }
     button.addEventListener('click', () => {
-      enabled = !enabled; panel.hidden = !enabled; button.setAttribute('aria-pressed', String(enabled));
-      if (!enabled) { generation++; clearInterval(timer); if (overlay) map.removeLayer(overlay); if (pending) map.removeLayer(pending); overlay = pending = displayed = null; return; }
+      enabled = !enabled; panel.hidden = !enabled; button.setAttribute('aria-pressed', String(enabled));button.setAttribute('aria-expanded',String(enabled));
+      if(enabled){globalThis.StormtraceUI.scrollTo(panel);panel.focus?.();}
+      if (!enabled) { generation++; selectionGeneration++; cancelPending?.(); clearInterval(timer); if (overlay) map.removeLayer(overlay); if (pending) map.removeLayer(pending); overlay = pending = displayed = null; return; }
       if (demo) { status.textContent = 'Live radar is disabled in demo mode.'; return; }
-      refresh(); timer = setInterval(refresh, 300000);
+      refresh(); timer = setInterval(refresh, source.startsWith('noaa-') ? 60000 : 300000);
     });
-    slider.addEventListener('input', () => { followLatest = false; show(records[Number(slider.value)]); });
+    selection?.addEventListener('change', () => {
+      source = selection.value; selectionGeneration++; generation++; cancelPending?.();
+      if (overlay) map.removeLayer(overlay); if (pending) map.removeLayer(pending);
+      overlay = pending = displayed = null; records = []; followLatest = true;
+      slider.disabled = true; $('radarFrameTime').textContent = ''; sourcePresentation();
+      status.textContent = demo ? 'Live radar is disabled in demo mode.' : enabled ? 'Loading selected radar source…' : 'Enable Radar to load this source.';
+      if (enabled) { clearInterval(timer); timer = setInterval(refresh, source.startsWith('noaa-') ? 60000 : 300000); refresh(); }
+    });
+    slider.addEventListener('input' , () => { followLatest = false; show(records[Number(slider.value)]); });
+    $('radarViewRegion')?.addEventListener('click', () => {
+      if (!records.length) { status.textContent = 'Load radar observations before viewing this region.'; return; }
+      const [west, south, east, north] = records[0].bounds;
+      map.fitBounds([[south, west], [north, east]], { maxZoom: 7 });
+    });
     $('radarLatest').addEventListener('click', () => { followLatest = true; slider.value = records.length - 1; show(records.at(-1)); refresh(); });
     document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
     return { refresh };

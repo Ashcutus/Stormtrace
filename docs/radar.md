@@ -1,18 +1,20 @@
-# UK radar: public Met Office observations
+# Radar observations: UK, Europe and US
 
-The user approved the free radar route after the warnings preview. This extends Phase 1 with an optional UK rainfall overlay and a selector for the latest three hours (up to 12 frames). No account, subscription key, AWS credentials, cloud backend or paid radar contract is required.
+Stormtrace offers one selected radar overlay at a time, with observation timestamps, recent-frame selection and canonical source attribution. The sources are free to access without radar subscription keys. Ground radar coverage varies and does not cover the whole globe.
 
-## Source and availability
+![UK radar rainfall with the radar panel open](screenshots/radar.png)
 
-The [Met Office](https://www.metoffice.gov.uk/services/data/external-data-channels) publishes radar observations on [AWS Open Data](https://registry.opendata.aws/met-office-uk-radar-observations/). Anonymous HTTPS listing/downloads from `met-office-radar-obs-data.s3.eu-west-2.amazonaws.com` were verified on 6 October 2026. A real observation valid at 22:00 BST was published at 22:05:32 BST and downloaded/rendered successfully (705,918-byte HDF5 source). This verifies access and decoding, not a guaranteed operational service level.
+## Available sources
 
-The documented product provides 1 km radar-derived surface rainfall estimates every 15 minutes, published within 20 minutes of validity time. It is a public beta/non-operational service. Retain observation time separately from fetch/publication time. The CC BY-SA 4.0 licence requires attribution and share-alike treatment of derived imagery; the app identifies Crown copyright and reprojecting/cropping. Do not treat publication as a forecast or absence of coloured pixels as a guarantee of dry conditions.
+- **UK · Met Office rain rate:** public ASDI radar-derived rainfall estimates, 1 km source grid, 15-minute observations, publication up to 20 minutes later. Optional local ODIM decoder required. The Met Office service is public beta/non-operational.
+- **Europe · EUMETNET rain rate:** public ORD OPERA NIMBUS instantaneous rain-rate composite, 2 km source grid and 15-minute observations. Optional local ODIM decoder required. Radar contribution and usable coverage vary across the European composite.
+- **NOAA reflectivity:** regional quality-controlled base-reflectivity displays for the contiguous US, Alaska, Hawaii, Caribbean and Guam. Approximately two-minute observations; no scientific decoder required. Reflectivity in **dBZ** is not rainfall rate in **mm/h**.
 
-The earlier access audit identified the retired DataPoint imagery API and paid replacement arrangements but missed this separate public channel. Paid access remains deferred; public ASDI access removes the account prerequisite for this implementation.
+The application links to each official source and displays its attribution. Source and licence metadata are maintained in `providers/registry.js`: Met Office derived imagery carries CC BY-SA attribution/share-alike; EUMETNET OPERA composites carry CC BY attribution; NOAA imagery retains NOAA/NWS attribution and identifies display transformations without implying endorsement. National radar volumes are not downloaded or mosaicked independently.
 
 ## Setup
 
-Radar decoding is optional. Lightning and warnings keep their existing dependencies. **Create the Python environment outside the plugin directory.** Omarchy rejects symlinks anywhere inside a plugin, including ignored files; Python environments contain symlinks and can block updates.
+UK and European rain-rate decoding is optional and uses the same environment. NOAA radar imagery does not need scientific packages; it uses the standard Python runtime. Lightning and other hazards keep their existing dependencies. **Create the Python environment outside the plugin directory.** Omarchy rejects symlinks anywhere inside a plugin, including ignored files; Python environments contain symlinks and can block updates.
 
 From the installed app directory (normally `~/.config/omarchy/plugins/stormtrace.lightning`):
 
@@ -46,21 +48,29 @@ Run these commands from the installed plugin directory. Do not replace the envir
 
 ## Controls and limits
 
-Select **UK radar** to enable it; select again to remove it. Toggling radar preserves the current map centre and zoom. The sidebar shows the actual loaded observation time, rainfall-rate legend, recent frame selector and **Latest / refresh** button. Radar draws below lightning markers and above the existing basemap. Warnings remain in their separate list; no warning polygons are overlaid.
+Select **Radar · UK / Europe / US** in Explore to enable or remove the overlay. Choose **Source / region**, then use the frame selector or **Latest / refresh**. **View selected region** explicitly centres the map on the selected display crop. Toggling radar and switching sources preserve the map centre and zoom. Enable or disable **Lightning strikes** independently in Map layers; this affects visibility only, while lightning collection and nearby alerts continue.
 
-Metadata refreshes every five minutes while radar is enabled and the page is visible. New frames arrive at the upstream 15-minute cadence. Frame age over 22.5 minutes is labelled delayed, and over 45 minutes stale. Failed image/metadata requests retain a last-loaded frame with its original time and an error message. An empty recent listing removes old imagery; older archive data is not presented as current. Demo mode does not request live radar.
+Radar draws above the basemap and below lightning markers. The panel displays the loaded observation time, source attribution, official-source link, product-specific legend and retrieval status. All displayed observation times use labelled UK local time; provenance retains the source timestamps. The NOAA source-generated legend can be scrolled horizontally with keyboard focus. Met Office warning polygons remain in their dedicated list.
 
-The source grid uses ODIM HDF5, RATE quantity, upper-left origin, native projection, gain/offset and no-data/undetect values. The renderer samples into Web Mercator at pixel centres using nearest-neighbour lookup. The image is a UK display crop (west −13°, south 48°, east 4°, north 62°), at 640 × 800 display pixels; it is not a native-resolution analytical grid. Colour bands start at 0.1 mm/h. Zero/undetect, missing coverage, values below 0.1 mm/h and pixels outside the source grid are transparent. Transparent areas therefore do not distinguish no rain from missing observations. Native datum metadata is used as supplied; no survey-grade positional accuracy is claimed.
+Metadata refreshes every five minutes for UK/Europe and every minute for NOAA while enabled and visible. The server shares successful metadata for those intervals. European retrieval uses bounded hourly bucket prefixes across the displayed window, including midnight, rather than incomplete full-day listings. The timeline contains at most 12 observations from the past three hours; NOAA frames are sampled as the first observation in each 15-minute slot plus the latest scan, so this is not every two-minute scan; sampled frame identities stay stable between refreshes while scrubbing. Empty recent listings remove old imagery. Failed metadata/image requests retain the last loaded frame with its original timestamp and explicit error feedback. Switching sources removes the previous source's frame immediately. Demo mode makes no live radar requests.
 
-The app keeps at most 12 listed frames and their on-demand PNGs in memory. It downloads only a selected uncached frame, limits HDF5 download size to 10 MB, rejects unexpected grids/timestamps, and bounds worker execution. Disabling the UI stops polling; cache is lost at server shutdown. This does not copy the upstream two-year archive into local strike/event history.
+Frame age is labelled delayed after 1.5 source update intervals and stale after three intervals. Met Office's normal publication lag can therefore produce a delayed label. These labels describe observation age, not forecast confidence.
 
-## Implementation and validation
+<a id="implementation-and-validation"></a>
 
-- `providers/metoffice_radar.py`: bounded anonymous listing, strict source keys/dates, three-hour manifest and lazy optional HDF5/projection renderer. PNG encoding uses the standard library.
-- `platform/node.js` / `stormtrace_platform.py`: select the local decoder interpreter and run the bounded worker. The Node provider and Python adapter cache manifests/resources; `/api/radar` and `/api/radar/frame` expose the same normalized models and PNG contract.
-- `client/radar.js`: frame selection, image loading/swap/failure, source timestamps, opt-in polling and demo isolation. UI does not parse upstream S3/ODIM fields.
-- Automated tests exercise source parsing, size/date errors, coalescing/caching, arbitrary-key rejection, dependency failures, renderer timestamp and no-data handling, image lifecycle and existing V1 regressions. The optional decoder test requires `requirements-radar.txt`; run `STORMTRACE_RADAR_PYTHON=/absolute/venv/bin/python npm test` to include it.
-- Final validation: 85 tests pass with the optional decoder enabled; `npm run check` validates 21 JavaScript modules, Python syntax and the manifest; `git diff --check` passes. The minor version bump remains once in the Phase 1 manifest diff.
-- Live anonymous metadata and image checks were performed separately from deterministic tests. Both local Node and Python routes returned the same 11 recent frames and byte-identical 640 × 800 PNGs (27,552 bytes) for the checked observation. Rendering a real source file verifies decoding; native/browser alignment and visual interaction remain a manual validation gate.
+## Raster and coverage limitations
 
-The user reviewed the radar preview positively. Outstanding: detailed native/browser inspection of alignment, raster/strike stacking, timeline interaction, responsive layout, open/close/visibility lifecycle and cold-start decoder errors. Phase 1 review/merge/publication remain outstanding. [Phase 1 PR #22](https://github.com/Ashcutus/Stormtrace/pull/22) is open for review. Publication remains separate from review/merge.
+UK and European ODIM rain-rate grids are reprojected to Web Mercator with nearest-neighbour sampling at display-pixel centres. Source timestamps, RATE quantity, gain/offset, missing values and grid geometry are validated before rendering. Met Office's upper-left origin is explicit; OPERA Cartesian origin is checked against all supplied corner coordinates and grid scale.
+
+The UK crop is west −13°, south 48°, east 4°, north 62°, rendered at 640 × 800 pixels. The European crop is west −40°, south 30°, east 60°, north 72°, rendered at 1000 × 700 pixels. NOAA WMS images are requested directly in Web Mercator at 960 × 600 pixels using fixed regional crops and source-supplied observation times. These are display images, not native-resolution analytical grids. Alaska is a western-longitude crop and does not include all Aleutian coverage across the antimeridian; Caribbean imagery does not imply coverage of every island.
+
+For UK/Europe, zero/undetect, missing observations, rainfall below 0.1 mm/h and locations outside the source grid are transparent. NOAA transparency also does not guarantee dry conditions. Terrain, distance from radar, outages and source processing affect usable coverage. No interpolation fills coverage gaps, and this layer is neither a rainfall forecast nor complete global rainfall coverage.
+
+The UK provider retains up to 12 on-demand PNGs. Each additional regional provider retains at most three on-demand images, including any legend. All radar caches are memory-only, disappear at server shutdown, and stay out of strike/event history. Downloads, XML listings, grid sizes and worker execution are bounded. New public-source retrieval rejects redirects and accepts only fixed upstream hosts/products. Decoder failures do not prevent lightning or other hazards starting.
+
+## Troubleshooting
+
+- **Decoder not configured:** complete Setup for UK/Europe, verify the expanded interpreter path, then restart. NOAA can be used without the scientific packages, but a configured interpreter must still exist.
+- **No recent observations:** the selected source has no observations in the recent window. Older archive data is not substituted as live.
+- **Feed/image/legend unavailable:** use **Latest / refresh** and check the official source. Existing loaded imagery retains its timestamp; it does not become a fresh observation after a failed request.
+- **No coloured pixels:** use **View selected region**, check observation time and coverage. Transparent pixels alone cannot distinguish no rain from unavailable observations.
