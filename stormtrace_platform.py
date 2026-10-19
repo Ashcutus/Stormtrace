@@ -50,10 +50,12 @@ def show_notification(application, gio, notification, icon_path, app_name):
 
 class RadarAdapter:
     """Local worker composition shared with Node; bounded memory-only cache."""
-    def __init__(self, root):
+    def __init__(self, root, source="metoffice-radar"):
         import threading
         self.root, self.lock, self.cached, self.images = root, threading.Lock(), None, {}
-        self.health = {'lastAttemptedFetch': None, 'lastSuccessfulFetch': None, 'sourceDataTimestamp': None, 'expectedUpdateInterval': 900000, 'lastError': None, 'consecutiveFailures': 0, 'available': False, 'freshnessBasis': 'source'}
+        self.source = source
+        self.id = "noaa-radar" if source.startswith("noaa-") else source
+        self.health = {'lastAttemptedFetch': None, 'lastSuccessfulFetch': None, 'sourceDataTimestamp': None, 'expectedUpdateInterval': 120000 if source.startswith('noaa-') else 900000, 'lastError': None, 'consecutiveFailures': 0, 'available': False, 'freshnessBasis': 'source'}
 
     def worker(self, operation, key=None):
         import json
@@ -61,7 +63,8 @@ class RadarAdapter:
         from providers.metoffice_radar import RadarError
         python = local_setting(self.root, 'STORMTRACE_RADAR_PYTHON') or sys.executable
         try:
-            run = subprocess.run([python, str(self.root / 'providers/metoffice_radar.py'), operation, *([key] if key else [])], capture_output=True, timeout=45, check=False)
+            args = [str(self.root / 'providers/metoffice_radar.py'), operation] if self.source == 'metoffice-radar' else ['-m', 'providers.public_radar', self.source, operation]
+            run = subprocess.run([python, *args, *([key] if key else [])], cwd=self.root, capture_output=True, timeout=45, check=False)
             if run.returncode:
                 try: code = json.loads(run.stderr)['code']
                 except (ValueError, KeyError): code = 'configuration'
@@ -78,7 +81,7 @@ class RadarAdapter:
         from providers.metoffice_radar import RadarError
         with self.lock:
             now = int(time.time() * 1000)
-            if self.cached and now - self.health['lastSuccessfulFetch'] < 300000:
+            if self.cached and now - self.health['lastSuccessfulFetch'] < (60000 if self.id == 'noaa-radar' else 300000):
                 return {**self.cached, 'health': {**self.health, 'freshness': self.freshness(now)}}
             self.health['lastAttemptedFetch'] = now
             try:
@@ -86,10 +89,11 @@ class RadarAdapter:
                 self.health.update(lastSuccessfulFetch=int(time.time() * 1000), sourceDataTimestamp=result['sourceDataTimestamp'], lastError=None, consecutiveFailures=0, available=bool(result['records']))
                 self.cached = result
                 ids = {r['id'] for r in result['records']}
+                if self.id == 'noaa-radar': ids.add('legend')
                 self.images = {key: value for key, value in self.images.items() if key in ids}
                 return {**result, 'health': {**self.health, 'freshness': self.freshness(now)}}
             except RadarError as e:
-                self.health['lastError'] = {'code': e.code, 'provider': 'metoffice-radar', 'operation': 'frames', 'status': None, 'retryAfter': None}
+                self.health['lastError'] = {'code': e.code, 'provider': self.id, 'operation': 'frames', 'status': None, 'retryAfter': None}
                 self.health['consecutiveFailures'] += 1
                 raise
 
@@ -98,13 +102,16 @@ class RadarAdapter:
         at = self.health['sourceDataTimestamp']
         if at is None: return 'unavailable'
         age = now - min(at, self.health['lastSuccessfulFetch'])
-        return 'stale' if age > 2700000 else 'delayed' if age > 1350000 else 'fresh'
+        interval = self.health['expectedUpdateInterval']
+        return 'stale' if age > interval * 3 else 'delayed' if age > interval * 1.5 else 'fresh'
 
     def image(self, key):
         from providers.metoffice_radar import RadarError
         result = self.frames()
-        if not any(r['id'] == key for r in result['records']): raise RadarError('unavailable')
+        if not (key == 'legend' and self.id == 'noaa-radar') and not any(r['id'] == key for r in result['records']): raise RadarError('unavailable')
         if result['missingDependencies']: raise RadarError('configuration')
         with self.lock:
-            if key not in self.images: self.images[key] = self.worker('render', key)
+            if key not in self.images:
+                while len(self.images) >= (12 if self.source == 'metoffice-radar' else 3): self.images.pop(next(iter(self.images)))
+                self.images[key] = self.worker('render', key)
             return self.images[key]

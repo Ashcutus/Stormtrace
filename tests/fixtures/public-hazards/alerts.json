@@ -1,0 +1,17 @@
+[
+  {
+    "product_id": "K04W",
+    "issue_datetime": "2026-10-13 01:15:49.670",
+    "message": "Space Weather Message Code: WARK04\r\nSerial Number: 5433\r\nIssue Time: 2026 Oct 13 0115 UTC\r\n\r\nWARNING: Geomagnetic K-index of 4 expected \nValid From: 2026 Oct 13 0115 UTC\nValid To: 2026 Oct 13 1500 UTC\nWarning Conditions: Onset\nComment: \r\n\r\nNOAA Space Weather Scale descriptions can be found at\r\nwww.swpc.noaa.gov/noaa-scales-explanation\r\n\r\nPotential Impacts: Area of impact primarily poleward of 65 degrees Geomagnetic Latitude.\r\nInduced Currents - Weak power grid fluctuations can occur.\r\nAurora - Aurora may be visible at high latitudes such as Canada and Alaska."
+  },
+  {
+    "product_id": "A20F",
+    "issue_datetime": "2026-10-11 19:11:07.000",
+    "message": "Space Weather Message Code: WATA20\r\nSerial Number: 1129\r\nIssue Time: 2026 Oct 11 1911 UTC\r\n\r\nWATCH: Geomagnetic Storm Category G1 Predicted \nHighest Storm Level Predicted by Day:\nOct 12:  None (Below G1)   Oct 13:  G1 (Minor)   Oct 14:  None (Below G1)   \nTHIS SUPERSEDES ANY/ALL PRIOR WATCHES IN EFFECT\nComment: \r\n\r\nNOAA Space Weather Scale descriptions can be found at\r\nwww.swpc.noaa.gov/noaa-scales-explanation\r\n\r\nPotential Impacts: Area of impact primarily poleward of 60 degrees Geomagnetic Latitude.\r\nInduced Currents - Weak power grid fluctuations can occur.\r\nSpacecraft - Minor impact on satellite operations possible.\r\nAurora - Aurora may be visible at high latitudes, i.e., northern tier of the U.S. such as northern Michigan and Maine."
+  },
+  {
+    "product_id": "A30F",
+    "issue_datetime": "2026-10-11 17:02:59.390",
+    "message": "Space Weather Message Code: WATA30\r\nSerial Number: 286\r\nIssue Time: 2026 Oct 11 1702 UTC\r\n\r\nCANCEL WATCH: Geomagnetic Storm Category G2 Predicted \nCancel Serial Number: 285\nOriginal Issue Time: 2026 Oct 09 1636 UTC\nCancelled Level Predicted:\nOct 11  : None (Below G1)  \nConditions no longer warrant a G2 Watch.\r\n\r\nNOAA Space Weather Scale descriptions can be found at\r\nwww.swpc.noaa.gov/noaa-scales-explanation\r\n\r\nPotential Impacts: Area of impact primarily poleward of 55 degrees Geomagnetic Latitude.\r\nInduced Currents - Power grid fluctuations can occur. High-latitude power systems may experience voltage alarms.\r\nSpacecraft - Satellite orientation irregularities may occur; increased drag on low Earth-orbit satellites is possible.\r\nRadio - HF (high frequency) radio propagation can fade at higher latitudes.\r\nAurora - Aurora may be seen as low as New York to Wisconsin to Washington state."
+  }
+]

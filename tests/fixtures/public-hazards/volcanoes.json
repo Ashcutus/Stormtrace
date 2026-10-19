@@ -1,0 +1,16 @@
+[
+  {
+    "obs_fullname": "Alaska Volcano Observatory",
+    "obs_abbr": "avo",
+    "volcano_name": "Great Sitkin",
+    "vnum": "311120",
+    "notice_type_cd": "DU",
+    "notice_identifier": "DOI-USGS-AVO-2026-10-12T18:56:41+00:00",
+    "sent_utc": "2026-10-12 19:02:18",
+    "sent_unixtime": 1791831738,
+    "color_code": "ORANGE",
+    "alert_level": "WATCH",
+    "notice_url": "https://volcanoes.usgs.gov/hans-public/notice/DOI-USGS-AVO-2026-10-12T18:56:41+00:00",
+    "notice_data": "https://volcanoes.usgs.gov/hans-public/api/notice/getNotice/DOI-USGS-AVO-2026-10-12T18:56:41+00:00"
+  }
+]

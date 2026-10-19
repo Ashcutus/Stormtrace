@@ -101,9 +101,9 @@ BarWidget {
     id: button
     anchors.fill: parent
     bar: root.bar
-    text: "ϟ"
+    text: "●"
     active: root.serverReady
-    tooltipText: root.serverReady ? "Open Stormtrace · local service ready" : "Start Stormtrace lightning monitor"
+    tooltipText: root.serverReady ? "Open Stormtrace · local service ready" : "Start Stormtrace weather and hazard monitor"
     onPressed: root.launch()
   }
 }

@@ -1,11 +1,11 @@
 {
   "name": "Stormtrace",
   "short_name": "Stormtrace",
-  "description": "A local, real-time global lightning monitor.",
+  "description": "A local weather and hazard viewer with lightning alerts, radar, warnings, earthquakes, cyclones, volcano reports, tsunami bulletins and space weather.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#09080d",
-  "theme_color": "#09080d",
+  "background_color": "#07101d",
+  "theme_color": "#07101d",
   "icons": [
     {
       "src": "/icon.svg",

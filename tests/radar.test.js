@@ -1,3 +1,5 @@
+import '../core/index.js';
+import '../client/presentation.js';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { execFileSync } from 'node:child_process';

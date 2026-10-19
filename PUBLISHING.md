@@ -7,7 +7,7 @@ Stormtrace is structurally ready for the Omarchy plugin marketplace. This releas
 3. Replace `Stormtrace Contributors` in `manifest.json` and `LICENSE` with the maintainer's preferred display name if desired.
 4. Set the release version in `manifest.json`; the servers, launcher, bar widget, and interface read it from there.
 5. Run `omarchy plugin validate .` at the release commit.
-6. Review the [rollout completion gates](docs/rollout.md#completion-gates) for the release commit. Confirm README feature claims match implemented behaviour, planned sources are labelled, and architecture/provider documentation and phase evidence are current. Verify the native runtime and project checks:
+6. Review the release gates in your local rollout tracker for the release commit. Confirm README feature claims match implemented behaviour, planned sources are labelled, architecture/provider documentation is current, and no investigation, audit or planning notes are committed. Verify the native runtime and project checks:
 
    ```bash
    omarchy pkg add python-gobject gtk3 webkit2gtk-4.1 geoclue
@@ -25,13 +25,13 @@ Stormtrace is structurally ready for the Omarchy plugin marketplace. This releas
    ```
 
 8. Select the bar icon twice and confirm there is one `org.omarchy.Stormtrace` window which is focused on the second selection. Confirm it opens floating and centred, `F11` restores correctly after fullscreen, pause/resume controls the feed, the About panel reports the published version correctly, and Exit stops `stormtrace-receiver.service`. Also run the installed plugin's `install-omarchy.sh` and launch Stormtrace from `SUPER + SPACE`.
-9. Record native smoke-test results and any outstanding/deferred checks in [the rollout tracker](docs/rollout.md). Record review/merge and publication separately; automated checks alone do not establish native desktop validation.
+9. Record native smoke-test results and any outstanding/deferred checks in your local rollout tracker (not committed). Record review/merge and publication separately; automated checks alone do not establish native desktop validation.
 10. Open the [Omarchy marketplace submission form](https://plugins.omarchy.org/publish.html) and provide the repository URL, category, and tags.
 
 Suggested listing metadata:
 
 - Category: **Info**
 - Tags: `weather`, `lightning`, `map`, `alerts`, `realtime`
-- Summary: “A theme-aware global lightning map with local 24-hour history, hot spots, and proximity alerts.”
+- Summary: “A theme-aware weather and hazard map with lightning, UK/European/US radar, flood information and recent earthquakes.”
 
 The marketplace performs manifest and listing validation, not a security audit. Keep the live-feed limitations and private, non-commercial restriction visible in the README.

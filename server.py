@@ -12,6 +12,10 @@ import time
 import math
 from stormtrace_platform import local_api_key, local_setting, read_omarchy_theme, RadarAdapter
 from providers.metoffice_radar import RadarError
+from providers.map_overlays import MapOverlayProvider
+from providers.public_hazards import PublicHazardProvider, HazardError, SOURCES as HAZARD_SOURCES
+from providers.usgs import USGSEarthquakeProvider, EarthquakeError
+from providers.ea_floods import EnglandFloodProvider, FloodError
 from providers.metoffice_warnings import MetOfficeWarningsProvider, WarningError
 from providers.lightning_history import LightningHistoryProvider, ProviderError, normalize_history_flashes
 
@@ -31,7 +35,12 @@ API_KEY = local_api_key(ROOT)
 HISTORY_PROVIDER = LightningHistoryProvider(API_KEY)
 WARNINGS_PROVIDER = MetOfficeWarningsProvider(local_setting(ROOT, "METOFFICE_WARNINGS_API_KEY"))
 
+MAP_OVERLAYS = MapOverlayProvider()
+EARTHQUAKES_PROVIDER = USGSEarthquakeProvider()
+FLOODS_PROVIDER = EnglandFloodProvider()
+HAZARD_PROVIDERS = {id: PublicHazardProvider(id) for id in HAZARD_SOURCES}
 RADAR_PROVIDER = RadarAdapter(ROOT)
+PUBLIC_RADAR_PROVIDERS = {source: RadarAdapter(ROOT, source) for source in ['opera-radar', 'noaa-conus', 'noaa-alaska', 'noaa-hawaii', 'noaa-carib', 'noaa-guam']}
 
 DIAGNOSTICS_ENABLED = os.environ.get("STORMTRACE_DIAGNOSTICS") == "1"
 DIAGNOSTICS_SAMPLE = None
@@ -72,10 +81,13 @@ class Handler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/theme":
             return self.send_json(200, read_omarchy_theme())
         if parsed.path in ("/api/radar", "/api/radar/frame"):
+            source = parse_qs(parsed.query).get('source', ['metoffice-radar'])[0]
+            selected = RADAR_PROVIDER if source == 'metoffice-radar' else PUBLIC_RADAR_PROVIDERS.get(source)
+            if selected is None: return self.send_json(400, {'error': 'Unknown radar source'})
             try:
-                if parsed.path == "/api/radar": return self.send_json(200, RADAR_PROVIDER.frames())
+                if parsed.path == "/api/radar": return self.send_json(200, selected.frames())
                 key = parse_qs(parsed.query).get('key', [None])[0]
-                image = RADAR_PROVIDER.image(key)
+                image = selected.image(key)
                 self.send_response(200)
                 self.send_header('Content-Type', 'image/png')
                 self.send_header('Content-Length', str(len(image)))
@@ -83,8 +95,30 @@ class Handler(SimpleHTTPRequestHandler):
                 self.end_headers()
                 return self.wfile.write(image)
             except RadarError as e:
-                error = {'code': e.code, 'provider': 'metoffice-radar', 'operation': 'frames', 'status': None, 'retryAfter': None}
-                return self.send_json(502, {'providerError': error, 'health': {**RADAR_PROVIDER.health, 'lastError': error}})
+                error = {'code': e.code, 'provider': selected.id, 'operation': 'frames', 'status': None, 'retryAfter': None}
+                return self.send_json(502, {'providerError': error, 'health': {**selected.health, 'lastError': error}})
+        if parsed.path in ("/api/floods/area", "/api/earthquakes/impact"):
+            try:
+                id = parse_qs(parsed.query).get('id', [None])[0]
+                return self.send_json(200, MAP_OVERLAYS.flood(id) if parsed.path == '/api/floods/area' else MAP_OVERLAYS.earthquake(id))
+            except (EarthquakeError, ValueError, OSError, TypeError, KeyError, AttributeError):
+                return self.send_json(502, {'error': 'Map resource unavailable'})
+        if parsed.path == "/api/hazards":
+            selected = HAZARD_PROVIDERS.get(parse_qs(parsed.query).get('source', [''])[0])
+            if selected is None: return self.send_json(400, {'error': 'Unknown hazard source'})
+            try: return self.send_json(200, {'configured': True, **selected.current()})
+            except HazardError as error:
+                return self.send_json(502, {'configured': True, 'retryAt': selected.retry_at, 'providerError': error.as_dict(), 'health': {**selected.health, 'freshness': selected.freshness()}})
+        if parsed.path == "/api/earthquakes":
+            try:
+                return self.send_json(200, {"configured": True, **EARTHQUAKES_PROVIDER.current()})
+            except EarthquakeError as error:
+                return self.send_json(502, {"configured": True, "providerError": error.as_dict(), "health": {**EARTHQUAKES_PROVIDER.health, "freshness": "malformed" if error.code in ("parse", "malformed") else "provider_error"}})
+        if parsed.path == "/api/floods":
+            try:
+                return self.send_json(200, {"configured": True, **FLOODS_PROVIDER.current()})
+            except FloodError as error:
+                return self.send_json(502, {"configured": True, "providerError": error.as_dict(), "health": {**FLOODS_PROVIDER.health, "freshness": "malformed" if error.code in ("parse", "malformed") else "provider_error"}})
         if parsed.path == "/api/warnings":
             if not WARNINGS_PROVIDER.api_key:
                 return self.send_json(200, {"configured": False, "records": [], "observations": [], "health": {**WARNINGS_PROVIDER.health, "freshness": "unavailable"}})

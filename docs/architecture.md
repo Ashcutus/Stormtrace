@@ -1,6 +1,6 @@
 # Stormtrace architecture
 
-This guide describes the current code boundaries and compatibility rules. The historical [Phase 0 audit and delivery record](phase-0.md) explains how the foundations were introduced. Implementation and release status live in the [rollout tracker](rollout.md).
+This guide describes the current code boundaries and compatibility rules.
 
 ## Boundaries
 
@@ -36,7 +36,7 @@ Provenance contains provider, source authority/URL, upstream ID, fetch time, sou
 
 ## History and retention
 
-`RevisionHistory` uses `StorageAdapter.get/update/entries`. `update` is an atomic synchronous read-modify-write callback; returning null deletes a row. The IndexedDB adapter fulfills that contract with one readwrite transaction. Enumeration uses bounded bulk key/value reads in one readonly transaction, relying on IndexedDB structured clones for detached snapshots; it avoids a cursor callback per row. Retention skips unchanged and unrelated rows before opening write transactions, and rechecks eligible changes atomically. The memory adapter is for deterministic tests, not production fallback pretending to be durable. See the [native soak investigation](performance-2026-10-07.md).
+`RevisionHistory` uses `StorageAdapter.get/update/entries`. `update` is an atomic synchronous read-modify-write callback; returning null deletes a row. The IndexedDB adapter fulfills that contract with one readwrite transaction. Enumeration uses bounded bulk key/value reads in one readonly transaction, relying on IndexedDB structured clones for detached snapshots; it avoids a cursor callback per row. Retention skips unchanged and unrelated rows before opening write transactions, and rechecks eligible changes atomically. The memory adapter is for deterministic tests, not production fallback pretending to be durable.
 
 The separate IndexedDB database `stormtrace-revisions`, version 1, contains an `events` store. Keys encode `[provider, eventId]`. Each event row holds ordered immutable revision snapshots with sequence and persistence time. Each snapshot retains all source timestamps and provenance. Duplicate latest content is compared using exact canonical serialization with stable object key order; fetch time alone is excluded. This avoids hash collisions and duplicate fetch snapshots. Changes to source update time, severity, geometry or domain content produce a revision, as does a later reversion to earlier content. Original fetch time stays attached to the revision that was actually persisted; provider health tracks repeated successful fetches separately.
 
@@ -44,9 +44,9 @@ The separate IndexedDB database `stormtrace-revisions`, version 1, contains an `
 
 No existing settings/schema migration is required: both the settings key and V1 database/schema remain unchanged. Creating the independent revision database is additive and idempotent. Old installations can open their original strike database without a downgrade or conversion. New records carry optional extra provenance fields. Demo mode bypasses real feeds and revision persistence.
 
-Warnings use a provider-scoped 90-day/5,000-event revision policy and a separate `stormtrace-warning-state` database for the last successful normalized snapshot. `client/warnings.js` reconciles replayed source versions without reverting newer local history. Cancelling a warning removes it from the current issued list but preserves its observed revisions. No existing settings/cache schema is migrated. See [Phase 1](phase-1.md#persistence-and-compatibility) for source-window and durability limitations.
+Warnings use a provider-scoped 90-day/5,000-event revision policy and a separate `stormtrace-warning-state` database for the last successful normalized snapshot. `client/warnings.js` reconciles replayed source versions without reverting newer local history. Cancelling a warning removes it from the current issued list but preserves its observed revisions. No existing settings/cache schema is migrated. See [UK weather warnings](warnings.md#observed-history) for source-window and durability limitations.
 
-Radar frames use a separate resource contract and in-memory three-hour/12-frame cache, with no event/strike-history migration. Local platform adapters run the shared optional Python ODIM decoder; normalized frame metadata and PNGs are exposed over local HTTP. The browser adds a Leaflet raster pane between basemap and lightning markers, preserving the existing map stack. Mercator reprojection/cropping occurs before presentation. See [radar implementation](radar.md#implementation-and-validation).
+Radar frames use a separate resource contract and in-memory recent-window metadata capped at 12 frames, with no event/strike-history migration. The UK provider retains up to 12 PNGs; each additional regional provider retains at most three images. Local platform adapters run the shared optional Python ODIM decoder for UK/European rain rate and a standard-library NOAA WMS worker for US regional reflectivity. Normalized frame metadata, product-specific legends and PNGs are exposed over local HTTP. Source selection is allowlisted and preserves the default UK endpoint contract. The browser adds a Leaflet raster pane between basemap and lightning markers, preserving the existing map stack. Mercator reprojection/cropping occurs before presentation. See [radar controls and limits](radar.md#controls-and-limits).
 
 ## Geometry and CAP
 
@@ -71,4 +71,34 @@ The existing feed subscription, strike IDs/time units, region presentation, hist
 Deliberate debt: the application still owns WebSocket reconnect/pause lifecycle and strike-specific relevance/rendering; the V1 cache is separate from general revisions to avoid a risky migration. Python maintains duplicate historical and warnings transports/normalizers, tested against Node, because Node is an optional runtime. Linux window management stays in the GTK shell adapter. Declaration contracts do not replace runtime provider fixture validation. Large revision archives will need indexed time queries and explicit domain retention/storage budgets; current queries favor a small local implementation. Native GTK/GeoClue/desktop notification delivery still needs a manual smoke check in the real desktop session; automated tests cover the shared boundaries and policies rather than real location/network feeds.
 
 
-See the [rollout completion gates](rollout.md#completion-gates) for release validation and preparation for the next implementation scope.
+See the [publishing checklist](../PUBLISHING.md) for release validation.
+
+## England flood warnings
+
+The composition roots select the public Environment Agency provider for `/api/floods`; normalization remains in `providers/`. `client/floods.js` renders a dedicated England-wide list and reuses the configurable warning controller for snapshots, failure handling and provider-scoped revision retention. Met Office defaults/presentation remain intact. The flood snapshot uses a separate `stormtrace-flood-state` store; existing settings/profile/database schema are unchanged. Flood history uses persistence time when source instants are unknown, keeps 90 days with a 5,000-event bound, and ignores fetch-time-only changes. It does not infer cancellation from absence. No GTK APIs, credentials, polygons, location matching or desktop flood notifications were added.
+
+## Initial earthquakes and national flood navigation
+
+Composition roots expose normalized USGS data through `/api/earthquakes`; `client/earthquakes.js` reuses the configurable warning snapshot/controller lifecycle, with earthquake-specific validation, filters and 30-day retention. A separate `stormtrace-earthquake-state` snapshot store requires no migration. Optional location selection replaces one Leaflet marker on the existing map without changing the saved monitoring point. The dialog retains header/close controls above its scrolling content.
+
+Flood country navigation reads canonical registry metadata. England remains the sole live flood provider. Deferred Wales/Scotland/NI entries describe official-information links and access gaps; selecting them does not register an implementation, retrieve a feed, persist fictional records or imply no warnings. The existing England snapshot/history remain separate and are restored when returning to England.
+
+Optional England warning polygons, past-day earthquake points and on-demand USGS ShakeMap MMI contours are implemented within the agreed map scope. Provider normalization and bounded server resource caches keep upstream formats out of presentation and resources out of event history. See [map hazard record](map-hazards.md); native coexistence and soak validation remain outstanding.
+
+## Popup presentation standard
+
+The flood map card is the visual reference for all new or modified popups. Use opaque, high-contrast surfaces, clear headings, structured metadata, readable controls and keyboard focus, domain/severity badges where appropriate, and bounded keyboard-accessible scrolling for lengthy messages. Keep close controls, attribution and actions accessible. Source-backed cards include canonical authority/attribution, available source times, official links and coverage/uncertainty context. Preserve authoritative severity colours and never invent metadata. Loading, missing products and failures must be visible within the popup. Reuse existing styles and render upstream wording with DOM text content. Existing popups adopt this standard when modified; this policy does not claim a completed migration of all legacy popups.
+
+The interface presents Radar, UK weather warnings, UK floods and global earthquakes in Explore navigation. Lightning feed status, pause/reconnect, age filters, expandable activity statistics and proximity notifications explicitly identify their domain. A lightning visibility toggle changes only its map layer and legends; it does not stop collection or alter persisted settings. The About view describes delivered coverage and uses a bounded keyboard-accessible content section. Existing popups have not all been migrated to the flood popup style.
+
+## Additional hazard views
+
+Cyclones, volcanic reports/notices, tsunami-centre bulletins and space weather share an optional normalized local endpoint (`/api/hazards?source=<registry-id>`). Provider normalization and fixed upstream transport live in `providers/public_hazards.py`; Node worker selection lives in `platform/node.js`. Both servers use the same standard-library implementation. Canonical source metadata stays in the JSON blocks in `providers/registry.js`, which both runtimes read; the Python flood, earthquake and map-resource fallbacks read the same blocks through `providers/source_registry.py`. Worker or source failure is isolated from existing startup and optional radar decoding.
+
+The browser consumes presentation-ready fields and typed event provenance through `client/public-hazards.js`, reusing `WarningController`, `RevisionHistory` and opaque flood dialog/popup styling. Histories and latest snapshots are scoped to each registry provider. Measurement/forecast state is kept out of discrete revisions; tsunami bulletins retain message identity and references without synthesizing an active-warning inventory. Cyclone map selection shows a reported centre; official forecast geometries remain linked rather than represented as delivered local overlays. No settings/profile migration or map-stack replacement is introduced. See [coverage and compatibility](hazards.md).
+
+The shared `client/presentation.js` layer provides keyed record reconciliation, bounded/filterable Current/History collections, UK-local timestamps and source-state/popup feedback. Loading and unchanged fetches preserve reading/focus state. Presentation code consumes normalized models; partial NOAA centre/SWPC capabilities and their caches remain provider concerns. Saved-setting failures are surfaced without changing existing storage keys, and notification freshness validation leaves archive ingestion intact. See the [interface guide](interface.md).
+
+The warning view uses the separate `metoffice-warnings-rss` provider when DataHub is unconfigured. Shared Python normalization supplies unchanged summary text/links, native severity and explicit null warning timestamps/geometry. RSS summaries do not enter the full DataHub revision archive or location-relevance checks. Credentials and full DataHub contracts remain unchanged.
+
+The dedicated warning map consumes normalized `metoffice-warnings-esri` events through the shared public-source worker and retains source-native severity, issue/validity and fields. It owns an independent Leaflet map with no other meteorological overlays and reuses the shared opaque popup/health components. Geometry stays out of RSS summaries; no source schemas enter presentation.

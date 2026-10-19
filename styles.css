@@ -1,19 +1,19 @@
 :root {
   color-scheme: dark;
-  --bg: #09080d;
-  --surface: #111019;
-  --surface-2: #171321;
-  --surface-3: #1d172a;
-  --line: #2d2638;
-  --line-bright: #4e3c66;
-  --text: #f4efff;
-  --muted: #9d94ae;
-  --muted-2: #71697d;
-  --violet: #a73cff;
-  --violet-bright: #c45cff;
-  --magenta: #ff4fd8;
-  --cyan: #68f2dc;
-  --blue: #5960aa;
+  --bg: #07101d;
+  --surface: #0d1929;
+  --surface-2: #122137;
+  --surface-3: #172b43;
+  --line: #263c55;
+  --line-bright: #405e80;
+  --text: #edf6ff;
+  --muted: #97adc5;
+  --muted-2: #6b829c;
+  --violet: #3d9cff;
+  --violet-bright: #75bcff;
+  --magenta: #79aaff;
+  --cyan: #68d8f2;
+  --blue: #427aaf;
   --yellow: #ffd36b;
   --danger: #ff668b;
   --text-secondary: color-mix(in srgb, var(--text) 72%, var(--muted));
@@ -70,7 +70,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 .shell {
   height: 100vh;
   display: grid;
-  grid-template-rows: 66px 50px minmax(0, 1fr) 34px;
+  grid-template-rows: 66px 50px 48px minmax(0, 1fr) 34px;
   border: 1px solid color-mix(in srgb, var(--violet) 75%, transparent);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--violet) 8%, transparent);
 }
@@ -376,7 +376,7 @@ dialog::backdrop { background: transparent; }
 }
 
 @media (max-width: 780px) {
-  .shell { grid-template-rows: 58px 46px minmax(0, 1fr) 30px; }
+  .shell { grid-template-rows: auto auto auto minmax(0, 1fr) auto; }
   .brand-block { min-width: unset; }
   .brand-block p, .version, .status-cluster span:last-child { display: none; }
   .status-cluster { min-width: unset; padding: 7px 9px; border-left: 0; }
@@ -437,3 +437,228 @@ dialog::backdrop { background: transparent; }
 .radar-panel a { color: var(--violet-bright); }
 .radar-legend { display: flex; gap: 3px; }
 .radar-legend span { flex: 1; border-top: 7px solid var(--rain); text-align: center; padding-top: 4px; font-size: var(--font-xs); }
+
+.flood-card { border-left-color: var(--line-bright); }
+.flood-card .warning-badge { background: var(--surface); color: var(--text); }
+
+.floods-dialog-card { display: flex; flex-direction: column; overflow: hidden; }
+.floods-dialog-header { flex: 0 0 auto; border-bottom: 1px solid var(--line-bright); }
+.floods-dialog-content { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-color: var(--line-bright) transparent; }
+
+.hazard-filters { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; align-items: center; }
+.hazard-filters label { font-size: var(--font-sm); }
+.hazard-filters input { max-width: 200px; }
+.floods-dialog-header select, .hazard-filters input { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--line-bright); padding: 5px; }
+
+.map-hazard-panel label { display: block; margin: 10px 0; }
+.map-hazard-panel p { font-size: 12px; line-height: 1.6; }
+
+/* Hazard popups need explicit control colours in native WebKit. */
+.hazard-popup .leaflet-popup-content-wrapper,
+.hazard-popup .leaflet-popup-tip {
+  background: #171321;
+  color: #f4efff;
+}
+.hazard-popup .leaflet-popup-content { line-height: 1.5; }
+.hazard-popup .leaflet-popup-content p { margin: 12px 0; }
+.hazard-popup .leaflet-popup-content button {
+  color: #171321;
+  background: #f4efff;
+  border: 1px solid #f4efff;
+  border-radius: 3px;
+  padding: 8px 12px;
+  font-size: 13px;
+  line-height: 1.4;
+  cursor: pointer;
+}
+.hazard-popup .leaflet-popup-content button:hover { background: #dfcbff; }
+.hazard-popup .leaflet-popup-content button:focus-visible { outline: 3px solid #ad79ff; outline-offset: 3px; }
+.hazard-popup a.leaflet-popup-close-button { color: #f4efff; }
+.hazard-popup a.leaflet-popup-close-button:hover { color: #dfcbff; }
+
+.flood-map-popup .leaflet-popup-content-wrapper { border: 1px solid #574468; border-radius: 10px; padding: 0; overflow: hidden; }
+.flood-map-popup .leaflet-popup-content { margin: 0; }
+.flood-map-card { --flood-accent: #ad79ff; padding: 20px; border-top: 5px solid var(--flood-accent); }
+.flood-map-level-1, .flood-map-level-2 { --flood-accent: #ff715b; }
+.flood-map-badge { display: inline-block; padding: 3px 8px; margin-right: 15px; border: 1px solid var(--flood-accent); border-radius: 4px; color: var(--flood-accent); font-size: 12px; font-weight: 700; }
+.flood-map-title { margin: 12px 0 6px; color: #f4efff; font-size: 17px; line-height: 1.35; }
+.flood-map-popup .flood-map-location { color: #dfcbff; font-size: 12px; margin: 0 0 14px; }
+.flood-map-message { max-height: min(220px, 30vh); overflow-y: auto; white-space: pre-wrap; overscroll-behavior: contain; padding: 12px; background: #211b2c; border: 1px solid #574468; border-radius: 5px; font-size: 13px; line-height: 1.6; scrollbar-color: #ad79ff #211b2c; }
+.flood-map-popup .flood-map-note { color: #dfcbff; font-size: 11px; }
+.flood-map-provider { display: block; padding-top: 12px; border-top: 1px solid #574468; font-size: 13px; }
+.flood-map-popup .flood-map-time, .flood-map-popup .flood-map-attribution { margin: 6px 0; color: #d3c7e3; font-size: 10px; line-height: 1.5; }
+.flood-map-popup .flood-map-link { display: inline-block; margin-top: 10px; color: #dfcbff; font-size: 12px; font-weight: 700; }
+.quake-map-card { --flood-accent: #67d7eb; }
+
+/* Domain navigation keeps source-specific controls separate from map navigation. */
+.domain-nav { display: flex; align-items: center; gap: 12px; padding: 8px 14px; background: var(--surface); border-bottom: 1px solid var(--line); overflow-x: auto; }
+.domain-nav > * { flex-shrink: 0; }
+.domain-nav button[aria-pressed="true"] { background: var(--surface-3); border-color: var(--violet-bright); }
+.filter-label { align-self: center; padding: 0 8px; color: var(--text-secondary); font-size: var(--font-xs); }
+.lightning-details > summary { padding: 12px 0; font-weight: 700; cursor: pointer; }
+select { font: inherit; color: var(--text); background: var(--surface-2); border: 1px solid var(--line-bright); padding: 7px; max-width: 100%; }
+select:focus-visible, summary:focus-visible, [tabindex="0"]:focus-visible { outline: 2px solid var(--violet-bright); outline-offset: 3px; }
+.radar-panel select { display: block; width: 100%; margin-top: 6px; }
+.about-dialog-card, .public-hazard-dialog { --bg: #100d17; --surface: #211b2c; --surface-2: #171321; --surface-3: #2d2638; --text: #f4efff; --text-secondary: #d3c7e3; --text-tertiary: #d3c7e3; --muted: #d3c7e3; --line: #574468; --line-bright: #574468; --violet: #ad79ff; --violet-bright: #dfcbff; --cyan: #67d7eb; --yellow: #ffe36b; --danger: #ff715b; background: #171321; color: #f4efff; max-height: calc(100vh - 48px); display: flex; flex-direction: column; }
+.about-content { overflow-y: auto; min-height: 0; max-height: 42vh; padding-right: 8px; scrollbar-color: #ad79ff #211b2c; }
+.about-dialog-card > .dialog-actions { flex-shrink: 0; }
+.status-cluster .eyebrow { font-size: 10px; }
+@media (max-width: 900px) { .domain-nav { gap: 8px; } .domain-nav .eyebrow { display: none; } .filter-label { font-size: 10px; padding: 0 3px; } }
+.radar-legend:has(img) { display: block; overflow-x: auto; padding-bottom: 8px; }
+.radar-legend img { width: 500px; max-width: none; height: 30px; background: #fff; object-fit: contain; }
+.latest-strip[hidden], .map-overlay.legend[hidden] { display: none; }
+
+/* Reuse the opaque flood dialog and map popup surfaces for all hazard views. */
+.public-hazard-card { border-left-color: #67d7eb; }
+.public-hazard-card .warning-badge { background: #bcebf2; color: #111; }
+.public-hazard-card[data-native="GREEN"] { border-left-color: #008000; }
+.public-hazard-card[data-native="YELLOW"] { border-left-color: #ffff00; }
+.public-hazard-card[data-native="ORANGE"] { border-left-color: #ffa500; }
+.public-hazard-card[data-native="RED"] { border-left-color: #ff0000; }
+.public-hazard-card[data-native="Tsunami Warning"] { border-left-color: #ff0000; }
+.public-hazard-card[data-native="Tsunami Advisory"] { border-left-color: #ffa500; }
+.public-hazard-card[data-native="Tsunami Watch"] { border-left-color: #ffff00; }
+.public-hazard-card[data-native="Tsunami Information"] { border-left-color: #008000; }
+.public-hazard-card[data-native="Tsunami Threat"] { border-left-color: #800080; }
+.public-hazard-card > a { display: inline-block; margin: 8px 16px 8px 0; }
+.hazard-bulletin { margin: 12px 0; }
+.hazard-bulletin summary { cursor: pointer; padding: 10px 0; }
+.hazard-bulletin .warning-text { white-space: pre-wrap; }
+.public-hazard-dialog .floods-dialog-header p { margin: 8px 0; }
+
+.cyclone-map-card { --flood-accent: #67d7eb; }
+.public-hazard-card[data-native="GREEN"] .warning-badge,
+.public-hazard-card[data-native="Tsunami Information"] .warning-badge { background: #008000; color: #fff; }
+.public-hazard-card[data-native="YELLOW"] .warning-badge,
+.public-hazard-card[data-native="Tsunami Watch"] .warning-badge { background: #ffff00; color: #000; }
+.public-hazard-card[data-native="ORANGE"] .warning-badge,
+.public-hazard-card[data-native="Tsunami Advisory"] .warning-badge { background: #ffa500; color: #000; }
+.public-hazard-card[data-native="RED"] .warning-badge,
+.public-hazard-card[data-native="Tsunami Warning"] .warning-badge { background: #ff0000; color: #000; }
+.public-hazard-card[data-native="Tsunami Threat"] .warning-badge { background: #800080; color: #fff; }
+
+/* Hazard navigation and content use the shared opaque popup palette. */
+.domain-nav { display: flex; flex-wrap: wrap; overflow: visible; gap: 8px 16px; min-height: 58px; }
+.domain-chooser { display: flex; align-items: center; gap: 10px; flex: 0 1 360px; }
+.domain-chooser select { min-width: 0; width: 100%; }
+#domainContext { font-size: 12px; color: var(--text-secondary); flex: 1 1 260px; }
+.domain-buttons { display: none; }
+.domain-buttons > .eyebrow { display: none; }
+.shell { grid-template-rows: auto auto auto minmax(0,1fr) 34px; }
+.topbar { min-height: 66px; }
+.toolbar { min-height: 50px; }
+.collection-tools { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 12px 0; }
+.collection-tools label { flex: 1 1 220px; font-size: 12px; }
+.collection-tools input { margin-left: 8px; max-width: 100%; padding: 7px; color: var(--text); background: var(--surface); border: 1px solid var(--line-bright); }
+.collection-summary { margin: 7px 0; }
+.collection-tools button[aria-pressed="true"] { border-color: var(--violet-bright); }
+.history-notes, .provenance-details { margin: 12px 0; font-size: 13px; }
+.history-notes summary, .provenance-details summary { cursor: pointer; padding: 7px 0; }
+.warning-text, .hazard-bulletin { font-family: system-ui,sans-serif; font-size: 15px; line-height: 1.65; }
+.bulletin-state { display:block; margin-bottom:12px; padding:10px; border:1px solid var(--line-bright); }
+.save-status { position: fixed; bottom: 12px; left: 12px; right:12px; z-index:3000; padding:12px; background:#171321; color:#f4efff; border:2px solid #ffe36b; }
+.save-status[hidden] { display:none; }
+.switch:focus-within .switch-track { outline:3px solid var(--violet-bright); outline-offset:4px; }
+button:disabled { cursor: not-allowed; }
+button[aria-busy="true"] { cursor:wait; }
+.render-coverage { font-size:12px; line-height:1.5; }
+.floods-dialog-card { --bg:#100d17; --surface:#211b2c; --surface-2:#171321; --surface-3:#2d2638; --text:#f4efff; --text-secondary:#d3c7e3; --text-tertiary:#d3c7e3; --muted:#d3c7e3; --line:#574468; --line-bright:#574468; --violet:#ad79ff; --violet-bright:#dfcbff; background:#171321; color:#f4efff; }
+.hazard-popup a { color:#dfcbff; }
+.hazard-popup a:focus-visible, .hazard-popup [tabindex]:focus-visible { outline:3px solid #ad79ff; outline-offset:3px; }
+.storm-popup .leaflet-popup-content-wrapper, .storm-popup .leaflet-popup-tip { background:#171321; color:#f4efff; border:1px solid #574468; border-radius:10px; }
+.storm-popup { --text:#f4efff; --text-secondary:#d3c7e3; --violet-bright:#dfcbff; --surface-2:#171321; --line:#574468; }
+.public-hazard-card .hazard-bulletin { max-width: 68ch; }
+@media (min-width:1500px) { .domain-buttons {display:flex;gap:10px;flex-wrap:wrap;width:100%;} }
+@media (max-width:780px) {
+  html,body {overflow:auto;min-width:320px;}
+  body {min-width:320px;}
+  .shell {height:auto;min-height:100vh;grid-template-rows:auto auto auto minmax(400px,1fr) auto;}
+  .topbar {flex-wrap:wrap;gap:8px;padding:10px;}
+  .toolbar {flex-wrap:wrap;}
+  .search-wrap {width:100%;}
+  .workspace {grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(280px,50vh) auto;}
+  .sidebar {max-height:none;overflow:visible;}
+  .text-button {width:auto;padding:7px 10px;}
+  .text-button span {display:inline;}
+  .domain-nav {padding:10px;}
+  .domain-chooser {flex-basis:100%;}
+  .dialog-card {padding:14px;}
+  .floods-dialog-header {max-height:55vh;overflow:auto;}
+  .warning-actions {gap:8px;}
+  .collection-tools input {margin-left:0;width:100%;}
+}
+@media (prefers-reduced-motion:reduce) { *,*::before,*::after {animation:none!important;transition:none!important;scroll-behavior:auto!important;} }
+:root { --font-2xs:calc(11px * var(--reading-scale,1)); --font-xs:calc(12px * var(--reading-scale,1)); --font-sm:calc(13px * var(--reading-scale,1)); --font-md:calc(14px * var(--reading-scale,1)); --font-base:calc(14px * var(--reading-scale,1)); --font-lg:calc(16px * var(--reading-scale,1)); --font-xl:calc(18px * var(--reading-scale,1)); }
+.warning-card .warning-text { font-family:system-ui,sans-serif; font-size:calc(15px * var(--reading-scale,1)); line-height:1.65; }
+.flood-map-message { font-family:system-ui,sans-serif; font-size:calc(15px * var(--reading-scale,1)); line-height:1.65; }
+.flood-map-popup .flood-map-time, .flood-map-popup .flood-map-attribution {font-size:calc(12px * var(--reading-scale,1));}
+.storm-popup a {color:#dfcbff;}
+.storm-popup a:focus-visible, .storm-popup button:focus-visible {outline:3px solid #ad79ff;outline-offset:3px;}
+.reading-control {display:flex;gap:12px;align-items:center;flex-wrap:wrap;}
+.cyclone-marker {display:grid;place-items:center;background:#171321;color:#dfcbff;border:2px solid #dfcbff;border-radius:50%;font-size:23px;line-height:1;box-shadow:0 0 0 3px #171321;}
+.cyclone-marker:focus-visible {outline:3px solid #ffe36b;outline-offset:4px;}
+
+/* Shared layout rules: hidden state must win over component display modes. */
+[hidden] { display: none !important; }
+body { font-family: system-ui, sans-serif; letter-spacing: 0; }
+.brand-line, .status-cluster, .segment, .footerbar, .map-overlay, .latest-strip { font-family: ui-monospace, monospace; }
+.domain-chooser { display: none; }
+.domain-nav { display: flex; flex-direction: column; align-items: stretch; gap: 6px; padding: 9px 14px; }
+.domain-buttons { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; }
+.domain-buttons button { min-height: 32px; padding: 6px 10px; font-size: 13px; }
+#domainContext { flex: none; font-size: 12px; }
+.sidebar > .map-hazard-panel { margin-top: 0; }
+.map-hazard-panel > summary, .lightning-details > summary { cursor: pointer; font-size: 15px; font-weight: 650; padding: 8px 0; }
+.map-hazard-panel { padding: 6px 12px; }
+.layer-notes { font-size: 12px; margin-top: 8px; }
+.layer-notes > summary { cursor: pointer; }
+.panel h2 { font-size: 16px; margin: 0 0 12px; }
+.dialog-card { border-radius: 0; }
+.floods-dialog-card { height: min(740px,calc(100dvh - 32px)); max-height: calc(100dvh - 32px); width: min(880px,calc(100vw - 32px)); padding: 18px 22px; }
+.floods-dialog-header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding-bottom: 10px; }
+.floods-dialog-header h2 { margin: 0; flex: 1 1 260px; font-size: 20px; }
+.floods-dialog-header > .warning-actions { order: 0; margin: 0; gap: 8px; }
+.floods-dialog-header > select, .floods-dialog-header > label { order: 1; }
+.floods-dialog-header > [role="status"], .floods-dialog-header > p, .floods-dialog-header > .hazard-filters { flex-basis: 100%; margin: 0; font-size: 12px; line-height: 1.45; order: 2; }
+.floods-dialog-header .collection-tools { order: 3; flex-basis: 100%; margin: 0; gap: 8px; }
+.floods-dialog-header .collection-summary { order: 4; }
+.collection-tools label { display: flex; align-items: center; gap: 8px; min-width: 180px; }
+.collection-tools input { flex: 1; min-width: 0; margin: 0; width: 100%; }
+.floods-dialog-content { padding: 12px 4px 0 0; flex: 1 1 auto; }
+.floods-dialog-content > p { margin: 0 0 10px; font-size: 13px; }
+.history-notes { margin: 0 0 12px; }
+.warning-card { margin: 0 0 12px; padding: 16px; }
+.warning-card h3 { font-size: 18px; margin: 8px 0; }
+.warning-card p { margin: 7px 0; line-height: 1.5; }
+.warning-card > .text-button { min-height: 34px; height: auto; white-space: normal; text-align: left; }
+@media (max-width:980px) { .topbar {gap:8px;} .brand-block {min-width:0;flex:1;} .header-actions {gap:5px;} .toolbar {gap:8px;} .search-wrap {flex:1;min-width:160px;} .time-filter {margin-left:0;} }
+@media (max-width:780px) { .domain-nav {padding:8px;} .domain-buttons button {flex:1 1 130px;} .floods-dialog-card {padding:12px;} .floods-dialog-header {max-height:48dvh;overflow:auto;} .warning-actions {flex-wrap:wrap;} .collection-tools label {flex-basis:100%;} }
+.floods-dialog-card .floods-dialog-header > p { margin: 0; line-height: 1.45; }
+.floods-dialog-card .floods-dialog-header > p[id$="Attribution"] { flex: 1 1 380px; font-size: 11px; }
+.floods-dialog-card .floods-dialog-header > p:has(> a) { flex: 0 1 auto; font-size: 12px; }
+.floods-dialog-header > [role="status"]:empty { display: none; }
+
+dialog { max-width: calc(100vw - 16px); max-height: calc(100dvh - 16px); }
+
+.theme-dialog-card { --bg:#100d17; --surface:#211b2c; --surface-2:#171321; --surface-3:#2d2638; --text:#f4efff; --text-secondary:#d3c7e3; --text-tertiary:#d3c7e3; --muted:#d3c7e3; --line:#574468; --line-bright:#574468; --violet:#ad79ff; --violet-bright:#dfcbff; background:#171321; color:#f4efff; display:flex; flex-direction:column; height:min(740px,calc(100dvh - 32px)); overflow:hidden; padding:18px; }
+.theme-dialog-heading { display:flex; flex-wrap:wrap; align-items:center; gap:12px; flex:0 0 auto; border-bottom:1px solid var(--line-bright); padding-bottom:12px; }
+.theme-dialog-heading h2 { flex:1; margin:0; }
+.theme-dialog-heading p { flex-basis:100%; margin:0; font-size:12px; }
+.theme-dialog-content { min-height:0; overflow:auto; overscroll-behavior:contain; padding:0 6px 12px 0; }
+.theme-actions { flex:0 0 auto; display:flex; flex-wrap:wrap; border-top:1px solid var(--line-bright); padding-top:12px; gap:8px; margin:0; }
+.theme-actions button { flex:1 1 180px; padding:8px; white-space:normal; min-height:38px; }
+@media(max-width:480px) { .palette-grid,.map-appearance-grid {grid-template-columns:minmax(0,1fr);} .theme-dialog-card {padding:12px;} }
+
+.warning-map-content {display:flex;flex-direction:column;gap:10px;}
+#warningAreaMap {flex:1 0 260px;min-height:260px;background:#ddd;color:#111;}
+#warningAreaMap .leaflet-control-container {display:block;}
+#warningAreaMap .leaflet-tile-pane {filter:none;}
+.warning-area-label {background:#fff;color:#111;border:1px solid #333;font:600 12px system-ui,sans-serif;white-space:normal;}
+#warningMapDialog .warning-map-content > p {font-size:12px;line-height:1.4;}
+
+#warningMapList {display:flex;flex-wrap:wrap;gap:8px;} #warningMapList button {white-space:normal;padding:8px;text-align:left;}
+
+#warningAreaMap {flex-basis:430px;min-height:430px;} .warning-area-card .flood-map-message {max-height:70px;}
+.warning-area-card .flood-map-message h4 {margin:0 0 6px;font-size:13px;}
+#warningAreaMap .leaflet-popup-content {max-width:calc(100vw - 92px);}
+@media(max-width:480px) {#warningAreaMap {flex-basis:600px;min-height:600px;}}

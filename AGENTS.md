@@ -19,6 +19,13 @@
 - Keep Node and Python fallback endpoint contracts compatible; test affected normalization parity. Keep authenticated credentials server-side.
 - Use deterministic fixtures/stubbed transports for provider tests and add regressions for affected V1 behaviour. Distinguish automated coverage from an actual native GTK/GeoClue/notification smoke test.
 
+## Popup presentation
+
+- All new or modified popups must follow the approved flood map popup style: opaque high-contrast surfaces, a clear heading and structured content, a domain/severity badge where applicable, readable spacing, and explicit readable controls with keyboard focus states.
+- For source-backed information, show canonical provider/authority attribution, relevant source times without inventing missing metadata, an official source link where available, and concise coverage/uncertainty context. Preserve authoritative severity colours where required.
+- Bound long content in a keyboard-accessible scrolling section; keep the heading, close control, attribution and primary actions accessible. Never present actionable instructions as inert text or hide retrieval/loading/unavailable feedback solely outside the popup.
+- Reuse established popup styles/components instead of introducing another visual language. Render provider text safely through DOM text content. Apply this standard as existing popups are touched; do not imply untouched popups have already been migrated.
+
 ## Source integration findings
 
 - Wrap or bind default browser `fetch` transports to the global receiver; assigning bare native fetch to a controller/provider property can cause an illegal invocation. Include a receiver-sensitive transport regression when adding browser retrieval.
@@ -37,8 +44,21 @@
 
 ## Multi-phase documentation
 
-- Read `docs/README.md` and `docs/rollout.md` before changing rollout scope. Phase 0 is foundations; implement later hazard APIs/UI only within the user's agreed scope.
+- Read `docs/README.md` and the local rollout tracker (`.local/plans/rollout.md`, not committed) before changing rollout scope. Phase 0 is foundations; implement later hazard APIs/UI only within the user's agreed scope.
 - Keep the main README focused on available product behaviour, setup and limitations. Label planned/deferred capabilities clearly; contracts and metadata alone are not delivered features.
-- Maintain phase/readiness status and open validation gates in `docs/rollout.md`; keep any README status summary consistent. Distinguish implementation, merge and publication, and do not invent phase numbers, deadlines or agreed future scope.
-- Update `docs/architecture.md` for current boundaries/models/compatibility and `docs/providers.md` for provider development/source state. Record phase-specific audits, decisions, migrations, actual checks and deferrals in a linked phase record; maintain `docs/README.md` as the navigation index.
+- Maintain phase/readiness status and open validation gates in the local rollout tracker; do not put rollout status, PR status or approval history in the README or public docs. Distinguish implementation, merge and publication, and do not invent phase numbers, deadlines or agreed future scope.
+- Update `docs/architecture.md` for current boundaries/models/compatibility and `docs/providers.md` for provider development/source state. Keep audits, investigations and working plans local only. Public documentation may describe delivered compatibility, migrations and limitations; maintain `docs/README.md` as the navigation index.
 - Record lasting findings here, not temporary PR status, fixed test counts or duplicate application versions. At handoff, report actual validation and leave unperformed native checks visibly outstanding. Follow `PUBLISHING.md` for release checks.
+
+## Local investigations and plans
+
+- Keep investigation notes, audits, working plans, validation logs and agent scratch material local only; do not commit them or publish them in the repository. Use the ignored `.local/` directory (`.local/investigations/`, `.local/plans/`) or a temporary directory.
+- Public documentation should describe delivered behaviour, setup, compatibility and limitations. Do not add investigation or planning records for public consumption. This rule takes precedence over older instructions to publish phase-specific audits or plans.
+
+## Product branding and compatibility
+
+- The visible product name remains Stormtrace until the user decides otherwise. Keep existing plugin/application IDs, profile/storage keys, service names and repository/update URLs stable unless an explicit, tested migration is agreed. Changing display names or artwork must not reset saved settings or data.
+
+- For OPERA radar, scope object listings to hourly prefixes covering the displayed observation window. Full-day listings can exceed the S3 page limit; reject incomplete listings rather than treating truncation as missing observations.
+
+- Met Office public channels differ: RSS supplies unchanged summaries and links, without warning geometry or per-warning issue/expiry times. The official-linked Esri beta provides polygons and source fields under the NSWWS Open Licence, but its Feature Service API is unsupported by Met Office. Keep these separate provider identities and preserve their differing coverage/provenance and licence conditions.

@@ -21,14 +21,29 @@ export function readOmarchyTheme() {
   } catch { return { available: false, name: 'Stormtrace default', mode: 'dark', colors: {} }; }
 }
 
-export function radarWorker(root, operation, key = '') {
+export function radarWorker(root, operation, key = '', source = 'metoffice-radar') {
   const python = readLocalSetting(root, 'STORMTRACE_RADAR_PYTHON') || 'python3';
   return new Promise((resolveResult, reject) => {
-    execFile(python, [resolve(root, 'providers/metoffice_radar.py'), operation, ...(key ? [key] : [])], { timeout: 45000, maxBuffer: 10_000_000, encoding: 'buffer' }, (error, stdout, stderr) => {
+    const args = source === 'metoffice-radar' ? [resolve(root, 'providers/metoffice_radar.py'), operation] : ['-m', 'providers.public_radar', source, operation];
+    execFile(python, [...args, ...(key ? [key] : [])], { cwd: root, timeout: 45000, maxBuffer: 10_000_000, encoding: 'buffer' }, (error, stdout, stderr) => {
       if (!error) return resolveResult(stdout);
       let code = 'configuration';
       try { code = JSON.parse(stderr.toString()).code; } catch { if (error.killed) code = 'timeout'; }
-      reject(new globalThis.StormtraceCore.ProviderError(code, 'metoffice-radar', operation));
+      reject(new globalThis.StormtraceCore.ProviderError(code, source.startsWith('noaa-') ? 'noaa-radar' : source, operation));
     });
+  });
+}
+
+// Process selection stays in the platform adapter. Public hazard normalization
+// uses only Python's standard library, independent of optional radar decoders.
+export function publicHazardWorker(root, id, previous = null) {
+  return new Promise((resolveResult, reject) => {
+    const child=execFile('python3', ['-m', 'providers.public_hazards', id, 'current'], { cwd: root, timeout: 40000, maxBuffer: 12_000_000, encoding: 'buffer' }, (error, stdout, stderr) => {
+      if (!error) return resolveResult(stdout);
+      let details;
+      try { details = JSON.parse(stderr.toString()); } catch { details = { code: error.killed ? 'timeout' : 'configuration' }; }
+      reject(new globalThis.StormtraceCore.ProviderError(details.code, id, 'current', { status: details.status ?? null, retryAfter: details.retryAfter ?? null }));
+    });
+    child.stdin.on('error',()=>{});child.stdin.end(JSON.stringify(previous || {}));
   });
 }

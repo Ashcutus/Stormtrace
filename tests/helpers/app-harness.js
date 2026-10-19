@@ -7,7 +7,7 @@ const source = readFileSync(new URL("../../app.js", import.meta.url), "utf8");
 const settingsSource = readFileSync(new URL("../../client/settings.js", import.meta.url), "utf8");
 const locationSource = readFileSync(new URL("../../client/location.js", import.meta.url), "utf8");
 const exports = [
-  "state", "els", "connectFeed", "initializeRevisionHistory", "persistRevisions", "loadProviderHistory", "ingestStrikes", "appendStrikeTimeline", "trimMemory",
+  "bindControls", "checkProximityAlert", "toggleNotifications", "runSearch", "syncWindowButtons", "saveSettings", "state", "els", "setLightningVisible", "connectFeed", "initializeRevisionHistory", "persistRevisions", "loadProviderHistory", "ingestStrikes", "appendStrikeTimeline", "trimMemory",
   "timelineIndexAtOrAfter", "displayLongitude", "strikeIsInBounds", "render",
   "scheduleStats", "selectWindow", "handleVisibilityChange", "strikeDistance",
   "updateProximityStats", "loadHistory", "storeStrikes", "flushStrikes", "startDemo",
@@ -23,8 +23,16 @@ function element() {
     dataset: {},
     style: { setProperty() {} },
     classList: { toggle() {} },
-    addEventListener() {},
-    setAttribute() {},
+    listeners: {},
+    addEventListener(name,fn) { this.listeners[name]=fn; },
+    attributes: {},
+    setAttribute(name,value) {this.attributes[name]=value;},
+    getAttribute(name) {return this.attributes[name] ?? null;},
+    scrollIntoView() {this.revealed=true;},
+    removeAttribute(name) {delete this.attributes[name];},
+    querySelector() {return {toggleAttribute(){}};},
+    click() {this.listeners.click?.({target:this});},
+    focus() {this.focused=true;},
     append() {},
     remove() {},
     querySelectorAll: () => [],
@@ -35,17 +43,21 @@ function element() {
   };
 }
 
-export function loadApp({ search = "", indexedDB, keyRange, storage, fetch = async () => ({ ok: true, json: async () => ({ available: false }) }) } = {}) {
+export function loadApp({ search = "", indexedDB, keyRange, storage, notificationPermission = "unsupported", fetch = async () => ({ ok: true, json: async () => ({ available: false }) }) } = {}) {
   let now = 1800000000000;
   let nextTimer = 1;
   const timers = new Map();
   const elements = new Map();
   const sockets = [];
+  const notifications = [];
   const document = {
     hidden: false,
+    listeners: {},
+    addEventListener(name,fn) { this.listeners[name]=fn; },
     body: element(),
     documentElement: element(),
     querySelector(selector) {
+      if(selector==='dialog[open]')return [...elements.entries()].find(([key,n])=>key.endsWith("Dialog")&&n.open)?.[1] || null;
       if (!elements.has(selector)) elements.set(selector, element());
       return elements.get(selector);
     },
@@ -61,7 +73,8 @@ export function loadApp({ search = "", indexedDB, keyRange, storage, fetch = asy
     AbortController,
     location: { search },
     URLSearchParams,
-    window: {},
+    window: {addEventListener() {}},
+    Notification: notificationPermission==='unsupported'?undefined:class {static permission=notificationPermission;constructor(title,options){notifications.push({title,...options});}close(){}},
     navigator: {},
     document,
     localStorage: storage || { getItem: () => null, setItem() {} },
@@ -118,6 +131,7 @@ export function loadApp({ search = "", indexedDB, keyRange, storage, fetch = asy
   vm.runInContext(readFileSync(new URL("../../providers/geocoding.js", import.meta.url), "utf8"), context);
   vm.runInContext(readFileSync(new URL("../../platform/browser.js", import.meta.url), "utf8"), context);
   vm.runInContext(readFileSync(new URL("../../platform/strike-cache.js", import.meta.url), "utf8"), context);
+  vm.runInContext(readFileSync(new URL("../../client/presentation.js", import.meta.url), "utf8"), context);
   vm.runInContext(settingsSource, context);
   vm.runInContext(locationSource, context);
   vm.runInContext(source.replace("  init();", `  globalThis.app = {${exports.join(",")}};`), context);
@@ -136,7 +150,7 @@ export function loadApp({ search = "", indexedDB, keyRange, storage, fetch = asy
     removeLayer(marker) { markers.delete(marker); },
   };
   return {
-    ...app, navigator: context.navigator, document, elements, bounds, markers, timers, sockets,
+    ...app, notifications, navigator: context.navigator, document, elements, bounds, markers, timers, sockets,
     now: () => now,
     advance(milliseconds) {
       const target = now + milliseconds;

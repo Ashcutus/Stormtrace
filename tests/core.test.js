@@ -163,3 +163,14 @@ test('CAP warnings can preserve official colour, provenance, geometry and local 
   assert.equal(revisions[0].event.provenance.upstreamId, cap.identifier); assert.equal(revisions[0].event.geometry.type, 'Polygon');
   assert.equal(C.provenanceFreshness(C.provenance(C.getSource('lightningmaps'), { fetchedAt: 1000, observedAt: 1000 }), 200000), 'stale');
 });
+
+test('event-limit retention reuses the age-pass bulk read unless that pass changed rows', async () => {
+  const storage = new globalThis.StormtracePlatform.MemoryStorageAdapter();
+  let clock = 1000; const history = new C.RevisionHistory(storage, { now: () => clock });
+  const event = (id) => ({ id, kind: 'warning', provider: 'ea-floods', sourceAuthority: 'Environment Agency', provenance: { ...C.provenance(C.getSource('ea-floods'), { fetchedAt: 1 }) }, domainPayload: { id } });
+  for (const id of ['a', 'b', 'c']) { clock += 1; await history.record(event(id)); }
+  let reads = 0; const entries = storage.entries.bind(storage); storage.entries = () => { reads++; return entries(); };
+  assert.equal(await history.retain({ provider: 'ea-floods', before: 0, keepLatest: false, maxEvents: 2 }), 1); assert.equal(reads, 1);
+  assert.equal(await history.retain({ provider: 'ea-floods', before: clock + 1, keepLatest: false, maxEvents: 2 }), 2); assert.equal(reads, 3);
+  assert.equal((await history.query({ provider: 'ea-floods' })).length, 0);
+});

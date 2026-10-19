@@ -2,7 +2,7 @@
   "name": "stormtrace",
   "private": true,
   "type": "module",
-  "description": "A local, real-time global lightning monitor for Omarchy.",
+  "description": "A local weather and hazard viewer with lightning alerts, radar, warnings, earthquakes, cyclones, volcano reports, tsunami bulletins and space weather.",
   "scripts": {
     "start": "node server.js",
     "test": "node --test tests/*.test.js",

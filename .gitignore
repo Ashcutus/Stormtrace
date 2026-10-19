@@ -6,3 +6,6 @@ __pycache__/
 node_modules/
 
 .venv-radar/
+
+# Local investigations, audits and working plans (never published)
+.local/

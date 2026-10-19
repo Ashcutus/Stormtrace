@@ -41,7 +41,7 @@ fi
   printf '%s\n' 'Version=1.0'
   printf '%s\n' 'Type=Application'
   printf '%s\n' 'Name=Stormtrace'
-  printf '%s\n' 'Comment=Real-time global lightning monitor'
+  printf '%s\n' 'Comment=Weather and hazard monitor'
   printf 'Exec=%s\n' "$(desktop_exec_arg "$APP_DIR/start-app.sh")"
   printf '%s\n' "Icon=$APP_ID"
   printf '%s\n' 'Terminal=false'

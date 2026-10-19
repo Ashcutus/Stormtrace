@@ -347,7 +347,7 @@ test("coarse location times out without replacing the saved position", async () 
   app.advance(30000);
   assert.equal(await pending, false);
   assert.equal(app.state.userLocation, previous);
-  assert.match(app.elements.get("#permissionNote").textContent, /approximate location/);
+  assert.match(app.elements.get("#locationFeedback").textContent, /approximate location/);
   assert.equal(app.elements.get("#enableLocationButton").disabled, false);
   assert.deepEqual(cleared, [8]);
 });
@@ -399,7 +399,7 @@ test("Ethernet estimate requires review and persists its real uncertainty", asyn
   assert.equal(app.state.userLocation.accuracy, 30000);
   assert.equal(saved.userLocation.accuracy, 30000);
   assert.equal(app.elements.get("#approximateLocationButton").hidden, true);
-  assert.match(app.elements.get("#permissionNote").textContent, /uncertainty/);
+  assert.match(app.elements.get("#locationFeedback").textContent, /uncertainty/);
 });
 
 test("manual coordinates work without geolocation and cannot be overwritten by a pending fix", async () => {
@@ -463,4 +463,17 @@ test("map selection saves a wrapped manual point and supersedes pending automati
   app.toggleMapLocation();
   app.setMapLocation({ latlng: { lat: 0, lng: 0 } });
   assert.equal(app.state.userLocation.lat, 53.39);
+});
+
+test('lightning visibility only changes its map layer and legends while retaining feed and archive state', () => {
+  const app=loadApp();const layers=new Set([app.state.strikeLayer]);
+  app.state.map.addLayer=layer=>layers.add(layer);app.state.map.removeLayer=layer=>layers.delete(layer);
+  app.ingestStrikes([strike('visible',app.now())],false,false);
+  app.setLightningVisible(false);
+  assert.equal(layers.has(app.state.strikeLayer),false);
+  assert.equal(app.document.querySelector('.map-overlay.legend').hidden,true);
+  assert.equal(app.document.querySelector('.latest-strip').hidden,true);
+  assert.equal(app.state.monitoringPaused,false);assert.equal(app.state.strikes.size,1);
+  app.setLightningVisible(true);assert.equal(layers.has(app.state.strikeLayer),true);
+  assert.equal(app.document.querySelector('.map-overlay.legend').hidden,false);
 });
