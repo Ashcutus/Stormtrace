@@ -286,8 +286,8 @@
   function showHazardSelection(label) {
     $("#selectedHazardLabel").textContent = label || "Map event";
     $("#selectedHazardRow").hidden = false;
-    // Open Layers so Clear is visible without hunting for it.
-    $("#layersPanel").open = true;
+    // Open Layers so Clear is visible; wait if a popup is using that space.
+    if (state.mapPopupOpen) state.pendingLayersOpen = true; else $("#layersPanel").open = true;
     updateLayersSummary();
   }
 
@@ -347,6 +347,11 @@
       scheduleRender();
     });
     state.map.on("click", setMapLocation);
+    // Map overlays sit above Leaflet's popup pane, so keep popups clear of them:
+    // collapse Layers while a popup is open and pad auto-panning past the bars.
+    L.Popup.mergeOptions?.({ autoPanPaddingTopLeft: [24, 76], autoPanPaddingBottomRight: [64, 84] });
+    state.map.on("popupopen", () => { state.mapPopupOpen = true; const panel = $("#layersPanel"); if (panel) panel.open = false; });
+    state.map.on("popupclose", () => { state.mapPopupOpen = false; if (state.pendingLayersOpen) { state.pendingLayersOpen = false; $("#layersPanel").open = true; } });
     updateMapReadout();
     updateLocationLayers();
   }

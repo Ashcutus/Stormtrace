@@ -200,3 +200,7 @@ test('toolbar Radar button toggles the same Layers checkbox and mirrors its stat
  a.elements.get('#radarNavButton').listeners.click();assert.equal(clicks,1);assert.equal(a.elements.get('#radarNavButton').attributes['aria-pressed'],'true');
  a.elements.get('#radarNavButton').listeners.click();assert.equal(a.elements.get('#radarNavButton').attributes['aria-pressed'],'false');
 });
+test('a selection made while a map popup is open waits to open Layers so the panel cannot cover the popup',()=>{
+ const a=loadApp();a.document.querySelector('#layersPanel').open=false;a.bindControls();a.state.mapPopupOpen=true;
+ a.document.listeners.hazardselected({detail:{label:'Test'}});assert.equal(a.elements.get('#layersPanel').open,false);assert.equal(a.state.pendingLayersOpen,true);
+});

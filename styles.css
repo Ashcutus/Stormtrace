@@ -444,6 +444,7 @@ dialog, .hazard-popup, .storm-popup {
 #warningAreaMap .leaflet-control-zoom a { width: 34px; height: 34px; line-height: 34px; border-radius: 0; background: var(--popup-bg); color: var(--popup-text); border-color: var(--popup-line); }
 #warningAreaMap .leaflet-control-zoom a:hover { background: var(--popup-surface); }
 #warningAreaMap .leaflet-popup-content { max-width: calc(100vw - 92px); }
+#warningAreaMap .leaflet-control-attribution a { color: #0b4f9e; }
 .warning-area-label { background: #fff; color: #111; border: 1px solid #333; font: 600 12px system-ui, sans-serif; white-space: normal; }
 .severity-key { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: var(--font-xs); color: var(--text-secondary); }
 .severity-chip { padding: 2px 8px; font-weight: 700; color: #000; background: var(--nsww-yellow); }

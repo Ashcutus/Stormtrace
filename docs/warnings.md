@@ -60,7 +60,7 @@ This is not a complete archive. The Met Office keeps change records for about 24
 
 Choose **Warning map** inside Weather warnings to see current warning areas on a dedicated UK map. It needs no key.
 
-![A yellow wind warning area on the dedicated UK warning map](screenshots/warning-map.png)
+![Amber and yellow wind warning areas on the dedicated UK warning map](screenshots/warning-map.png)
 
 The map uses a public, Met Office-linked Esri beta service under the NSWWS Open Licence. The Met Office does not support that service's API, and it can lag behind the official website. Expired areas are left out, and future warnings stay visible. Select an area or its label to open the full warning.
 

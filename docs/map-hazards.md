@@ -16,7 +16,7 @@ This layer shows earthquakes from the past day (up to 500 events). Select an ear
 
 Where a ShakeMap is published, Stormtrace draws its estimated shaking contours, measured in Modified Mercalli Intensity (MMI). These are estimates, not reported felt effects, damage footprints or early warning. Many earthquakes have no ShakeMap, and Stormtrace never draws a radius from magnitude, so for those events the extent of shaking is unknown.
 
-![Estimated shaking contours for a magnitude 6.0 earthquake near Vanuatu](screenshots/earthquake-shaking.png)
+![Earthquakes from the past day on the map, with one earthquake's details open](screenshots/earthquake-map.png)
 
 Selecting another earthquake replaces the previous contours, and **Clear** next to **Selected** in Layers removes them. Loading, "no ShakeMap" and retrieval errors are shown inside the popup, with **Retry** after an error.
 

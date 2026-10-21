@@ -21,6 +21,7 @@
     const interval = () => C.getSource(providerId()).expectedUpdateInterval;
     const isPtype = () => source.startsWith('noaa-ptype-');
     const context = () => isPtype() ? 'Precipitation type from NOAA MRMS: radar classification assisted by model surface analyses. Categories are rain types, snow and hail; there is no sleet or freezing-rain category, and snow can be under-detected. Frames sampled across the past 3 hours. Coverage gaps do not mean dry weather.' : source.startsWith('noaa-') ? 'Observed reflectivity (dBZ); not rainfall rate. Frames sampled across the available past 3 hours. Coverage gaps do not mean dry weather.' : source === 'opera-radar' ? 'Observed rain rate · 15-minute frames. European radar coverage varies; transparent areas include no rain and missing observations.' : 'Observed rain rate · 15-minute frames, publication can lag by 20 minutes. Transparent areas include no rain and missing observations.';
+    const freshness = (frame) => ({ Observed: 'Radar is up to date.', Delayed: 'Radar is running late; showing the latest available frame.', Stale: 'Radar is out of date; showing the last available frame.' })[ageLabel(frame)];
     const ageLabel = (frame) => Date.now() - frame.observedAt > interval() * 3 ? 'Stale' : Date.now() - frame.observedAt > interval() * 1.5 ? 'Delayed' : 'Observed';
     let enabled = false, loading = false, timer = null, generation = 0, overlay = null, displayed = null, pending = null, cancelPending = null, records = [], followLatest = true;
     map.createPane('radar'); map.getPane('radar').style.zIndex = 250;
@@ -64,7 +65,7 @@
     function stamp(frame) { return globalThis.StormtraceUI.date(frame.observedAt); }
     async function show(frame) {
       if (!enabled || !frame) return;
-      if (displayed?.id === frame.id) { status.textContent = `${ageLabel(frame)} radar observation. Coverage notes are below.`; return; }
+      if (displayed?.id === frame.id) { status.textContent = freshness(frame); return; }
       const request = ++generation;
       cancelPending?.();
       if (pending) { map.removeLayer(pending); pending = null; }
@@ -85,7 +86,7 @@
         if (request !== generation || !enabled) { map.removeLayer(next); return; }
         if (overlay) map.removeLayer(overlay); overlay = next; pending = null; displayed = frame;
         $('radarFrameTime').textContent = `Observation: ${stamp(frame)}`;
-        status.textContent = `${ageLabel(frame)} radar observation. Coverage notes are below.`;
+        status.textContent = freshness(frame);
       } catch {
         globalThis.StormtraceDiagnostics?.count("errors");
         if (request === generation) map.removeLayer(next);
