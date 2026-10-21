@@ -137,9 +137,9 @@
         UI.keyed(list,records.slice(0,collection.limit()),(parent,r)=>{
           const p=r.domainPayload,card=text(parent,'article','','warning-card');card.dataset.level=p.badge;
           text(card,'span',weatherName(p.badge),'warning-badge');text(card,'h3',p.title);
+          UI.cardActions(card,{link:{label:'Read the full Met Office warning',url:p.url}});
           text(card,'p',p.body,'warning-text');
           text(card,'p','Official summary. Open the warning for full details, timing and advice.','warning-text');
-          const link=text(card,'a','Read the full Met Office warning ↗','text-button');link.href=p.url;link.target='_blank';link.rel='noopener noreferrer';
         });
         return;
       }

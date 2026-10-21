@@ -92,7 +92,8 @@ test("GL initialization preserves the canvas image between pan updates", () => {
   const { layer, context } = bridge();
   let options;
   context.maplibregl.Map = class {
-    constructor(value) { options = value; this._canvas = {}; }
+    constructor(value) { options = value; }
+    getCanvas() { return {}; }
     on() {}
     setTransformConstrain() {}
   };
@@ -125,4 +126,22 @@ test("resize restores a painted camera without a deferred zoom transition", () =
   layer._glMap.resize = () => calls.push(["resize"]);
   layer.getEvents().resize.call(layer);
   assert.deepEqual(calls.map((call) => call[0]), ["size", "resize", "position", "camera", "paint"]);
+});
+
+test("the bridge uses only public MapLibre 6 APIs: no internal transform or private canvas is required", () => {
+  const { layer, context } = bridge();
+  const canvas = { id: "public" };
+  context.maplibregl.Map = class {
+    constructor() {}
+    getCanvas() { return canvas; }
+    on() {}
+    setTransformConstrain(constrain) { this.constrain = constrain; }
+    get transform() { throw new Error("internal transform must not be read"); }
+    get _canvas() { throw new Error("private canvas must not be read"); }
+  };
+  layer.getAttribution = () => "";
+  layer._transformGL = () => {};
+  layer._initGL();
+  assert.equal(layer._glMap._actualCanvas, canvas);
+  assert.equal(JSON.stringify(layer._glMap.constrain([1, 2], 3)), JSON.stringify({ center: [1, 2], zoom: 3 }));
 });

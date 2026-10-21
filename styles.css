@@ -260,7 +260,10 @@ body.native-shell .icon-button.native-only { display: grid; }
 .cyclone-marker:focus-visible { outline: 3px solid var(--yellow); outline-offset: 4px; }
 
 /* ---------- Sidebar ---------- */
-.sidebar { min-width: 0; overflow: auto; padding: 12px; background: var(--surface); scrollbar-color: var(--line-bright) transparent; display: grid; gap: 10px; align-content: start; }
+/* minmax(0, 1fr): wide content (such as NOAA's fixed-width legend) must scroll inside
+   its own box rather than widening the sidebar column. */
+.sidebar { min-width: 0; overflow-x: hidden; overflow-y: auto; padding: 12px; background: var(--surface); scrollbar-color: var(--line-bright) transparent; display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; align-content: start; }
+.sidebar > * { min-width: 0; }
 .panel { padding: 13px; background: var(--surface-2); border: 1px solid var(--line); }
 .panel h2 { margin: 0 0 10px; font-size: var(--font-lg); }
 .panel h3 { margin: 0; font-size: var(--font-sm); }
@@ -321,6 +324,16 @@ input[type="range"]::-moz-range-thumb { width: 10px; height: 10px; background: v
 .switch input:checked + .switch-track .switch-thumb { transform: translateX(18px); background: var(--violet-bright); }
 .switch:focus-within .switch-track { outline: 2px solid var(--violet-bright); outline-offset: 3px; }
 
+.alert-row small + small { color: var(--text-tertiary); }
+.hazard-alert-options { margin: 10px 0 0; padding: 10px; border: 1px solid var(--line); background: var(--surface); display: grid; gap: 8px; }
+.hazard-alert-options legend { padding: 0 4px; font-size: var(--font-xs); font-weight: 700; color: var(--text-secondary); }
+.check-row { display: grid; grid-template-columns: 18px 1fr; gap: 8px; align-items: start; cursor: pointer; }
+.check-row input { margin: 3px 0 0; accent-color: var(--violet); }
+.check-row strong { display: block; font-size: var(--font-xs); }
+.check-row small { display: block; color: var(--text-secondary); font-size: var(--font-2xs); }
+.quake-alert-options { display: flex; flex-wrap: wrap; gap: 8px; padding-left: 26px; font-size: var(--font-xs); }
+.quake-alert-options label { display: inline-flex; align-items: center; gap: 6px; }
+.hazard-alert-options .permission-note { margin: 0; }
 .proximity-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
 .proximity-stats div { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; padding: 8px; background: var(--surface); border: 1px solid var(--line); }
 .proximity-stats span { color: var(--text-secondary); font-size: var(--font-2xs); }
@@ -339,7 +352,7 @@ input[type="range"]::-moz-range-thumb { width: 10px; height: 10px; background: v
 .radar-legend-categories { flex-wrap: wrap; gap: 6px 10px; }
 .radar-legend-categories span { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; border-top: 0; padding-top: 0; text-align: left; }
 .radar-legend-categories span::before { content: ""; width: 14px; height: 14px; background: var(--rain); border: 1px solid var(--line-bright); }
-.radar-legend:has(img) { display: block; overflow-x: auto; padding-bottom: 8px; }
+.radar-legend:has(img) { display: block; max-width: 100%; overflow-x: auto; padding-bottom: 8px; }
 .radar-legend img { width: 500px; max-width: none; height: 30px; background: #fff; object-fit: contain; }
 
 .source-note { padding: 4px; color: var(--text-secondary); }
@@ -376,6 +389,12 @@ dialog, .hazard-popup, .storm-popup {
 .dialog-title-row form { margin: 0; }
 
 .hazard-dialog-card { width: min(880px, calc(100vw - 32px)); max-height: min(780px, calc(100dvh - 32px)); overflow: hidden; }
+/* Hazard views open full window, like the warning map. Cards flow into columns
+   on wide screens so lines stay readable. */
+dialog:has(> .hazard-dialog-card) { width: calc(100vw - 24px); height: calc(100dvh - 24px); max-width: none; max-height: none; }
+dialog > .hazard-dialog-card { width: 100%; height: 100%; max-height: none; padding: 14px 18px; }
+.hazard-dialog-content > div[id$="List"], .hazard-dialog-content > div[id$="Archive"] > div { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 460px), 1fr)); gap: 12px; align-items: start; }
+.hazard-dialog-content > div[id$="List"] > .warning-card, .hazard-dialog-content > div[id$="Archive"] > div > .warning-card { margin: 0; }
 .hazard-dialog-header { flex: 0 0 auto; display: grid; gap: 8px; padding-bottom: 10px; border-bottom: 1px solid var(--line-bright); }
 .hazard-dialog-header > p { margin: 0; font-size: var(--font-xs); line-height: 1.45; }
 .hazard-dialog-header > p:empty, .hazard-dialog-header > [role="status"]:empty { display: none; }
@@ -407,6 +426,11 @@ dialog, .hazard-popup, .storm-popup {
 .warning-card ul { padding-left: 22px; font-size: var(--font-sm); line-height: 1.7; }
 .warning-card > .text-button, .warning-card > .mini-button { min-height: 34px; height: auto; white-space: normal; text-align: left; margin: 8px 12px 0 0; }
 .warning-card > a:not(.text-button) { display: inline-block; margin: 8px 12px 0 0; }
+/* One action row per card, directly under the heading. */
+.card-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin: 4px 0 10px; }
+.card-actions:empty { display: none; }
+.card-actions .card-map-button { min-height: 32px; }
+.card-source-link { font-size: var(--font-sm); font-weight: 700; }
 .warning-text, .hazard-bulletin { font-family: var(--font-body); font-size: calc(15px * var(--reading-scale)); line-height: 1.65; white-space: pre-line; }
 .warning-history:empty, #warningArchive:empty { display: none; }
 .warning-history, #warningArchive { border-top: 1px solid var(--line-bright); margin-top: 14px; }
@@ -433,26 +457,32 @@ dialog, .hazard-popup, .storm-popup {
 .provenance-details { margin: 12px 0; font-size: var(--font-sm); }
 .provenance-details summary { padding: 7px 0; }
 
-/* Warning map dialog keeps its own UK-only map, separate from other weather layers. */
-.warning-map-card { height: min(780px, calc(100dvh - 32px)); }
-.warning-map-content { display: flex; flex-direction: column; gap: 10px; }
-.warning-map-content > p { margin: 0; font-size: var(--font-xs); line-height: 1.45; }
-#warningAreaMap { flex: 1 0 430px; min-height: 430px; background: #ddd; color: #111; }
+/* Warning map dialog: full window, kept separate from other weather layers
+   (Met Office style guide). The map fills the space; the list sits beside it. */
+#warningMapDialog { width: calc(100vw - 24px); height: calc(100dvh - 24px); max-width: none; max-height: none; }
+.warning-map-card { width: 100%; height: 100%; max-height: none; padding: 14px 18px; }
+.warning-map-card .hazard-dialog-header { gap: 6px; }
+.warning-map-content { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 14px; padding: 12px 0 0; overflow: hidden; }
+.warning-map-side { min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 10px; padding-right: 4px; }
+.warning-map-side > p { margin: 0; font-size: var(--font-xs); line-height: 1.45; }
+#warningAreaMap { min-height: 0; height: 100%; background: #ddd; color: #111; border: 1px solid var(--popup-line); }
 #warningAreaMap .leaflet-control-container { display: block; }
 #warningAreaMap .leaflet-tile-pane { filter: none; }
 #warningAreaMap .leaflet-control-zoom { border: 1px solid var(--popup-line); border-radius: 0; box-shadow: var(--shadow); }
 #warningAreaMap .leaflet-control-zoom a { width: 34px; height: 34px; line-height: 34px; border-radius: 0; background: var(--popup-bg); color: var(--popup-text); border-color: var(--popup-line); }
 #warningAreaMap .leaflet-control-zoom a:hover { background: var(--popup-surface); }
-#warningAreaMap .leaflet-popup-content { max-width: calc(100vw - 92px); }
+#warningAreaMap .leaflet-popup-content { max-width: min(380px, calc(100vw - 92px)); }
+.warning-area-card .flood-map-message { max-height: min(180px, 22vh); }
+#warningAreaMap .leaflet-control-attribution { background: rgba(255,255,255,.92); color: #222; }
 #warningAreaMap .leaflet-control-attribution a { color: #0b4f9e; }
 .warning-area-label { background: #fff; color: #111; border: 1px solid #333; font: 600 12px system-ui, sans-serif; white-space: normal; }
 .severity-key { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: var(--font-xs); color: var(--text-secondary); }
 .severity-chip { padding: 2px 8px; font-weight: 700; color: #000; background: var(--nsww-yellow); }
 .severity-chip[data-level="AMBER"] { background: var(--nsww-amber); }
 .severity-chip[data-level="RED"] { background: var(--nsww-red); color: #fff; }
-#warningMapList { display: flex; flex-wrap: wrap; gap: 8px; }
-#warningMapList button { white-space: normal; padding: 8px; text-align: left; }
-.warning-area-card .flood-map-message { max-height: 70px; }
+#warningMapList { display: grid; gap: 8px; }
+#warningMapList button { white-space: normal; padding: 8px 10px; text-align: left; justify-content: flex-start; line-height: 1.4; }
+.warning-area-card .flood-map-message { max-height: min(180px, 30vh); }
 .warning-area-card .flood-map-message h4 { margin: 0 0 6px; font-size: 13px; }
 
 /* About, shortcuts and appearance dialogs. */
@@ -474,6 +504,11 @@ dialog, .hazard-popup, .storm-popup {
 .dialog-actions { display: flex; justify-content: flex-end; }
 .dialog-actions a { font-size: var(--font-xs); font-weight: 700; text-decoration: none; }
 
+.welcome-dialog-card { width: min(520px, calc(100vw - 32px)); gap: 12px; }
+.welcome-steps { margin: 0; padding-left: 20px; display: grid; gap: 10px; font-size: var(--font-sm); line-height: 1.5; color: var(--text-secondary); }
+.welcome-steps strong { color: var(--text); }
+.welcome-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.welcome-actions .wide-button { width: auto; flex: 1 1 140px; margin: 0; }
 .shortcuts-dialog-card { width: min(460px, calc(100vw - 32px)); gap: 10px; }
 .shortcut-list { display: grid; grid-template-columns: max-content 1fr; gap: 8px 14px; margin: 0; font-size: var(--font-sm); }
 .shortcut-list dt { text-align: right; }
@@ -522,6 +557,8 @@ dialog, .hazard-popup, .storm-popup {
 .hazard-popup .leaflet-popup-content-wrapper, .storm-popup .leaflet-popup-content-wrapper { padding: 0; overflow: hidden; }
 .hazard-popup .leaflet-popup-content, .storm-popup .leaflet-popup-content { margin: 0; min-width: 246px; line-height: 1.5; }
 .hazard-popup .leaflet-popup-content p { margin: 10px 0; }
+/* Every map popup stays inside the map: long content scrolls, the × stays put. */
+.hazard-popup .leaflet-popup-content, .storm-popup .leaflet-popup-content { max-height: min(520px, calc(100dvh - 300px)); overflow-y: auto; overscroll-behavior: contain; scrollbar-color: var(--popup-line) transparent; }
 .hazard-popup a, .storm-popup a { color: var(--popup-accent-bright); }
 .hazard-popup a.leaflet-popup-close-button, .storm-popup a.leaflet-popup-close-button { top: 6px; right: 6px; width: 28px; height: 28px; color: var(--popup-text); font-size: 18px; line-height: 28px; }
 .hazard-popup button, .storm-popup button {
@@ -598,10 +635,14 @@ dialog, .hazard-popup, .storm-popup {
   .dialog-actions-row { margin-left: 0; }
   .collection-tools label { flex-basis: 100%; }
 }
+@media (max-width: 900px) {
+  .warning-map-content { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(560px, 72dvh) auto; overflow-y: auto; }
+  .warning-map-side { overflow: visible; }
+}
 @media (max-width: 480px) {
   .palette-grid, .map-appearance-grid { grid-template-columns: minmax(0, 1fr); }
   .palette-grid label:nth-child(odd) { border-right: 0; }
   .location-actions { grid-template-columns: 1fr; }
-  #warningAreaMap { flex-basis: 520px; min-height: 520px; }
+  .warning-map-content { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(320px, 60%) minmax(0, 1fr); }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }

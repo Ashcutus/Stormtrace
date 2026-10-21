@@ -92,6 +92,17 @@ stop_managed_server() {
   return 1
 }
 
+# Plugin updates replace icon.svg but not the copy installed for the app
+# launcher. Refresh an existing launcher icon only; never create one implicitly.
+refresh_launcher_icon() {
+  local data_dir="${XDG_DATA_HOME:-$HOME/.local/share}" icon
+  icon="$data_dir/icons/hicolor/scalable/apps/org.omarchy.Stormtrace.svg"
+  [[ -f $data_dir/applications/org.omarchy.Stormtrace.desktop && -f $icon ]] || return 0
+  cmp -s "$APP_DIR/icon.svg" "$icon" && return 0
+  install -m 0644 "$APP_DIR/icon.svg" "$icon" 2>/dev/null || return 0
+  gtk-update-icon-cache "$data_dir/icons/hicolor" >/dev/null 2>&1 || true
+}
+
 if [[ ${1:-} == "--health" ]]; then
   server_ready
   exit $?
@@ -119,6 +130,8 @@ if ! command -v uwsm-app >/dev/null 2>&1; then
   notify_error "Stormtrace could not find uwsm-app. Start it from an Omarchy session."
   exit 1
 fi
+
+refresh_launcher_icon
 
 if ! server_ready; then
   if systemctl --user is-active --quiet stormtrace-receiver.service 2>/dev/null || server_responding; then

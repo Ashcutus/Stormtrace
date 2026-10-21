@@ -22,7 +22,8 @@ URLS = {
     'metoffice-warnings-esri': ['https://services.arcgis.com/Lq3V5RFuTBC9I7kv/arcgis/rest/services/Met_Office_National_Severe_Weather_Warning_Service_Live/FeatureServer/0/query?where=1%3D1&outFields=%2A&outSR=4326&f=geojson'],
     'metoffice-warnings-rss': ['https://www.metoffice.gov.uk/public/data/PWSCache/WarningsRSS/Region/UK'],
     'nhc': ['https://www.nhc.noaa.gov/CurrentStorms.json'],
-    'usgs-volcano': ['https://volcanoes.usgs.gov/hans-public/api/volcano/getElevatedVolcanoes'],
+    # Elevated notices, then USGS's own volcano list for summit locations (joined by vnum).
+    'usgs-volcano': ['https://volcanoes.usgs.gov/hans-public/api/volcano/getElevatedVolcanoes', 'https://volcanoes.usgs.gov/hans-public/api/volcano/getUSVolcanoes'],
     'gvp': ['https://volcano.si.edu/news/WeeklyVolcanoRSS.xml'],
     'noaa-tsunami': ['https://www.tsunami.gov/events/xml/PAAQCAP.xml', 'https://www.tsunami.gov/events/xml/PHEBCAP.xml'],
     'swpc': ['https://services.swpc.noaa.gov/products/noaa-scales.json', 'https://services.swpc.noaa.gov/products/alerts.json'],
@@ -125,7 +126,22 @@ def normalize_cyclones(raw, fetched):
         records.append(event('nhc', id, p, fetched, issued, issued, geometry=dict(type='Point',coordinates=[lon,lat]),severity=dict(classification=classification,windKnots=wind)))
     return unique(records)
 
+def volcano_locations(raw):
+    """Summit coordinates by USGS volcano number; entries without valid coordinates are skipped."""
+    require(isinstance(raw,list) and len(raw)<=5000)
+    locations={}
+    for v in raw:
+        if not isinstance(v,dict): continue
+        vnum=v.get('vnum'); lat=number(v.get('latitude')); lon=number(v.get('longitude'))
+        if isinstance(vnum,str) and re.fullmatch(r'\d+',vnum) and lat is not None and lon is not None and -90<=lat<=90 and -180<=lon<=180:
+            locations[vnum]=[lon,lat]
+    return locations
+
 def normalize_volcanoes(raw, fetched):
+    # Accept notices alone, or [notices, USGS volcano list] to add summit locations.
+    locations={}
+    if isinstance(raw,list) and len(raw)==2 and all(isinstance(part,list) for part in raw):
+        raw,locations=raw[0],volcano_locations(raw[1])
     require(isinstance(raw,list) and len(raw)<=1000)
     records=[]
     for r in raw:
@@ -139,7 +155,10 @@ def normalize_volcanoes(raw, fetched):
         p=payload(name,level,official_link(r.get('notice_url'),['volcanoes.usgs.gov'],SOURCES['usgs-volcano']['homepage']),
                   [f'Ground alert: {level}',f'Aviation colour: {colour}',f'Observatory: {string(r.get("obs_fullname"),True)}'],
                   volcanoId=vnum,activity=level,aviationColour=colour,bulletin='',status='ELEVATED',mode='notice',sourceFields=r)
-        records.append(event('usgs-volcano',vnum+':'+id,p,fetched,issued,issued,severity=dict(alertLevel=level,aviationColour=colour),authority=r['obs_fullname']))
+        location=locations.get(vnum)
+        record=event('usgs-volcano',vnum+':'+id,p,fetched,issued,issued,geometry=dict(type='Point',coordinates=location) if location else None,severity=dict(alertLevel=level,aviationColour=colour),authority=r['obs_fullname'])
+        if location: record['provenance']['transformations'].append('usgs-volcano-location-join-by-vnum')
+        records.append(record)
     return unique(records)
 
 def xml(raw):
@@ -363,7 +382,7 @@ class PublicHazardProvider:
                         body=response.read(MAX_BYTES+1);require(len(body)<=MAX_BYTES)
                     decoded=body.decode('utf-8-sig')
                     values.append(decoded if self.id in ('gvp','noaa-tsunami','metoffice-warnings-rss') else json.loads(decoded))
-                result=normalize(self.id,values if self.id in ('swpc','noaa-tsunami') else values[0],self.clock())
+                result=normalize(self.id,values if self.id in ('swpc','noaa-tsunami','usgs-volcano') else values[0],self.clock())
                 self.health.update(lastSuccessfulFetch=self.clock(),sourceDataTimestamp=result['sourceDataTimestamp'],lastError=None,consecutiveFailures=0,available=True)
                 self.last_result=result;self.last_error=None
                 return json.loads(json.dumps({**result,'health':{**self.health,'freshness':self.freshness()}}))

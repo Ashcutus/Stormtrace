@@ -31,28 +31,28 @@
     document.addEventListener('clearselectedhazard',clearMarker);
     function clearMarker() { mapHazards?.clear(); if (selectedMarker) { selectedMarker.remove();selectedMarker=null; } }
     function card(parent,event,historyView=false) {
-      const p=event.domainPayload,el=text(parent,'article','','warning-card flood-card');
+      const p=event.domainPayload;
+      const showHere=map && !historyView ? () => {
+        document.dispatchEvent?.(new Event('clearselectedhazard'));
+        clearMarker(); const [lon,lat]=event.geometry.coordinates;
+        const label=`${p.magnitude == null ? 'Earthquake' : `M ${p.magnitude}`} · ${p.place || 'location description unavailable'}`;
+        // Reuse the earthquake layer's point when it is shown, so one event never has two markers.
+        const move=(options)=>map.setView([lat,lon],Math.max(5,map.getZoom()),options);
+        if (mapHazards?.openQuake?.(event.id,move)) { dialog.close();document.dispatchEvent?.(new CustomEvent('hazardselected',{detail:{label}}));return; }
+        const content=mapHazards?.popup(event,controller.state.health,controller.state.cached);
+        const fallback=document.createElement('div');fallback.textContent=`USGS earthquake · ${p.place || 'Location description unavailable'} · ${p.magnitude == null ? 'magnitude unknown' : `M ${p.magnitude}`}`;
+        selectedMarker=globalThis.L.circleMarker([lat,lon],{radius:10,color:'#ffffff',weight:3,fillColor:'#67d7eb',fillOpacity:0.6,bubblingMouseEvents:false}).addTo(map).bindPopup(content?.node || fallback, UI.popupOptions());
+        if(content) selectedMarker.on('click',content.load);
+        dialog.close();UI.showOnMap(map,move,selectedMarker);content?.load();
+        document.dispatchEvent?.(new CustomEvent('hazardselected',{detail:{label}}));
+      } : null;
+      const el=text(parent,'article','','warning-card flood-card');
+      text(el,'span','Earthquake','warning-badge');
       text(el,'h3',`${p.magnitude == null ? 'Magnitude unknown' : `M ${p.magnitude}${p.magnitudeType ? ` ${p.magnitudeType}` : ''}`} · ${p.place || 'Location description unavailable'}`);
+      UI.cardActions(el,{onShowMap:showHere,link:{label:'USGS event details',url:p.url}});
       text(el,'p',`Occurred ${UI.date(event.observedAt)} · updated ${UI.date(event.updatedAt)}`);
       text(el,'p',`Depth ${UI.depth(p.depthKm)} · ${p.status} · reporting network ${p.network || 'not supplied'}`);
       text(el,'p',`Source event ID: ${event.id}`);
-      const link=text(el,'a','USGS event details ↗');link.href=p.url;link.target='_blank';link.rel='noopener noreferrer';
-      if (map && !historyView) {
-        const button=text(el,'button','Show on map','mini-button');button.type='button';
-        button.addEventListener('click',()=> {
-          document.dispatchEvent?.(new Event('clearselectedhazard'));
-          clearMarker(); const [lon,lat]=event.geometry.coordinates;
-          const label=`${p.magnitude == null ? 'Earthquake' : `M ${p.magnitude}`} · ${p.place || 'location description unavailable'}`;
-          // Reuse the earthquake layer's point when it is shown, so one event never has two markers.
-          if (mapHazards?.openQuake?.(event.id)) { map.setView([lat,lon],Math.max(5,map.getZoom()));dialog.close();document.dispatchEvent?.(new CustomEvent('hazardselected',{detail:{label}}));return; }
-          const content=mapHazards?.popup(event,controller.state.health,controller.state.cached);
-          const fallback=document.createElement('div');fallback.textContent=`USGS earthquake · ${p.place || 'Location description unavailable'} · ${p.magnitude == null ? 'magnitude unknown' : `M ${p.magnitude}`}`;
-          selectedMarker=globalThis.L.circleMarker([lat,lon],{radius:10,color:'#ffffff',weight:3,fillColor:'#67d7eb',fillOpacity:0.6,bubblingMouseEvents:false}).addTo(map).bindPopup(content?.node || fallback, {className:'hazard-popup flood-map-popup',maxWidth:380,minWidth:280});
-          if(content) selectedMarker.on('click',content.load);
-          map.setView([lat,lon],Math.max(5,map.getZoom()));selectedMarker.openPopup();dialog.close();content?.load();
-          document.dispatchEvent?.(new CustomEvent('hazardselected',{detail:{label}}));
-        });
-      }
     }
     function render() {
       if (!dialog.open) return;const s=controller.state;

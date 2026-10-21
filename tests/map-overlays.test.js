@@ -52,8 +52,9 @@ test('quake popup hides actions until availability is known, and keeps missing p
  try {
   await import('../client/map-hazards.js');let report;
   const popup=globalThis.StormtraceMapHazards.quakePopup({domainPayload:{magnitude:1.8,place:'Karluk'}},callback=>{report=callback;});
-  const button=popup.node.children[1];assert.equal(button.hidden,true);
-  popup.load();report('No USGS ShakeMap available','unavailable');assert.equal(button.hidden,true);assert.match(popup.node.children[2].textContent,/No USGS ShakeMap/);
+  const button=popup.node.children.find(n=>n.textContent==='Reload estimated shaking');assert.equal(button.hidden,true);
+  const status=()=>popup.node.children[popup.node.children.indexOf(button)-1];
+  popup.load();report('No USGS ShakeMap available','unavailable');assert.equal(button.hidden,true);assert.match(status().textContent,/No USGS ShakeMap/);
   popup.load();report('Estimated shaking loaded','available');assert.equal(button.hidden,false);
   button.click();report('Loading','loading');assert.equal(button.hidden,true);
   report('Retrieval failed','error');assert.equal(button.hidden,false);assert.equal(button.textContent,'Retry shaking check');

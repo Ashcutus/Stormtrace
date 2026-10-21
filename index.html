@@ -213,10 +213,12 @@
               </optgroup>
             </select>
             <p id="radarStatus" role="status">Not checked yet.</p>
+            <button id="radarSetup" type="button" class="wide-button" hidden>Set up UK and Europe radar</button>
             <label for="radarTimeline">Observed frames · past 3 hours</label>
             <input id="radarTimeline" type="range" min="0" max="0" value="0" step="1" disabled aria-describedby="radarFrameTime" />
             <strong id="radarFrameTime" class="radar-frame-time">Frames appear after the first check.</strong>
             <div class="radar-actions">
+              <button id="radarPlay" type="button" class="mini-button" aria-pressed="false" disabled>Play</button>
               <button id="radarLatest" type="button" class="mini-button">Latest frame</button>
               <button id="radarViewRegion" type="button" class="mini-button">View selected region</button>
             </div>
@@ -254,7 +256,7 @@
           </details>
 
           <section class="panel proximity-panel" aria-labelledby="nearbyTitle">
-            <h2 id="nearbyTitle">Nearby lightning</h2>
+            <h2 id="nearbyTitle">Alerts near you</h2>
 
             <section class="location-group" id="locationGroup" tabindex="-1" aria-labelledby="locationTitle">
               <h3 id="locationTitle">Your location</h3>
@@ -292,12 +294,24 @@
             </div>
 
             <label class="alert-row">
-              <span><strong>Desktop alerts</strong><small id="notificationState">Off</small></span>
+              <span><strong>Desktop alerts</strong><small id="notificationState">Off</small><small>Lightning, plus anything ticked below</small></span>
               <span class="switch">
                 <input id="notificationToggle" type="checkbox" role="switch" />
                 <span class="switch-track"><span class="switch-thumb"></span></span>
               </span>
             </label>
+
+            <fieldset class="hazard-alert-options" aria-describedby="hazardAlertStatus">
+              <legend>Also alert me about</legend>
+              <label class="check-row"><input id="alertWarnings" type="checkbox" /><span><strong>Amber and red weather warnings</strong><small>Met Office · UK</small></span></label>
+              <label class="check-row"><input id="alertFloods" type="checkbox" /><span><strong>Flood warnings</strong><small>Environment Agency · England</small></span></label>
+              <label class="check-row"><input id="alertQuakes" type="checkbox" /><span><strong>Earthquakes</strong><small>USGS · worldwide</small></span></label>
+              <div class="quake-alert-options">
+                <label>Magnitude <select id="alertQuakeMagnitude"><option value="4">4+</option><option value="4.5">4.5+</option><option value="5" selected>5+</option><option value="6">6+</option></select></label>
+                <label>within <select id="alertQuakeRadius"><option value="100">100 mi</option><option value="300" selected>300 mi</option><option value="500">500 mi</option><option value="1000">1,000 mi</option></select></label>
+              </div>
+              <p id="hazardAlertStatus" class="permission-note" role="status"></p>
+            </fieldset>
 
             <div class="proximity-stats">
               <div><span>In radius · last hour</span><strong id="nearbyCount">—</strong></div>
@@ -370,6 +384,7 @@
         </header>
         <div class="hazard-dialog-content warning-map-content" tabindex="0" role="region" aria-label="Warning map and source guidance">
           <div id="warningAreaMap" aria-label="Dedicated UK weather warning areas"></div>
+          <aside class="warning-map-side" tabindex="0" aria-label="Warning areas and guidance">
           <div class="severity-key" aria-label="Met Office severity">
             <span class="severity-chip" data-level="YELLOW">Yellow</span>
             <span class="severity-chip" data-level="AMBER">Amber</span>
@@ -379,6 +394,7 @@
           <div id="warningMapList" aria-label="Select a warning area"></div>
           <p>Future warnings are included; land outside UK coverage is not assessed. No other meteorological overlays are shown.</p>
           <p>Time delays between this website and the metoffice.gov.uk domain are possible. For the most up-to-date awareness information as published by the Met Office, please refer to <a href="https://www.metoffice.gov.uk/" target="_blank" rel="noopener noreferrer">https://www.metoffice.gov.uk/</a></p>
+          </aside>
         </div>
       </section>
     </dialog>
@@ -557,6 +573,23 @@
       </form>
     </dialog>
 
+    <dialog id="welcomeDialog" aria-labelledby="welcomeTitle">
+      <form method="dialog" class="dialog-card welcome-dialog-card">
+        <div class="dialog-title-row"><div><span class="eyebrow">Welcome</span><h2 id="welcomeTitle">Let's get Stormtrace watching for you</h2></div><button value="close" class="mini-button">Close</button></div>
+        <ol class="welcome-steps">
+          <li><strong>Set your location.</strong> Stormtrace measures nearby lightning and hazards from it. It stays on this computer.</li>
+          <li><strong>Choose your alerts.</strong> Pick an alert radius, turn on Desktop alerts, and tick any hazards you'd like to hear about.</li>
+          <li><strong>Explore.</strong> Try the Hazards buttons and Radar, or press <kbd>?</kbd> for keyboard shortcuts.</li>
+        </ol>
+        <p>Stormtrace is for keeping an eye on the weather. Always follow official guidance.</p>
+        <div class="welcome-actions">
+          <button type="button" class="wide-button" id="welcomeLocate">Locate me</button>
+          <button type="button" class="wide-button" id="welcomePick">Pick on map</button>
+          <button value="close" class="mini-button">Explore first</button>
+        </div>
+      </form>
+    </dialog>
+
     <dialog id="shortcutsDialog" aria-labelledby="shortcutsTitle">
       <form method="dialog" class="dialog-card shortcuts-dialog-card">
         <div class="dialog-title-row"><h2 id="shortcutsTitle">Keyboard shortcuts</h2><button value="close" class="mini-button">Close</button></div>
@@ -644,8 +677,9 @@
     </dialog>
 
     <script src="/vendor/leaflet/leaflet.js"></script>
-    <script src="/vendor/maplibre/maplibre-gl.js"></script>
-    <script src="/vendor/maplibre/leaflet-maplibre-gl.js"></script>
+    <!-- MapLibre 6 is an ES module; the deferred bridge and app run after it, in order. -->
+    <script type="module" src="/client/maplibre-loader.js"></script>
+    <script defer src="/vendor/maplibre/leaflet-maplibre-gl.js"></script>
     <script src="/core/model.js"></script>
     <script src="/core/geometry.js"></script>
     <script src="/core/history.js"></script>
@@ -667,6 +701,7 @@
     <script src="/client/radar.js"></script>
     <script src="/platform/diagnostics-browser.js"></script>
     <script src="/client/map-hazards.js"></script>
+    <script src="/client/hazard-alerts.js"></script>
     <script src="/app.js" defer></script>
 </body>
 </html>

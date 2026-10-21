@@ -170,6 +170,10 @@
     themeSource: persisted.themeSource === "custom" ? "custom" : "system",
     readingScale: readRangeSetting(persisted.readingScale,1,1,1.4),
     timeZone: persisted.timeZone === "system" ? "system" : "uk",
+    hazardAlerts: globalThis.StormtraceHazardAlerts?.readSettings(persisted.hazardAlerts) || {},
+    lastNearbyStrikeAt: 0,
+    // A brand-new install has no saved settings; existing users never see the welcome.
+    welcomeSeen: persisted.welcomeSeen === true || Object.keys(persisted).length > 0,
     mapBrightness: readRangeSetting(persisted.mapBrightness, 100, 70, 140),
     mapOpacity: readRangeSetting(persisted.mapOpacity, 100, 55, 100),
     mapShade: readRangeSetting(persisted.mapShade, 10, 0, 60),
@@ -180,6 +184,10 @@
     themeSignature: "",
     monitoringPaused: false,
   };
+
+  // Declared before init() runs so start-up code can never reach them uninitialized.
+  let hazardAlerts = null;
+  let barSignature = "", barPublishedAt = 0;
 
   init();
 
@@ -217,8 +225,10 @@
     }
 
     initMap();
+    if (!state.welcomeSeen && !isDemo) $('#welcomeDialog')?.showModal?.();
     globalThis.StormtraceRadar.mountRadar({ map: state.map, demo: isDemo });
     mapHazards = globalThis.StormtraceMapHazards.mount({ map: state.map, demo: isDemo });
+    startHazardAlerts();
     globalThis.StormtraceEarthquakes.mountEarthquakes({ map: state.map, demo: isDemo, mapHazards });
     await startReceiver();
   }
@@ -321,17 +331,31 @@
       preferCanvas: true,
     });
 
+    const useRasterMap = () => {
+      // Software-rendered WebKit installations may not support WebGL2.
+      if (state.tileLayer) state.map.removeLayer(state.tileLayer);
+      state.tileLayer = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19, crossOrigin: true,
+      }).addTo(state.map);
+      applyMapAppearance();
+      toast("Standard map loaded", "The detailed map needs WebGL2, so standard map tiles are shown. Search results still use English.");
+    };
     try {
+      // MapLibre 6 needs WebGL2 and reports its absence as an event, not an exception.
+      if (!UI.vectorMapAvailable()) throw new Error("vector map unavailable");
       state.tileLayer = L.maplibreGL({
         style: "/client/map-style.json",
         attributionControl: false,
       }).addTo(state.map);
+      // Safety net: a WebGL failure or a map that never loads (for example a
+      // blocked module worker) falls back to raster tiles instead of a blank map.
+      const vector = state.tileLayer, gl = vector.getMaplibreMap?.();
+      let loaded = false;
+      gl?.once?.("load", () => { loaded = true; });
+      gl?.on?.("error", (event) => { if (!loaded && /webgl|context/i.test(String(event?.error?.message || event?.message || ""))) { if (state.tileLayer === vector) useRasterMap(); } });
+      setTimeout(() => { if (!loaded && state.tileLayer === vector) useRasterMap(); }, 30000);
     } catch (error) {
-      // Software-rendered WebKit installations may not support WebGL.
-      state.tileLayer = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        maxZoom: 19, crossOrigin: true,
-      }).addTo(state.map);
-      toast("Standard map loaded", "English labels require WebGL. Search results still use English.");
+      useRasterMap();
     }
     applyMapAppearance();
 
@@ -349,7 +373,6 @@
     state.map.on("click", setMapLocation);
     // Map overlays sit above Leaflet's popup pane, so keep popups clear of them:
     // collapse Layers while a popup is open and pad auto-panning past the bars.
-    L.Popup.mergeOptions?.({ autoPanPaddingTopLeft: [24, 76], autoPanPaddingBottomRight: [64, 84] });
     state.map.on("popupopen", () => { state.mapPopupOpen = true; const panel = $("#layersPanel"); if (panel) panel.open = false; });
     state.map.on("popupclose", () => { state.mapPopupOpen = false; if (state.pendingLayersOpen) { state.pendingLayersOpen = false; $("#layersPanel").open = true; } });
     updateMapReadout();
@@ -372,6 +395,21 @@
     $('#radarButton')?.addEventListener('change',()=>$('#radarNavButton')?.setAttribute('aria-pressed',String(Boolean($('#radarButton').checked))));
     $$("[data-pane-target]").forEach((button) => button.addEventListener("click", () => setPane(button.dataset.paneTarget)));
     $('#shortcutsButton')?.addEventListener('click',()=>els.shortcutsDialog?.showModal());
+    const welcome = $('#welcomeDialog');
+    welcome?.addEventListener('close', () => { if (!state.welcomeSeen) { state.welcomeSeen = true; saveSettings(); } });
+    $('#welcomeLocate')?.addEventListener('click', () => { welcome.close(); requestLocation(); revealLocationFeedback(); });
+    $('#welcomePick')?.addEventListener('click', () => { welcome.close(); if (!choosingMapLocation) toggleMapLocation(); });
+    const hazardControls = { "#alertWarnings": "warnings", "#alertFloods": "floods", "#alertQuakes": "quakes" };
+    for (const [id, key] of Object.entries(hazardControls)) {
+      const input = $(id); if (!input) continue;
+      input.checked = Boolean(state.hazardAlerts[key]);
+      input.addEventListener("change", () => { state.hazardAlerts = { ...state.hazardAlerts, [key]: Boolean(input.checked) }; saveSettings(); hazardAlerts?.check(); renderHazardAlerts(); });
+    }
+    for (const [id, key] of [["#alertQuakeMagnitude", "quakeMagnitude"], ["#alertQuakeRadius", "quakeRadiusMiles"]]) {
+      const select = $(id); if (!select) continue;
+      if (state.hazardAlerts[key] != null) select.value = String(state.hazardAlerts[key]);
+      select.addEventListener("change", () => { state.hazardAlerts = globalThis.StormtraceHazardAlerts?.readSettings({ ...state.hazardAlerts, [key]: Number(select.value) }) || state.hazardAlerts; saveSettings(); hazardAlerts?.check(); });
+    }
     els.exitButton.addEventListener("click", () => {
       els.exitButton.disabled = true;
       postNativeAction("quit");
@@ -1085,13 +1123,10 @@
         opacity: 1,
       })
       .bindPopup(() => strikePopup(strike), {
-        className: "storm-popup",
+        ...UI.popupOptions({ className: "storm-popup", maxWidth: 280, minWidth: 246 }),
         closeButton: true,
         closeOnClick: false,
         autoClose: true,
-        autoPan: true,
-        autoPanPadding: [24, 84],
-        maxWidth: 280,
       })
       .on("mouseover", () => {
         if (state.selectedStrikeId === strike.id) {
@@ -1378,6 +1413,7 @@
     updateLatestStrike();
     updateProximityStats();
     const locationSaved=saveSettings();
+    hazardAlerts?.check();
     if (recenter) state.map?.flyTo?.([state.userLocation.lat, state.userLocation.lon], 6, { ...UI.flyOptions(1.1) });
     ($("#locationFeedback") || els.permissionNote).textContent = source === "manual"
       ? "Monitoring your manually chosen point. Distance calculations stay local."
@@ -1537,11 +1573,69 @@
     for (let index = start; index < timeline.length; index += 1) {
       const strike = timeline[index];
       const distance = strikeDistance(strike);
-      if (distance <= state.radiusMiles) nearbyCount += 1;
+      if (distance <= state.radiusMiles) { nearbyCount += 1; if (strike.time > state.lastNearbyStrikeAt) state.lastNearbyStrikeAt = strike.time; }
       if (distance < closestDistance) closestDistance = distance;
     }
     els.nearbyCount.textContent = nearbyCount.toLocaleString();
     els.closestStrike.textContent = Number.isFinite(closestDistance) ? formatMiles(closestDistance) : "—";
+    publishBarStatus();
+  }
+
+  // ---- Hazard location alerts and the bar status ----
+  function startHazardAlerts() {
+    if (!globalThis.StormtraceHazardAlerts) return;
+    hazardAlerts ||= globalThis.StormtraceHazardAlerts.create({
+      getLocation: () => state.userLocation, getSettings: () => state.hazardAlerts,
+      notify: deliverHazardAlert, onChange: renderHazardAlerts, demo: isDemo,
+    });
+    hazardAlerts.start();
+  }
+
+  function deliverHazardAlert(match) {
+    if (state.notificationsEnabled && platform.notificationAdapter.permission() === "granted") {
+      const notification = platform.notificationAdapter.show({ title: match.title, body: match.body, icon: "/icon.svg", tag: `stormtrace-${match.kind}` });
+      notification.onclick = () => { window.focus(); notification.close(); };
+    }
+    toast(match.title, match.body);
+    return true;
+  }
+
+  const HAZARD_LABELS = { warning: "Weather warnings", flood: "Flood warnings", earthquake: "Earthquakes" };
+  function renderHazardAlerts(alertState = hazardAlerts?.state) {
+    const node = $("#hazardAlertStatus");
+    if (!node || !alertState) return;
+    const enabled = state.hazardAlerts.warnings || state.hazardAlerts.floods || state.hazardAlerts.quakes;
+    if (!enabled) node.textContent = "";
+    else if (isDemo) node.textContent = "Hazard alerts are off in demo mode.";
+    else if (!state.userLocation) node.textContent = "Set your location to check hazards there.";
+    else if (alertState.checking && !Object.keys(alertState.status).length) node.textContent = "Checking official sources…";
+    else {
+      const parts = Object.entries(alertState.status).map(([kind, status]) => {
+        const count = alertState.matches.filter((m) => m.kind === kind).length;
+        if (status.error && !status.checkedAt) return `${HAZARD_LABELS[kind]}: check failed, retrying`;
+        return `${HAZARD_LABELS[kind]}: ${count ? `${count} affecting you` : "none affecting you"}${status.error ? " (last check failed)" : ""}`;
+      });
+      const checked = Math.max(0, ...Object.values(alertState.status).map((s) => s.checkedAt || 0));
+      node.textContent = `${parts.join(" · ")}.${checked ? ` Checked ${UI.date(checked)}.` : ""}${state.notificationsEnabled ? "" : " Turn on Desktop alerts for notifications."}`;
+    }
+    publishBarStatus();
+  }
+
+  // The bar shows the most urgent current alert: nearby lightning first, then hazards.
+  function currentBarAlert() {
+    if (!state.userLocation) return null;
+    if (Date.now() - state.lastNearbyStrikeAt < 10 * 60 * 1000) return { kind: "lightning", title: `Lightning within ${state.radiusMiles} miles` };
+    const match = hazardAlerts?.state.matches[0];
+    return match ? { kind: match.kind, title: match.title } : null;
+  }
+
+  function publishBarStatus() {
+    if (isDemo) return;
+    const alert = currentBarAlert(), signature = JSON.stringify(alert);
+    // Re-send an active alert before its server-side expiry; send changes at once.
+    if (signature === barSignature && (!alert || Date.now() - barPublishedAt < 2 * 60 * 1000)) return;
+    barSignature = signature; barPublishedAt = Date.now();
+    fetch("/api/bar-status", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ alert: alert ? { ...alert, until: Date.now() + 5 * 60 * 1000 } : null }) }).catch(() => { barSignature = ""; });
   }
 
   function checkProximityAlert(strike) {
@@ -1701,6 +1795,8 @@
       customPalette: state.customPalette,
       readingScale: state.readingScale,
       timeZone: state.timeZone,
+      hazardAlerts: state.hazardAlerts,
+      welcomeSeen: state.welcomeSeen,
       mapBrightness: state.mapBrightness,
       mapOpacity: state.mapOpacity,
       mapShade: state.mapShade,

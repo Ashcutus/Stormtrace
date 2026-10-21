@@ -4,7 +4,7 @@ import { extname, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import core from "./core/index.js";
 import "./providers/lightning.js";
-import { readLocalKey, readLocalSetting, readOmarchyTheme, radarWorker, publicHazardWorker } from "./platform/node.js";
+import { readLocalKey, readLocalSetting, readOmarchyTheme, radarWorker, publicHazardWorker, RadarSetup } from "./platform/node.js";
 
 import { MetOfficeRadarProvider, RadarResourceProvider } from "./providers/metoffice-radar.js";
 import { MapOverlayProvider } from "./providers/map-overlays.js";
@@ -14,9 +14,11 @@ import { EnglandFloodProvider } from "./providers/ea-floods.js";
 import { MetOfficeWarningsProvider } from "./providers/metoffice-warnings.js";
 
 import { sanitizeDiagnostics } from "./platform/diagnostics.js";
+import { sanitizeBarStatus, currentBarAlert } from "./platform/bar-status.js";
 const mapOverlays = new MapOverlayProvider();
 const diagnosticsEnabled = process.env.STORMTRACE_DIAGNOSTICS === "1";
 let diagnosticsSample = null;
+let barAlert = null;
 const ROOT = fileURLToPath(new URL(".", import.meta.url));
 const HOST = process.env.STORMTRACE_HOST || "127.0.0.1";
 const PORT = Number(process.env.STORMTRACE_PORT || 4177);
@@ -30,14 +32,17 @@ const contentTypes = {
   ".html": "text/html; charset=utf-8",
   ".css": "text/css; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
+  ".mjs": "text/javascript; charset=utf-8",
   ".json": "application/json; charset=utf-8",
   ".svg": "image/svg+xml",
   ".webmanifest": "application/manifest+json; charset=utf-8",
 };
 
-export function createStormtraceServer({ hazardProviders = Object.fromEntries(PUBLIC_HAZARD_IDS.map((id) => [id, new PublicHazardProvider({ id, worker: previous => publicHazardWorker(ROOT, id, previous) })])), publicRadarProviders = Object.fromEntries(['opera-radar', 'noaa-conus', 'noaa-alaska', 'noaa-hawaii', 'noaa-carib', 'noaa-guam', 'noaa-ptype-conus', 'noaa-ptype-alaska', 'noaa-ptype-hawaii', 'noaa-ptype-carib', 'noaa-ptype-guam'].map((source) => [source, new RadarResourceProvider({ id: source.startsWith('noaa-') ? 'noaa-radar' : source, source, worker: (operation, key) => radarWorker(ROOT, operation, key, source) })])), earthquakesProvider = new USGSEarthquakeProvider(), floodsProvider = new EnglandFloodProvider(), radarProvider = new MetOfficeRadarProvider({ worker: (operation, key) => radarWorker(ROOT, operation, key) }), warningsProvider = new MetOfficeWarningsProvider({ apiKey: readLocalSetting(ROOT, "METOFFICE_WARNINGS_API_KEY"), log: (entry) => console.info(JSON.stringify(entry)) }) } = {}) {
+export function createStormtraceServer({ hazardProviders = Object.fromEntries(PUBLIC_HAZARD_IDS.map((id) => [id, new PublicHazardProvider({ id, worker: previous => publicHazardWorker(ROOT, id, previous) })])), publicRadarProviders = Object.fromEntries(['opera-radar', 'noaa-conus', 'noaa-alaska', 'noaa-hawaii', 'noaa-carib', 'noaa-guam', 'noaa-ptype-conus', 'noaa-ptype-alaska', 'noaa-ptype-hawaii', 'noaa-ptype-carib', 'noaa-ptype-guam'].map((source) => [source, new RadarResourceProvider({ id: source.startsWith('noaa-') ? 'noaa-radar' : source, source, worker: (operation, key) => radarWorker(ROOT, operation, key, source) })])), earthquakesProvider = new USGSEarthquakeProvider(), floodsProvider = new EnglandFloodProvider(), radarProvider = new MetOfficeRadarProvider({ worker: (operation, key) => radarWorker(ROOT, operation, key) }), warningsProvider = new MetOfficeWarningsProvider({ apiKey: readLocalSetting(ROOT, "METOFFICE_WARNINGS_API_KEY"), log: (entry) => console.info(JSON.stringify(entry)) }), radarSetup = null } = {}) {
+  // A finished setup clears radar caches so the new decoder is used straight away.
+  radarSetup ||= new RadarSetup({ root: ROOT, onDone: () => [radarProvider, ...Object.values(publicRadarProviders)].forEach((provider) => provider.invalidate?.()) });
   return createServer((request, response) => {
-    handleRequest(request, response, warningsProvider, radarProvider, floodsProvider, earthquakesProvider, publicRadarProviders, hazardProviders).catch((error) => {
+    handleRequest(request, response, warningsProvider, radarProvider, floodsProvider, earthquakesProvider, publicRadarProviders, hazardProviders, radarSetup).catch((error) => {
       console.error(`Request failed: ${error.message}`);
       if (!response.headersSent) json(response, 500, { error: "Internal server error" });
       else response.destroy();
@@ -45,7 +50,7 @@ export function createStormtraceServer({ hazardProviders = Object.fromEntries(PU
   });
 }
 
-async function handleRequest(request, response, warningsProvider, radarProvider, floodsProvider, earthquakesProvider, publicRadarProviders, hazardProviders) {
+async function handleRequest(request, response, warningsProvider, radarProvider, floodsProvider, earthquakesProvider, publicRadarProviders, hazardProviders, radarSetup) {
   let url;
   try {
     url = new URL(request.url || "/", `http://${request.headers.host || `${HOST}:${PORT}`}`);
@@ -64,6 +69,17 @@ async function handleRequest(request, response, warningsProvider, radarProvider,
     }
     return json(response, 200, { enabled: diagnosticsEnabled, sample: diagnosticsEnabled ? diagnosticsSample : null });
   }
+  if (url.pathname === "/api/bar-status") {
+    if (request.method !== "POST") return json(response, 405, {});
+    // Same-origin window only; a cross-site page always sends a foreign Origin.
+    if (request.headers.origin && request.headers.origin !== `http://${request.headers.host}`) return json(response, 403, {});
+    if (!String(request.headers["content-type"] || "").startsWith("application/json")) return json(response, 415, {});
+    let body = "";
+    for await (const chunk of request) { body += chunk; if (body.length > 2048) return json(response, 413, {}); }
+    try { barAlert = sanitizeBarStatus(JSON.parse(body)); }
+    catch { return json(response, 400, {}); }
+    return json(response, 200, { alert: currentBarAlert(barAlert) });
+  }
   if (url.pathname === "/api/health") {
     return json(response, 200, {
       ok: true,
@@ -72,6 +88,7 @@ async function handleRequest(request, response, warningsProvider, radarProvider,
       root: ROOT,
       pid: process.pid,
       historyProvider: Boolean(API_KEY),
+      alert: currentBarAlert(barAlert),
     });
   }
 
@@ -83,6 +100,14 @@ async function handleRequest(request, response, warningsProvider, radarProvider,
     return proxyHistory(url, response);
   }
 
+  if (url.pathname === "/api/radar/setup") {
+    if (request.method === "POST") {
+      if (request.headers.origin && request.headers.origin !== `http://${request.headers.host}`) return json(response, 403, {});
+      if (!String(request.headers["content-type"] || "").startsWith("application/json")) return json(response, 415, {});
+      return json(response, 202, radarSetup.start());
+    }
+    return json(response, 200, radarSetup.snapshot());
+  }
   if (url.pathname === "/api/radar" || url.pathname === "/api/radar/frame") {
     const source = url.searchParams.get("source") || "metoffice-radar";
     const selected = source === "metoffice-radar" ? radarProvider : Object.hasOwn(publicRadarProviders, source) ? publicRadarProviders[source] : null;

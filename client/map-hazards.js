@@ -11,20 +11,22 @@
       button.textContent = state === 'error' ? 'Retry shaking check' : 'Reload estimated shaking';
     });
     button.addEventListener('click', load);
-    node.append(heading, button, status);
+    // Same order as every hazard popup: badge, heading, details, source, link, Close.
     UI.text(node,'span','Earthquake','flood-map-badge');
+    node.append(heading);
     if(event.observedAt!=null)UI.text(node,'p',`Occurred ${UI.date(event.observedAt)}`,'flood-map-time');
     if(event.updatedAt!=null)UI.text(node,'p',`Source updated ${UI.date(event.updatedAt)}`,'flood-map-time');
     if(Number.isFinite(event.domainPayload.depthKm))UI.text(node,'p',`Depth ${UI.depth(event.domainPayload.depthKm)} · ${event.domainPayload.status || 'Review status not supplied'}`);
+    node.append(status, button);
     UI.text(node,'p','Estimated shaking is a model product; missing contours do not establish no shaking.','flood-map-note');
-    node.updateHealth=UI.popupHealth(node,health,cached);
-    const close=UI.text(node,'button','Close','mini-button');close.type='button';close.addEventListener('click',()=>document.dispatchEvent?.(new Event('closehazardpopup')));
     const provider = document.createElement('strong'); provider.className = 'flood-map-provider'; provider.textContent = StormtraceCore.getSource('usgs').authority;
     const attribution = document.createElement('p'); attribution.className = 'flood-map-attribution'; attribution.textContent = StormtraceCore.getSource('usgs').attribution;
     node.append(provider, attribution);
+    node.updateHealth=UI.popupHealth(node,health,cached);
     if (event.domainPayload.url) {
       const link = document.createElement('a'); link.className = 'flood-map-link'; link.textContent = 'View official USGS event ↗'; link.href = event.domainPayload.url; link.target = '_blank'; link.rel = 'noopener noreferrer'; node.append(link);
     }
+    const close=UI.text(node,'button','Close','mini-button');close.type='button';close.addEventListener('click',()=>document.dispatchEvent?.(new Event('closehazardpopup')));
     return { node, load };
   }
   function floodPopup(event, health = {}, cached = false) {
@@ -68,7 +70,7 @@
         if (token !== impactGeneration) return;
         for (const f of result.features) {
           if (!StormtraceCore.normalizeGeometry(f.geometry) || !Number.isFinite(f.intensity)) throw new Error('invalid');
-          L.geoJSON(StormtraceCore.geometryFeature(f.geometry), { bubblingMouseEvents: false, style: { color: f.intensity >= 6 ? '#ff715b' : f.intensity >= 4 ? '#ffe36b' : '#67d7eb', weight: 2, opacity: .9 } }).bindPopup((()=>{const card=document.createElement('article');card.className='flood-map-card quake-map-card';UI.text(card,'span','Estimated shaking','flood-map-badge');UI.text(card,'h3',`USGS shaking · MMI ${f.intensity}`,'flood-map-title');UI.text(card,'p',`Source updated ${UI.date(f.provenance.updatedAt)}`,'flood-map-time');UI.text(card,'p','Modelled intensity contour, not an observed boundary or a felt radius.','flood-map-note');UI.text(card,'p',StormtraceCore.getSource('usgs').attribution,'flood-map-attribution');UI.popupHealth(card,{lastSuccessfulFetch:f.provenance.fetchedAt});const link=UI.text(card,'a','Open official USGS event ↗','flood-map-link');link.href=event.domainPayload.url;link.target='_blank';link.rel='noopener noreferrer';const close=UI.text(card,'button','Close','mini-button');close.type='button';close.addEventListener('click',()=>map.closePopup?.());return card;})(),{className:'hazard-popup flood-map-popup',maxWidth:380,minWidth:280}).addTo(shaking);
+          L.geoJSON(StormtraceCore.geometryFeature(f.geometry), { bubblingMouseEvents: false, style: { color: f.intensity >= 6 ? '#ff715b' : f.intensity >= 4 ? '#ffe36b' : '#67d7eb', weight: 2, opacity: .9 } }).bindPopup((()=>{const card=document.createElement('article');card.className='flood-map-card quake-map-card';UI.text(card,'span','Estimated shaking','flood-map-badge');UI.text(card,'h3',`USGS shaking · MMI ${f.intensity}`,'flood-map-title');UI.text(card,'p',`Source updated ${UI.date(f.provenance.updatedAt)}`,'flood-map-time');UI.text(card,'p','Modelled intensity contour, not an observed boundary or a felt radius.','flood-map-note');UI.text(card,'p',StormtraceCore.getSource('usgs').attribution,'flood-map-attribution');UI.popupHealth(card,{lastSuccessfulFetch:f.provenance.fetchedAt});const link=UI.text(card,'a','Open official USGS event ↗','flood-map-link');link.href=event.domainPayload.url;link.target='_blank';link.rel='noopener noreferrer';const close=UI.text(card,'button','Close','mini-button');close.type='button';close.addEventListener('click',()=>map.closePopup?.());return card;})(),UI.popupOptions()).addTo(shaking);
         }
         status(result.available ? 'USGS estimated shaking contours · MMI (not a felt radius).' : 'No USGS ShakeMap available for this event; felt extent unknown.', result.available ? 'available' : 'unavailable');
       } catch { if (token === impactGeneration) { shaking.clearLayers(); status('Shaking retrieval failed; availability unknown.', 'error'); } }
@@ -95,7 +97,7 @@
           }
           if (token !== generation) return;
           floods.clearLayers();floodPopups.length=0;
-          for (const { event, feature } of prepared) L.geoJSON(StormtraceCore.geometryFeature(feature.geometry), { bubblingMouseEvents: false, style: { color: event.domainPayload.level <= 2 ? '#ff715b' : '#ad79ff', weight: 2, fillOpacity: .13 } }).bindPopup((()=>{const node=floodPopup(event,floodHealth);floodPopups.push(node);return node;})(), { className: 'hazard-popup flood-map-popup', maxWidth: 380, minWidth: 280 }).addTo(floods);
+          for (const { event, feature } of prepared) L.geoJSON(StormtraceCore.geometryFeature(feature.geometry), { bubblingMouseEvents: false, style: { color: event.domainPayload.level <= 2 ? '#ff715b' : '#ad79ff', weight: 2, fillOpacity: .13 } }).bindPopup((()=>{const node=floodPopup(event,floodHealth);floodPopups.push(node);return node;})(), UI.popupOptions()).addTo(floods);
           messages.push(`Floods: ${selected.length-missing} of ${active.length} England warning areas shown${missing || active.length>100 ? ' (incomplete)' : ''}.`);
         } catch { floodHealth={...floodHealth,lastError:{code:'network'}};for(const node of floodPopups)node.updateHealth?.(floodHealth,true);messages.push('Flood areas could not be retrieved; previous areas kept (cached).'); }
       }
@@ -108,7 +110,7 @@
             const geometry = StormtraceCore.normalizeGeometry(event.geometry); if (geometry?.type !== 'Point') continue;
             const [lon,lat] = geometry.coordinates;
             const content = quakePopup(event, (report) => impact(event, report),quakeHealth);quakePopups.push(content.node);
-            const marker = L.circleMarker([lat,lon], { bubblingMouseEvents: false, radius: Math.max(4, Math.min(14, 3+(event.domainPayload.magnitude || 0))), color: '#67d7eb', weight: 1, fillOpacity: .6 }).bindPopup(content.node, { className: 'hazard-popup flood-map-popup', maxWidth: 380, minWidth: 280 }).on('click', content.load).addTo(quakes);
+            const marker = L.circleMarker([lat,lon], { bubblingMouseEvents: false, radius: Math.max(4, Math.min(14, 3+(event.domainPayload.magnitude || 0))), color: '#67d7eb', weight: 1, fillOpacity: .6 }).bindPopup(content.node, UI.popupOptions()).on('click', content.load).addTo(quakes);
             quakeMarkers.set(event.id, { marker, load: content.load });
           }
           messages.push(`Earthquakes: ${records.length} of ${batch.records.length} in the past 24 hours. Select a point for estimated shaking.`);
@@ -135,17 +137,16 @@
         const valid = result.features.filter((feature) => StormtraceCore.normalizeGeometry(feature.geometry));
         if (!valid.length) { $('mapHazardStatus').textContent = 'No published area outline for this warning; use the GOV.UK link.'; return; }
         const popupNode = floodPopup(event, health, cached);
-        const shapes = valid.map((feature) => L.geoJSON(StormtraceCore.geometryFeature(feature.geometry), { bubblingMouseEvents: false, style: { color: '#ffffff', weight: 3, fillColor: event.domainPayload.level <= 2 ? '#ff715b' : '#ad79ff', fillOpacity: .25 } }).bindPopup(popupNode, { className: 'hazard-popup flood-map-popup', maxWidth: 380, minWidth: 280 }).addTo(selected));
+        const shapes = valid.map((feature) => L.geoJSON(StormtraceCore.geometryFeature(feature.geometry), { bubblingMouseEvents: false, style: { color: '#ffffff', weight: 3, fillColor: event.domainPayload.level <= 2 ? '#ff715b' : '#ad79ff', fillOpacity: .25 } }).bindPopup(popupNode, UI.popupOptions()).addTo(selected));
         const bounds = shapes.reduce((all, shape) => all ? all.extend(shape.getBounds()) : shape.getBounds(), null);
-        if (bounds) map.fitBounds(bounds, { padding: [30, 30], maxZoom: 11, ...UI.flyOptions(0.8) });
-        shapes[0].openPopup();
+        UI.showOnMap(map, (options) => bounds && map.fitBounds(bounds, { padding: [30, 30], maxZoom: 11, ...options }), shapes[0]);
         $('mapHazardStatus').textContent = 'Selected flood warning area shown. Clear it from Layers.';
         document.dispatchEvent?.(new CustomEvent('hazardselected', { detail: { label: event.domainPayload.headline } }));
       } catch { if (token === selectionGeneration) $('mapHazardStatus').textContent = 'The selected flood area could not be retrieved; use the GOV.UK link.'; }
     }
     return {
       showFlood,
-      openQuake: (id) => { const entry = quakeToggle.checked ? quakeMarkers.get(id) : null; if (!entry) return false; entry.marker.openPopup(); entry.load(); return true; },
+      openQuake: (id, move = () => {}) => { const entry = quakeToggle.checked ? quakeMarkers.get(id) : null; if (!entry) return false; UI.showOnMap(map, move, entry.marker); entry.load(); return true; },
       popup: (event,health,cached) => quakePopup(event, report => impact(event, report),health,cached),
       clear: () => { impactGeneration++; shaking.clearLayers(); $('mapShakingStatus').textContent = ''; }
     };

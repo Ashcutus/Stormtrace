@@ -35,14 +35,11 @@
     function card(parent, event, historyView = false) {
       const p = event.domainPayload, el = text(parent, 'article', '', 'warning-card flood-card');
       text(el, 'strong', p.classification, 'warning-badge'); text(el, 'h3', p.headline);
+      UI.cardActions(el, { onShowMap: showOnMap && !historyView ? () => { dialog.close(); showOnMap(event, controller.state.health, controller.state.cached); } : null,
+        link: { label: 'Check this area on GOV.UK', url: `https://check-for-flooding.service.gov.uk/target-area/${encodeURIComponent(p.areaId)}` } });
       text(el, 'p', [p.county, p.riverOrSea].filter(Boolean).join(' · '));
       text(el, 'p', p.description, 'warning-text');
       for (const [key, label] of [['reviewed','Last reviewed'],['messageChanged','Message changed'],['severityChanged','Severity changed']]) if (p.sourceTimes[key]) text(el, 'p', `${label}: ${p.sourceTimes[key]} (source time${/(?:Z|[+-]\d\d:\d\d)$/.test(p.sourceTimes[key]) ? '' : '; timezone not supplied'})`);
-      const link = text(el, 'a', 'Check this area on GOV.UK ↗'); link.href = `https://check-for-flooding.service.gov.uk/target-area/${encodeURIComponent(p.areaId)}`; link.target = '_blank'; link.rel = 'noopener noreferrer';
-      if (showOnMap && !historyView) {
-        const button = text(el, 'button', 'Show on map', 'mini-button'); button.type = 'button';
-        button.addEventListener('click', () => { dialog.close(); showOnMap(event, controller.state.health, controller.state.cached); });
-      }
     }
     function render() {
       if (!dialog.open) return;

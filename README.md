@@ -43,11 +43,15 @@ New strikes appear within moments, coloured by age: bright yellow for the last f
 
 Set your location once, choose an alert radius between 5 and 50 miles, and turn on **Desktop alerts**. Stormtrace will let you know when lightning strikes inside that circle, at most once every two minutes. The sidebar keeps a running count and shows how far away the closest strike was.
 
-![The Nearby lightning panel with an alert radius drawn around a monitoring point](docs/screenshots/activity-monitoring.png)
+You can also ask to hear about **amber and red Met Office weather warnings** covering your location, **England flood warnings** for your area, and **earthquakes** above a chosen size within a chosen distance. Each alert copies the official information once per update and links you back to the source.
+
+Even with the window closed, the storm icon in your Omarchy bar keeps watch: it turns into a bolt while lightning is inside your radius and shows an alert symbol when a hazard affects you. It's dimmed when Stormtrace isn't running.
+
+![The Alerts near you panel with an alert radius around a monitoring point, desktop alerts and hazard alert options](docs/screenshots/activity-monitoring.png)
 
 ### 🌧️ See the rain
 
-Turn on **Radar** to see the last three hours of rainfall for the UK and Europe, or radar reflectivity for the US, and scrub back through the frames. In the US you can also switch to **precipitation type** to tell rain, snow and hail apart.
+Turn on **Radar** to see the last three hours of rainfall for the UK and Europe, or radar reflectivity for the US. Press **Play** to watch the rain move, or scrub through the frames yourself. In the US you can also switch to **precipitation type** to tell rain, snow and hail apart.
 
 <table>
   <tr>
@@ -70,7 +74,7 @@ The **Hazards** buttons along the top open each view. A small dot on each button
 | **Floods** | Live flood alerts and warnings for England, with links for Wales, Scotland and Northern Ireland | Environment Agency |
 | **Earthquakes** | The past day of earthquakes worldwide, with estimated shaking where USGS publishes it | USGS |
 | **Cyclones** | Active tropical storms in the Atlantic and eastern and central Pacific | NOAA NHC |
-| **Volcanoes** | US volcano alerts and weekly global activity reports | USGS, Smithsonian |
+| **Volcanoes** | US volcano alerts, shown on the map in their official aviation colour, and weekly global activity reports | USGS, Smithsonian |
 | **Tsunami bulletins** | The latest bulletins from the US tsunami warning centres | NOAA |
 | **Space weather** | Current conditions, forecasts and recent alerts | NOAA SWPC |
 
@@ -131,8 +135,8 @@ No `sudo` is needed, and nothing runs at boot. The small local service starts wh
 
 ## Getting started
 
-1. **Set your location.** Click **Set location** in the toolbar (or press `G`). On a wired connection, or if you'd rather not share your position, use **Pick on map** or **Enter coordinates** in the sidebar instead. If only a rough position is available, Stormtrace shows how rough it is and lets you decide.
-2. **Choose your alert radius** and turn on **Desktop alerts**.
+1. **Set your location.** On a new install a short welcome walks you through this. Otherwise click **Set location** in the toolbar (or press `G`). On a wired connection, or if you'd rather not share your position, use **Pick on map** or **Enter coordinates** in the sidebar instead. If only a rough position is available, Stormtrace shows how rough it is and lets you decide.
+2. **Choose your alerts.** Pick a radius, turn on **Desktop alerts**, and tick any hazards you'd like to hear about.
 3. **Explore.** Try the **Hazards** buttons, turn on **Radar**, or press `?` to see every keyboard shortcut.
 
 ### Weather warnings: full details
@@ -147,7 +151,7 @@ Restart Stormtrace afterwards. The [warnings guide](docs/warnings.md#setup) walk
 
 ### Radar: UK and Europe
 
-US radar works out of the box. UK and European rainfall need a small [optional decoder](docs/radar.md#setup), which takes a few commands to set up. No radar account or key is needed.
+US radar works out of the box. UK and European rainfall need a small decoder on your computer: when you first choose them, press **Set up UK and Europe radar** in the radar panel and Stormtrace installs it for you (about 40 MB, a few minutes). No radar account or key is needed. The [radar guide](docs/radar.md#setup) has the manual steps if you prefer.
 
 UK and European frames arrive every 15 minutes (the Met Office can be up to 20 minutes behind), and US frames about every two minutes. US radar shows reflectivity (dBZ) while the UK and Europe show rainfall rate (mm/h), so their colours mean different things. A clear patch can mean dry weather or simply no radar coverage.
 

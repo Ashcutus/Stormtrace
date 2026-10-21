@@ -1,6 +1,7 @@
 /* jshint esversion: 6, -W008, -W030, -W083 */
 // Generated from src/leaflet-maplibre-gl.mjs.
-// Stormtrace patch: synchronize camera and canvas updates during Leaflet movement.
+// Stormtrace patch: synchronize camera and canvas updates during Leaflet movement;
+// use public MapLibre APIs so the bridge works with MapLibre GL JS 6.
 (function(global, factory) {
 	typeof exports === "object" && typeof module !== "undefined" ? factory(exports, require("leaflet"), require("maplibre-gl")) : typeof define === "function" && define.amd ? define([
 		"exports",
@@ -146,7 +147,8 @@
 					zoom
 				};
 			});
-			else {
+			else if (this._glMap.transform) {
+				// MapLibre 5 and earlier: lift latitude limits through the internal transform.
 				var transform = this._glMap.transform;
 				var transformProto = Object.getPrototypeOf(transform);
 				var latRangeDescriptor = Object.getOwnPropertyDescriptor(transformProto, "latRange");
@@ -156,8 +158,8 @@
 				if (transform._helper && transform._helper._latRange) transform._helper._latRange = [-Infinity, Infinity];
 			}
 			this._transformGL(this._glMap);
-			if (this._glMap._canvas.canvas) this._glMap._actualCanvas = this._glMap._canvas.canvas;
-			else this._glMap._actualCanvas = this._glMap._canvas;
+			// MapLibre 6 keeps its canvas private; getCanvas() is the supported accessor.
+			this._glMap._actualCanvas = this._glMap.getCanvas();
 			var canvas = this._glMap._actualCanvas;
 			L.DomUtil.addClass(canvas, "leaflet-image-layer");
 			L.DomUtil.addClass(canvas, "leaflet-zoom-animated");
