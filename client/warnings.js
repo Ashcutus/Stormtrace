@@ -127,10 +127,10 @@
       if (state.configured === false) {
         collection.reset();
         const s=summaries.state;
-        status.textContent = `Public RSS summaries · ${UI.healthMessage(s,summaries.now(),'warning summaries')} Full DataHub details require a free subscription key.`;
+        status.textContent = `Showing public summaries. ${UI.healthMessage(s,summaries.now(),'warning summaries')} Full warning details need a free Met Office key; see the setup link.`;
         refresh.disabled=s.loading||demo;
         $("warningHistory").disabled=true;
-        $("warningStorageStatus").textContent='RSS summaries are not archived here. The feed does not supply geometry or per-warning issue/expiry times. Disappearance does not establish cancellation.';
+        $("warningStorageStatus").textContent='Public summaries are not saved on this device. They do not include warning areas or per-warning issue and expiry times. A summary disappearing does not mean the warning was cancelled.';
         UI.sourceStatus('warningsButton',s);
         const records=s.records.filter(r=>UI.matches(r,collection.filter())).sort((a,b)=>levelRank[a.domainPayload.badge]-levelRank[b.domainPayload.badge]);
         collection.summary?.(records.length,s.records.length);
@@ -138,8 +138,8 @@
           const p=r.domainPayload,card=text(parent,'article','','warning-card');card.dataset.level=p.badge;
           text(card,'span',weatherName(p.badge),'warning-badge');text(card,'h3',p.title);
           text(card,'p',p.body,'warning-text');
-          text(card,'p','Official RSS summary. Open the warning for full details, timing and advice.','warning-text');
-          const link=text(card,'a','Read the full Met Office warning','text-button');link.href=p.url;link.target='_blank';link.rel='noopener noreferrer';
+          text(card,'p','Official summary. Open the warning for full details, timing and advice.','warning-text');
+          const link=text(card,'a','Read the full Met Office warning ↗','text-button');link.href=p.url;link.target='_blank';link.rel='noopener noreferrer';
         });
         return;
       }
@@ -147,8 +147,8 @@
       if (!collection.isHistory?.()) collection.summary?.(records.length,all.length);
       UI.sourceStatus("warningsButton",state);
       status.textContent = UI.healthMessage(state,controller.now(),"issued warnings",all.length);
-      if (state.storageError) document.getElementById('warningStatus').textContent += ' Local history is unavailable.';
-      $("warningStorageStatus").textContent = state.storageError ? "Local history is unavailable; live warnings remain viewable." : "Observed warning revisions are retained on this device for up to 90 days.";
+      if (state.storageError) document.getElementById('warningStatus').textContent += ' Saved history is unavailable.';
+      $("warningStorageStatus").textContent = state.storageError ? "Saved history is unavailable on this device; live warnings remain viewable." : "This device keeps warning versions seen while this view was open, for up to 90 days, including cancellations.";
       UI.keyed(list, records.slice(0,collection.limit()), (list,event) => {
         const p = event.domainPayload;
         const card = text(list, "article", "", "warning-card"); card.dataset.level = p.classification;
@@ -164,19 +164,19 @@
         paragraph(card, "Further details", p.description);
         paragraph(card, "What should I do", p.instruction);
         paragraph(card, "Update reason", p.updateReason);
-        const historyButton = text(card, "button", "Observed history", "text-button"); historyButton.type = "button";
+        const historyButton = text(card, "button", "Revisions of this warning", "text-button"); historyButton.type = "button";
         const historyText = text(card, "div", "", "warning-history");
         historyButton.addEventListener("click", async () => {
           historyText.replaceChildren();
           try {
             const revisions = await controller.history?.revisions(ID, event.id) || [];
-            if (!revisions.length) text(historyText, "p", "No local revisions recorded.");
+            if (!revisions.length) text(historyText, "p", "No revisions saved on this device yet.");
             for (const revision of revisions) {
               const old = revision.event;
               text(historyText, "p", `${ukDate(old.updatedAt)} · ${old.domainPayload.classification} · ${old.domainPayload.status} · version ${old.domainPayload.version}`);
               paragraph(historyText, "Update reason", old.domainPayload.updateReason);
             }
-          } catch { text(historyText, "p", "Local history is unavailable."); }
+          } catch { text(historyText, "p", "Saved history is unavailable on this device."); }
         });
       },JSON.stringify(getLocation()));
     }
@@ -186,11 +186,9 @@
     $("warningHistory").addEventListener("click", async () => {
       const archive = $("warningArchive"); archive.replaceChildren();
       await initialize();
-      text(archive, "h3", "Observed history — including cancellations");
       try {
         const revisions = await controller.history?.query({ provider: ID }) || [];
         revisions.sort((a, b) => b.event.updatedAt - a.event.updatedAt || b.sequence - a.sequence);
-        if (!revisions.length) text(archive, "p", "No warning revisions have been recorded on this device.");
         UI.archiveView(archive,revisions,(archive,event) => {
           const p = event.domainPayload;
           const card = text(archive, "article", "", "warning-card"); card.dataset.level = p.classification;
@@ -203,7 +201,7 @@
           text(card, "h4", "What to expect"); const ul = document.createElement("ul"); card.append(ul); for (const value of p.whatToExpect) text(ul, "li", value);
           paragraph(card, "Further details", p.description); paragraph(card, "What should I do", p.instruction);
         },collection);
-      } catch { text(archive, "p", "Local history is unavailable."); }
+      } catch { text(archive, "p", "Saved history is unavailable on this device."); }
     });
     dialog.addEventListener("close", () => { clearInterval(timer); timer = null; });
     document.addEventListener("visibilitychange", () => { if (!document.hidden && dialog.open) poll(); });

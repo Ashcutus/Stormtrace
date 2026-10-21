@@ -40,7 +40,7 @@ EARTHQUAKES_PROVIDER = USGSEarthquakeProvider()
 FLOODS_PROVIDER = EnglandFloodProvider()
 HAZARD_PROVIDERS = {id: PublicHazardProvider(id) for id in HAZARD_SOURCES}
 RADAR_PROVIDER = RadarAdapter(ROOT)
-PUBLIC_RADAR_PROVIDERS = {source: RadarAdapter(ROOT, source) for source in ['opera-radar', 'noaa-conus', 'noaa-alaska', 'noaa-hawaii', 'noaa-carib', 'noaa-guam']}
+PUBLIC_RADAR_PROVIDERS = {source: RadarAdapter(ROOT, source) for source in ['opera-radar', 'noaa-conus', 'noaa-alaska', 'noaa-hawaii', 'noaa-carib', 'noaa-guam', 'noaa-ptype-conus', 'noaa-ptype-alaska', 'noaa-ptype-hawaii', 'noaa-ptype-carib', 'noaa-ptype-guam']}
 
 DIAGNOSTICS_ENABLED = os.environ.get("STORMTRACE_DIAGNOSTICS") == "1"
 DIAGNOSTICS_SAMPLE = None

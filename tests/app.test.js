@@ -167,7 +167,7 @@ test("markers stay in the counted world copy while panning and keep selection", 
   app.ingestStrikes([strike("dateline", app.now(), -175), strike("offscreen", app.now(), 0)], false, false);
   app.advance(500);
   const marker = app.state.strikeMarkers.get("dateline");
-  assert.equal(app.els.visibleCount.textContent, "001");
+  assert.equal(app.els.visibleCount.textContent, "1");
   assert.equal(marker.getLatLng().lng, 185);
   assert.equal(app.markers.size, 1);
   marker.openPopup();
@@ -455,7 +455,7 @@ test("map selection saves a wrapped manual point and supersedes pending automati
   assert.equal(app.state.userLocation.lat, 53.39);
   assert.ok(Math.abs(app.state.userLocation.lon + 2.597) < 1e-9);
   assert.equal(app.state.userLocation.source, "manual");
-  assert.equal(app.elements.get("#setHere").textContent, "Set here");
+  assert.equal(app.elements.get("#setHere").textContent, "Pick on map");
   success({ coords: { latitude: 51.5, longitude: 0, accuracy: 100 } });
   assert.equal(await pending, false);
   assert.equal(app.state.userLocation.lat, 53.39);

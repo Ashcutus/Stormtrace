@@ -35,12 +35,12 @@ test('late search completion cannot overwrite newer results and out-of-range coo
  await a.runSearch('100,200');assert.equal(pending.length,2);assert.match(a.elements.get('#searchStatus').textContent,/out of range/);
 });
 test('malformed feed messages show degraded health and save failure remains persistent until successful retry',()=>{
- let broken=true;const a=loadApp({storage:{getItem:()=>null,setItem(){if(broken)throw new Error('quota');}}});a.connectFeed();a.sockets[0].onopen();a.sockets[0].onmessage({data:'invalid JSON'});assert.equal(a.els.statusLabel.textContent,'DEGRADED');
+ let broken=true;const a=loadApp({storage:{getItem:()=>null,setItem(){if(broken)throw new Error('quota');}}});a.connectFeed();a.sockets[0].onopen();a.sockets[0].onmessage({data:'invalid JSON'});assert.equal(a.els.statusLabel.textContent,'Degraded');
  assert.equal(a.saveSettings(),false);assert.equal(a.elements.get('#settingsSaveStatus').hidden,false);broken=false;assert.equal(a.saveSettings(),true);assert.equal(a.elements.get('#settingsSaveStatus').hidden,true);
 });
 test('render coverage discloses capped points and hidden layers while preserving record counts',()=>{
  const a=loadApp();a.ingestStrikes(Array.from({length:4001},(_,i)=>({id:'test-'+i,lat:0,lon:0,time:a.now()})),false,false);a.render();assert.equal(a.markers.size,4000);assert.match(a.elements.get('#renderCoverage').textContent,/4,000 of 4,001/);
- a.elements.get('#mapLightning').checked=false;a.render();assert.match(a.elements.get('#renderCoverage').textContent,/hidden/);assert.equal(a.els.visibleCount.textContent,'4001');
+ a.elements.get('#mapLightning').checked=false;a.render();assert.match(a.elements.get('#renderCoverage').textContent,/hidden/);assert.equal(a.els.visibleCount.textContent,'4,001');
 });
 // A small DOM implementation exercises actual node moves and focus/disclosure restoration.
 class Node {
@@ -83,8 +83,19 @@ fresh=PublicHazardProvider('swpc',opener=opener,clock=lambda:clock[0]);fresh.res
 print('ok')
 `],{encoding:'utf8'});assert.match(output,/ok/);
 });
-test('markup/layout preserves popup headings and readable controls, explicit appearance naming, domain chooser and local-history modes',()=>{
- const html=readFileSync('index.html','utf8'),css=readFileSync('styles.css','utf8');assert.match(html,/themeDialog" aria-labelledby="themeTitle/);assert.match(html,/id="domainChooser"/);assert.match(html,/role="combobox"/);assert.match(css,/switch:focus-within/);assert.match(css,/prefers-reduced-motion/);assert.doesNotMatch(css,/grid-template-rows: 58px 46px minmax\(0, 1fr\) 30px/);
+test('markup keeps one layers control, one location group, labelled dialog scopes and no duplicate controls',()=>{
+ const html=readFileSync('index.html','utf8'),css=readFileSync('styles.css','utf8');
+ assert.match(html,/themeDialog" aria-labelledby="themeTitle/);assert.match(html,/role="combobox"/);assert.match(html,/id="themeTitle">Appearance</);
+ const layers=html.slice(html.indexOf('id="layersPanel"'),html.indexOf('</details>',html.indexOf('id="layersPanel"')));
+ for(const id of ['mapLightning','radarButton','mapFloods','mapQuakes','clearSelectedHazard'])assert.match(layers,new RegExp(`id="${id}"`),id);
+ assert.match(layers,/id="radarButton" type="checkbox"/);
+ const controls=html.slice(html.indexOf('class="map-controls"'),html.indexOf('</div>',html.indexOf('class="map-controls"')));assert.doesNotMatch(controls,/setHere/);
+ const location=html.slice(html.indexOf('id="locationGroup"'),html.indexOf('</section>',html.indexOf('id="locationGroup"')));for(const id of ['enableLocationButton','setHere','manualLocationForm'])assert.match(location,new RegExp(`id="${id}"`),id);
+ assert.doesNotMatch(html,/domainChooser|ClearMarker|earthquakeSearch|Close popup|About local history/);
+ assert.doesNotMatch(html,/<\/span>%<\/strong>/);
+ assert.match(html,/id="shortcutsDialog"/);assert.match(html,/id="timeZoneSetting"/);assert.match(html,/id="warningMapBack"/);
+ for(const key of ['cyclones','volcanoes','tsunamis','space'])assert.match(html,new RegExp(`<label class="scope-field">Source <select id="${key}Source">`),key);
+ assert.match(css,/switch:focus-within/);assert.match(css,/prefers-reduced-motion/);assert.equal((css.match(/^\.domain-nav/gm)||[]).length,0);
 });
 
 test('one unavailable tsunami centre does not hide the other, and neither absence nor partial failure becomes cancellation',()=>{
@@ -137,9 +148,59 @@ test('editing the query clears a highlighted search result so Enter searches the
  input.value='Berlin';input.listeners.input({});assert.equal(option.attributes['aria-selected'],'false');assert.equal(input.attributes['aria-activedescendant'],undefined);
  input.listeners.keydown({key:'Enter',preventDefault(){}});assert.equal(chosen,1);
 });
-test('choosing an already-open toggle view from Explore reveals it instead of closing it',()=>{
- const a=loadApp();a.bindControls();const chooser=a.document.querySelector('#domainChooser'),radar=a.document.querySelector('#radarButton'),panel=a.document.querySelector('#radarPanel');let clicks=0;
- radar.addEventListener('click',()=>clicks++);radar.setAttribute('aria-controls','radarPanel');
- radar.setAttribute('aria-pressed','false');chooser.value='radarButton';chooser.listeners.change({target:chooser});assert.equal(clicks,1);
- radar.setAttribute('aria-pressed','true');chooser.value='radarButton';chooser.listeners.change({target:chooser});assert.equal(clicks,1);assert.equal(panel.revealed,true);assert.equal(chooser.value,'');
+test('layers summary names drawn layers and the shared selection row appears and clears through document events',()=>{
+ const a=loadApp();for(const id of ['#mapLightning','#radarButton','#mapFloods','#mapQuakes'])a.document.querySelector(id).checked=false;a.document.querySelector('#selectedHazardRow').hidden=true;
+ a.bindControls();a.elements.get('#mapLightning').checked=true;a.elements.get('#mapQuakes').checked=true;a.elements.get('#mapQuakes').listeners.change();
+ assert.equal(a.elements.get('#layersSummary').textContent,'Lightning · Earthquakes');
+ a.document.listeners.hazardselected({detail:{label:'M 5.1 · Test place'}});assert.equal(a.elements.get('#selectedHazardRow').hidden,false);assert.equal(a.elements.get('#selectedHazardLabel').textContent,'M 5.1 · Test place');assert.match(a.elements.get('#layersSummary').textContent,/1 selected/);
+ a.document.listeners.clearselectedhazard();assert.equal(a.elements.get('#selectedHazardRow').hidden,true);assert.doesNotMatch(a.elements.get('#layersSummary').textContent,/selected/);
+ for(const id of ['#mapLightning','#mapQuakes'])a.elements.get(id).checked=false;a.elements.get('#mapFloods').listeners.change();assert.equal(a.elements.get('#layersSummary').textContent,'None on');
+});
+test('question mark opens the shortcut sheet from the main view only, and toolbar Set location still requests a position in one click',()=>{
+ const a=loadApp();let opened=0;a.els.shortcutsDialog.showModal=()=>opened++;a.bindControls();
+ const handler=a.document.listeners.keydown,event=(extra={})=>({key:'?',target:{matches:()=>false},preventDefault(){},...extra});
+ handler(event());assert.equal(opened,1);handler(event({target:{matches:()=>true}}));assert.equal(opened,1);
+ a.elements.get('#locationButton').listeners.click();assert.match(a.elements.get('#locationFeedback').textContent,/Automatic location is unavailable/);assert.equal(a.document.body.dataset.pane,'details');
+});
+test('time display preference is additive to saved settings and switches the clock without changing other settings',()=>{
+ let saved;const a=loadApp({storage:{getItem:()=>JSON.stringify({radiusMiles:35,readingScale:1.2}),setItem(key,value){assert.equal(key,'stormtrace:settings');saved=JSON.parse(value);}}});
+ assert.equal(a.state.timeZone,'uk');a.bindControls();a.elements.get('#timeZoneSetting').listeners.change({target:{value:'system'}});
+ assert.equal(saved.timeZone,'system');assert.equal(saved.radiusMiles,35);assert.equal(saved.readingScale,1.2);assert.match(a.els.clock.textContent,/^Local /);
+ a.elements.get('#timeZoneSetting').listeners.change({target:{value:'anything else'}});assert.equal(saved.timeZone,'uk');assert.match(a.els.clock.textContent,/^UK local /);
+});
+test('strike-age legend lists only the ages the selected lightning window can contain',()=>{
+ const a=loadApp();a.selectWindow('live');assert.equal(a.elements.get('#legendOld').hidden,true);a.selectWindow('60');assert.equal(a.elements.get('#legendOld').hidden,true);
+ a.selectWindow('1440');assert.equal(a.elements.get('#legendOld').hidden,false);
+});
+test('hazard view buttons expose retrieval state as a visible chip and an accessible name',()=>{
+ const original=globalThis.document,button={textContent:'Floods',dataset:{},attributes:{},setAttribute(n,v){this.attributes[n]=v;}};
+ globalThis.document={getElementById:()=>button};
+ try{
+  UI.sourceStatus('floodsButton',{health:{lastError:{code:'network'}}});assert.equal(button.dataset.state,'failed');assert.equal(button.attributes['aria-label'],'Floods, Retrieval failed');
+  UI.sourceStatus('floodsButton',{loading:true,health:{}});assert.equal(button.dataset.state,'checking');assert.match(button.title,/^Floods · Checking/);
+ }finally{globalThis.document=original;}
+});
+test('primary features from the previous layout stay directly reachable without opening a collapsed panel',()=>{
+ const html=readFileSync('index.html','utf8');
+ const nav=html.slice(html.indexOf('<nav class="hazard-nav"'),html.indexOf('</nav>',html.indexOf('<nav class="hazard-nav"')));
+ for(const [id,label] of [['radarNavButton','Radar'],['warningsButton','Weather warnings'],['floodsButton','Floods'],['cyclonesButton','Cyclones'],['volcanoesButton','Volcanoes'],['tsunamisButton','Tsunami bulletins'],['spaceButton','Space weather'],['earthquakesButton','Earthquakes']])assert.match(nav,new RegExp(`id="${id}"[^>]*>${label}<`),label);
+ const toolbar=html.slice(html.indexOf('<section class="toolbar"'),html.indexOf('</section>',html.indexOf('<section class="toolbar"')));
+ for(const id of ['placeSearch','locationButton'])assert.match(toolbar,new RegExp(`id="${id}"`),id);for(const w of ['live','60','360','1440'])assert.match(toolbar,new RegExp(`data-window="${w}"`));
+ const header=html.slice(html.indexOf('<header class="topbar"'),html.indexOf('</header>'));for(const id of ['monitorButton','refreshButton','themeButton','infoButton','windowModeButton','exitButton'])assert.match(header,new RegExp(`id="${id}"`),id);
+ const sidebar=html.slice(html.indexOf('<aside class="sidebar"'),html.indexOf('</aside>',html.indexOf('<aside class="sidebar"')));
+ for(const id of ['notificationToggle','radiusRange','enableLocationButton','setHere','hotspotFocus','visibleCount','globalRate'])assert.match(sidebar,new RegExp(`id="${id}"`),id);
+ assert.doesNotMatch(sidebar.slice(0,sidebar.indexOf('id="visibleCount"')),/<details class="panel lightning-details">/,'lightning activity must start open');
+ assert.match(html,/<details class="panel lightning-details" open>/);
+});
+test('selecting a map event opens Layers so its Clear control is visible',()=>{
+ const a=loadApp();a.document.querySelector('#layersPanel').open=false;a.bindControls();a.document.listeners.hazardselected({detail:{label:'Test'}});assert.equal(a.elements.get('#layersPanel').open,true);
+});
+test('toolbar Radar button toggles the same Layers checkbox and mirrors its state',()=>{
+ const a=loadApp();let clicks=0;const box=a.document.querySelector('#radarButton');box.click=()=>{clicks++;box.checked=!box.checked;box.listeners.change?.();};a.bindControls();
+ a.elements.get('#radarNavButton').listeners.click();assert.equal(clicks,1);assert.equal(a.elements.get('#radarNavButton').attributes['aria-pressed'],'true');
+ a.elements.get('#radarNavButton').listeners.click();assert.equal(a.elements.get('#radarNavButton').attributes['aria-pressed'],'false');
+});
+test('a selection made while a map popup is open waits to open Layers so the panel cannot cover the popup',()=>{
+ const a=loadApp();a.document.querySelector('#layersPanel').open=false;a.bindControls();a.state.mapPopupOpen=true;
+ a.document.listeners.hazardselected({detail:{label:'Test'}});assert.equal(a.elements.get('#layersPanel').open,false);assert.equal(a.state.pendingLayersOpen,true);
 });

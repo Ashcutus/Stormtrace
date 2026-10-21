@@ -29,47 +29,52 @@
       })();
     }
     document.addEventListener('clearselectedhazard',clearMarker);
-    function clearMarker() { mapHazards?.clear(); if (selectedMarker) { selectedMarker.remove();selectedMarker=null; } $('earthquakeClearMarker').disabled=true;const clear=$('clearSelectedHazard');if(clear)clear.disabled=true; }
+    function clearMarker() { mapHazards?.clear(); if (selectedMarker) { selectedMarker.remove();selectedMarker=null; } }
     function card(parent,event,historyView=false) {
       const p=event.domainPayload,el=text(parent,'article','','warning-card flood-card');
       text(el,'h3',`${p.magnitude == null ? 'Magnitude unknown' : `M ${p.magnitude}${p.magnitudeType ? ` ${p.magnitudeType}` : ''}`} · ${p.place || 'Location description unavailable'}`);
-      text(el,'p',`Occurred ${W.ukDate(event.observedAt)} · updated ${W.ukDate(event.updatedAt)}`);
+      text(el,'p',`Occurred ${UI.date(event.observedAt)} · updated ${UI.date(event.updatedAt)}`);
       text(el,'p',`Depth ${UI.depth(p.depthKm)} · ${p.status} · reporting network ${p.network || 'not supplied'}`);
       text(el,'p',`Source event ID: ${event.id}`);
-      const link=text(el,'a','USGS event details');link.href=p.url;link.target='_blank';link.rel='noopener noreferrer';
+      const link=text(el,'a','USGS event details ↗');link.href=p.url;link.target='_blank';link.rel='noopener noreferrer';
       if (map && !historyView) {
-        const button=text(el,'button','View location on map','mini-button');button.type='button';
+        const button=text(el,'button','Show on map','mini-button');button.type='button';
         button.addEventListener('click',()=> {
+          document.dispatchEvent?.(new Event('clearselectedhazard'));
           clearMarker(); const [lon,lat]=event.geometry.coordinates;
+          const label=`${p.magnitude == null ? 'Earthquake' : `M ${p.magnitude}`} · ${p.place || 'location description unavailable'}`;
+          // Reuse the earthquake layer's point when it is shown, so one event never has two markers.
+          if (mapHazards?.openQuake?.(event.id)) { map.setView([lat,lon],Math.max(5,map.getZoom()));dialog.close();document.dispatchEvent?.(new CustomEvent('hazardselected',{detail:{label}}));return; }
           const content=mapHazards?.popup(event,controller.state.health,controller.state.cached);
-          const label=document.createElement('div');label.textContent=`USGS earthquake · ${p.place || 'Location description unavailable'} · ${p.magnitude == null ? 'magnitude unknown' : `M ${p.magnitude}`}`;
-          selectedMarker=globalThis.L.circleMarker([lat,lon],{radius:8,color:'#67d7eb',weight:2,fillOpacity:0.5,bubblingMouseEvents:false}).addTo(map).bindPopup(content?.node || label, {className:'hazard-popup flood-map-popup',maxWidth:380,minWidth:280});
+          const fallback=document.createElement('div');fallback.textContent=`USGS earthquake · ${p.place || 'Location description unavailable'} · ${p.magnitude == null ? 'magnitude unknown' : `M ${p.magnitude}`}`;
+          selectedMarker=globalThis.L.circleMarker([lat,lon],{radius:10,color:'#ffffff',weight:3,fillColor:'#67d7eb',fillOpacity:0.6,bubblingMouseEvents:false}).addTo(map).bindPopup(content?.node || fallback, {className:'hazard-popup flood-map-popup',maxWidth:380,minWidth:280});
           if(content) selectedMarker.on('click',content.load);
-          map.setView([lat,lon],Math.max(5,map.getZoom()));selectedMarker.openPopup();$('earthquakeClearMarker').disabled=false;const clear=$('clearSelectedHazard');if(clear)clear.disabled=false;dialog.close();content?.load();
+          map.setView([lat,lon],Math.max(5,map.getZoom()));selectedMarker.openPopup();dialog.close();content?.load();
+          document.dispatchEvent?.(new CustomEvent('hazardselected',{detail:{label}}));
         });
       }
     }
     function render() {
       if (!dialog.open) return;const s=controller.state;
       const minimum=$('earthquakeMagnitude').value === 'all' ? null : Number($('earthquakeMagnitude').value);
-      const all=visibleEarthquakes(s.records,{now:controller.now(),hours:Number($('earthquakeWindow').value),minimum,search:$('earthquakeSearch').value});
+      const all=visibleEarthquakes(s.records,{now:controller.now(),hours:Number($('earthquakeWindow').value),minimum});
       const records=all.filter(r=>UI.matches(r,collection.filter()));
       if (!collection.isHistory?.()) collection.summary?.(records.length,all.length);
       $('earthquakeRefresh').disabled=s.loading||demo;$('earthquakeHistory').disabled=demo;
-      $('earthquakeStatus').textContent=demo?'Live earthquakes are disabled in demo mode.':`${records.length} earthquakes match these filters. ${UI.healthMessage(s,controller.now(),'earthquakes')}`;
+      $('earthquakeStatus').textContent=demo?'Live earthquakes are disabled in demo mode.':UI.healthMessage(s,controller.now(),'earthquakes match these filters',records.length);
       UI.sourceStatus('earthquakesButton',s);
-      if (s.storageError) document.getElementById('earthquakeStatus').textContent += ' Local history is unavailable.';
-      $('earthquakeStorageStatus').textContent=s.storageError?'Local history is unavailable.':'Observed revisions are retained for up to 30 days (5,000 event limit). This is not a complete earthquake archive.';
+      if (s.storageError) document.getElementById('earthquakeStatus').textContent += ' Saved history is unavailable.';
+      $('earthquakeStorageStatus').textContent=s.storageError?'Saved history is unavailable on this device.':'This device keeps versions seen while this view was open, for up to 30 days (5,000 event limit). It is not a complete earthquake archive.';
       if (!demo) UI.keyed(list,records.slice(0,collection.limit()),card);
     }
     async function poll() {if(demo||document.hidden||!dialog.open)return;await initialize();if(dialog.open&&!document.hidden)await controller.refresh();}
     $('earthquakesButton').addEventListener('click',()=> {dialog.showModal();render();poll();clearInterval(timer);timer=setInterval(poll,60000);});
-    $('earthquakeRefresh').addEventListener('click',poll);$('earthquakeClearMarker').addEventListener('click',clearMarker);
-    for(const id of ['earthquakeMagnitude','earthquakeWindow'])$(id).addEventListener('change',render);$('earthquakeSearch').addEventListener('input',render);
+    $('earthquakeRefresh').addEventListener('click',poll);
+    for(const id of ['earthquakeMagnitude','earthquakeWindow'])$(id).addEventListener('change',render);
     $('earthquakeHistory').addEventListener('click',async()=> {
-      await initialize();const archive=$('earthquakeArchive');archive.replaceChildren();text(archive,'h3','Locally observed earthquake revisions');
-      try {const rows=await controller.history?.query({provider:'usgs',time:'persistedAt'})||[];rows.sort((a,b)=>b.persistedAt-a.persistedAt);if(!rows.length)text(archive,'p','No local revisions recorded.');UI.archiveView(archive,rows,card,collection);}
-      catch {text(archive,'p','Local history is unavailable.');}
+      await initialize();const archive=$('earthquakeArchive');archive.replaceChildren();
+      try {const rows=await controller.history?.query({provider:'usgs',time:'persistedAt'})||[];rows.sort((a,b)=>b.persistedAt-a.persistedAt);UI.archiveView(archive,rows,card,collection);}
+      catch {text(archive,'p','Saved history is unavailable on this device.');}
     });
     dialog.addEventListener('close',()=> {clearInterval(timer);timer=null;$('earthquakeArchive').replaceChildren();});
     document.addEventListener('visibilitychange',()=> {if(!document.hidden&&dialog.open)poll();});

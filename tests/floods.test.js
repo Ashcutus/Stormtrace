@@ -90,7 +90,7 @@ test('flood dialog safely renders source messages, exposes withdrawal history an
     for (const id of ['nrw-floods','sepa-floods','ni-floods']) {
       elements.floodCountry.value=id;await elements.floodCountry.listeners.change();
       assert.equal(elements.floodList.children.length,0);assert.equal(elements.floodRefresh.disabled,true);assert.equal(elements.floodHistory.disabled,true);
-      assert.match(elements.floodStatus.textContent,/coverage unavailable/);assert.equal(elements.floodOfficialLink.href,C.getSource(id).homepage);
+      assert.match(elements.floodStatus.textContent,/does not have live warnings/);assert.equal(elements.floodOfficialLink.href,C.getSource(id).homepage);
       assert.equal(requests,nationalBefore);
     }
     elements.floodCountry.value='ea-floods';await elements.floodCountry.listeners.change();

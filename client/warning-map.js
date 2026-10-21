@@ -15,20 +15,21 @@
     function popup(r) {
       const p=r.domainPayload,n=document.createElement('section');n.className='flood-map-card warning-area-card';n.style.borderTopColor=colours[p.badge];
       const badge=UI.text(n,'span',p.badge+' · '+p.title,'flood-map-badge');badge.style.background=colours[p.badge];badge.style.color=p.badge==='RED'?'#fff':'#000';
-      UI.text(n,'h3',p.headline,'flood-map-title');UI.text(n,'p',`Issued ${UI.date(r.observedAt)} · ${UI.date(r.validFrom)} – ${UI.date(r.validTo)}`,'flood-map-time');
+      // NSWWS presentation requires UK-local times regardless of the viewer's time preference.
+      UI.text(n,'h3',p.headline,'flood-map-title');UI.text(n,'p',`Issued ${UI.fixedUkDate(r.observedAt)} · ${UI.fixedUkDate(r.validFrom)} – ${UI.fixedUkDate(r.validTo)}`,'flood-map-time');
       const body=UI.text(n,'div','','flood-map-message');body.tabIndex=0;
       UI.text(body,'h4','What to expect');UI.text(body,'p',p.whatToExpect);UI.text(body,'h4','Further details');UI.text(body,'p',p.body);for(const d of p.details)UI.text(body,'p',d);
-      UI.text(n,'p',`Met Office Weather Warnings · © Crown copyright ${new Date(r.observedAt).getUTCFullYear()}, Met Office`,'flood-map-attribution');updates.push(UI.popupHealth(n,ctrl.state.health,ctrl.state.cached));
-      const link=UI.text(n,'a','Read current Met Office warnings','flood-map-link');link.href=p.url;link.target='_blank';link.rel='noopener noreferrer';
-      const close=UI.text(n,'button','Close popup','mini-button');close.type='button';close.addEventListener('click',()=>map.closePopup());return n;
+      UI.text(n,'p',`Met Office Weather Warnings · © Crown copyright ${new Date(r.observedAt).getUTCFullYear()}, Met Office`,'flood-map-attribution');updates.push(UI.popupHealth(n,ctrl.state.health,ctrl.state.cached,UI.fixedUkDate));
+      const link=UI.text(n,'a','Read current Met Office warnings ↗','flood-map-link');link.href=p.url;link.target='_blank';link.rel='noopener noreferrer';
+      const close=UI.text(n,'button','Close','mini-button');close.type='button';close.addEventListener('click',()=>map.closePopup());return n;
     }
     function render() {
       if(!dialog.open)return;
       const s=ctrl.state;$('warningMapRefresh').disabled=demo||s.loading;
-      $('warningMapStatus').textContent=demo?'Live warning areas are disabled in demo mode.':UI.healthMessage(s,ctrl.now(),'warning areas')+' Public Esri beta mirror; check the official source for current guidance.';
+      $('warningMapStatus').textContent=demo?'Live warning areas are disabled in demo mode.':UI.healthMessage(s,ctrl.now(),'warning areas')+' Areas come from the Met Office public map service (beta); check the Met Office for current guidance.';
       for(const update of updates)update(s.health,s.cached);
       const records=s.records.filter(r=>r.validTo>ctrl.now()).sort((a,b)=>({RED:2,AMBER:1,YELLOW:0}[a.domainPayload.badge])-({RED:2,AMBER:1,YELLOW:0}[b.domainPayload.badge]));
-      $('warningMapStatus').textContent+=` ${records.length} unexpired areas shown.`;
+      if(!demo)$('warningMapStatus').textContent+=` ${records.length} current or future areas shown.`;
       const years=[...new Set(records.map(r=>new Date(r.observedAt).getUTCFullYear()))];$('warningMapAttribution').textContent=source.attribution+(years.length?` · © Crown copyright ${years.join(', ')}, Met Office`:'');
       const next=C.canonical(records.map(r=>({id:r.id,geometry:r.geometry,p:r.domainPayload,start:r.validFrom,end:r.validTo})));
       if(!map||next===signature)return;signature=next;updates=[];features.clear();layer.clearLayers();
@@ -38,10 +39,17 @@
     async function poll(){if(!demo&&dialog.open&&!document.hidden)await ctrl.refresh();}
     $('warningMapButton').addEventListener('click',()=>{
       $('warningsDialog').close();dialog.showModal();
-      if(!map){map=globalThis.L.map('warningAreaMap',{zoomControl:true}).setView([55,-4],5);globalThis.L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18,attribution:'© OpenStreetMap contributors'}).addTo(map);layer=globalThis.L.layerGroup().addTo(map);map.fitBounds([[49.5,-11],[61.5,2.5]]);}
+      if(!map){
+        map=globalThis.L.map('warningAreaMap',{zoomControl:true,attributionControl:true}).setView([55,-4],5);map.attributionControl.setPrefix(false);
+        // Match the main map's English-labelled basemap; fall back to raster tiles without WebGL.
+        try { globalThis.L.maplibreGL({style:'/client/map-style.json',attributionControl:false}).addTo(map);map.attributionControl.addAttribution('<a href="https://openfreemap.org/" target="_blank" rel="noreferrer">OpenFreeMap</a> · © OpenMapTiles · © OpenStreetMap contributors'); }
+        catch { globalThis.L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18,attribution:'© OpenStreetMap contributors'}).addTo(map); }
+        layer=globalThis.L.layerGroup().addTo(map);map.fitBounds([[49.5,-11],[61.5,2.5]]);
+      }
       map.invalidateSize();render();poll();clearInterval(timer);timer=setInterval(poll,60000);
     });
     $('warningMapRefresh').addEventListener('click',poll);
+    $('warningMapBack')?.addEventListener('click',()=>{dialog.close();$('warningsButton').click();});
     dialog.addEventListener('close',()=>{clearInterval(timer);timer=null;});
     document.addEventListener('visibilitychange',()=>{if(!document.hidden&&dialog.open)poll();});
     return {controller:ctrl};
