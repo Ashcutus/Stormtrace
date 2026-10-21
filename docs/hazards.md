@@ -2,7 +2,7 @@
 
 Stormtrace provides four optional views among the **Hazards** buttons: **Cyclones**, **Volcanoes**, **Tsunami bulletins** and **Space weather**. They retrieve public data without subscription keys. Each view shows its source, coverage, source times, last successful retrieval, and explicit loading/error/cached feedback. Internet delivery is best effort; use the official source and local authorities for current guidance.
 
-![Tropical Depression Twenty-Two-E in the cyclones view](screenshots/cyclones.png)
+![Tropical storms Josephine and Vance in the cyclones view](screenshots/cyclones.png)
 
 ## Available views
 

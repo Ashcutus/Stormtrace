@@ -89,7 +89,7 @@ The **Hazards** buttons along the top open each view. A small dot on each button
   </tr>
   <tr>
     <td width="50%"><img src="docs/screenshots/earthquakes.png" alt="Earthquakes of magnitude 4.5 and above from the past day"></td>
-    <td width="50%"><img src="docs/screenshots/cyclones.png" alt="An active Eastern Pacific tropical cyclone in the cyclones view"></td>
+    <td width="50%"><img src="docs/screenshots/cyclones.png" alt="Tropical storms Josephine (Atlantic) and Vance (eastern Pacific) in the cyclones view"></td>
   </tr>
   <tr>
     <td align="center"><sub>Filter earthquakes by time and size</sub></td>
@@ -99,7 +99,7 @@ The **Hazards** buttons along the top open each view. A small dot on each button
 
 Use **Layers** in the top-left corner of the map to add flood areas or earthquakes to the map itself, and **Show on map** in a list to jump to one event. Every view says where its information comes from, when it last checked, and whether anything is delayed or unavailable.
 
-![Earthquakes from the past day on the map, with one earthquake's details open](docs/screenshots/earthquake-map.png)
+![A magnitude 5.3 earthquake on the Reykjanes Ridge shown on the map with its details open](docs/screenshots/earthquake-map.png)
 
 ### 🎨 Make it yours
 
@@ -107,7 +107,7 @@ Stormtrace follows your Omarchy theme automatically, or you can pick your own co
 
 ![The Appearance panel with text, time, colour and map settings](docs/screenshots/appearance-controls.png)
 
-<sub>Screenshots show live data captured on 21 October 2026.</sub>
+<sub>Screenshots show live data captured on 22 October 2026.</sub>
 
 ## Install
 
