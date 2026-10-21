@@ -33,7 +33,7 @@
       const years=[...new Set(records.map(r=>new Date(r.observedAt).getUTCFullYear()))];$('warningMapAttribution').textContent=source.attribution+(years.length?` · © Crown copyright ${years.join(', ')}, Met Office`:'');
       const next=C.canonical(records.map(r=>({id:r.id,geometry:r.geometry,p:r.domainPayload,start:r.validFrom,end:r.validTo})));
       if(!map||next===signature)return;signature=next;updates=[];features.clear();layer.clearLayers();
-      for(const r of records){const p=r.domainPayload,geo=globalThis.L.geoJSON(r.geometry,{style:{color:colours[p.badge],fillColor:colours[p.badge],fillOpacity:.4,weight:2}});geo.bindTooltip(p.badge+' · '+p.title,{permanent:true,direction:'center',className:'warning-area-label'});geo.bindPopup(popup(r),{className:'hazard-popup flood-map-popup',minWidth:260,maxWidth:380});layer.addLayer(geo);features.set(r.id,geo);}
+      for(const r of records){const p=r.domainPayload,geo=globalThis.L.geoJSON(r.geometry,{style:{color:colours[p.badge],fillColor:colours[p.badge],fillOpacity:.4,weight:2}});geo.bindTooltip(p.badge+' · '+p.title,{permanent:true,direction:'center',className:'warning-area-label'});geo.bindPopup(popup(r),UI.popupOptions({minWidth:260}));layer.addLayer(geo);features.set(r.id,geo);}
       UI.keyed($('warningMapList'),records,(parent,r)=>{const button=UI.text(parent,'button',r.domainPayload.badge+' · '+r.domainPayload.title+' · '+r.domainPayload.details.join(' · '),'mini-button');button.type='button';button.addEventListener('click',()=>{const geo=features.get(r.id);if(geo){map.fitBounds(geo.getBounds(),{padding:[25,25],maxZoom:7,animate:false});geo.openPopup();}});});
     }
     async function poll(){if(!demo&&dialog.open&&!document.hidden)await ctrl.refresh();}
@@ -42,7 +42,7 @@
       if(!map){
         map=globalThis.L.map('warningAreaMap',{zoomControl:true,attributionControl:true}).setView([55,-4],5);map.attributionControl.setPrefix(false);
         // Match the main map's English-labelled basemap; fall back to raster tiles without WebGL.
-        try { globalThis.L.maplibreGL({style:'/client/map-style.json',attributionControl:false}).addTo(map);map.attributionControl.addAttribution('<a href="https://openfreemap.org/" target="_blank" rel="noreferrer">OpenFreeMap</a> · © OpenMapTiles · © OpenStreetMap contributors'); }
+        try { if(!UI.vectorMapAvailable())throw new Error('vector map unavailable'); globalThis.L.maplibreGL({style:'/client/map-style.json',attributionControl:false}).addTo(map);map.attributionControl.addAttribution('<a href="https://openfreemap.org/" target="_blank" rel="noreferrer">OpenFreeMap</a> · © OpenMapTiles · © OpenStreetMap contributors'); }
         catch { globalThis.L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18,attribution:'© OpenStreetMap contributors'}).addTo(map); }
         layer=globalThis.L.layerGroup().addTo(map);map.fitBounds([[49.5,-11],[61.5,2.5]]);
       }

@@ -21,7 +21,9 @@
     const interval = () => C.getSource(providerId()).expectedUpdateInterval;
     const isPtype = () => source.startsWith('noaa-ptype-');
     const context = () => isPtype() ? 'Precipitation type from NOAA MRMS: radar classification assisted by model surface analyses. Categories are rain types, snow and hail; there is no sleet or freezing-rain category, and snow can be under-detected. Frames sampled across the past 3 hours. Coverage gaps do not mean dry weather.' : source.startsWith('noaa-') ? 'Observed reflectivity (dBZ); not rainfall rate. Frames sampled across the available past 3 hours. Coverage gaps do not mean dry weather.' : source === 'opera-radar' ? 'Observed rain rate · 15-minute frames. European radar coverage varies; transparent areas include no rain and missing observations.' : 'Observed rain rate · 15-minute frames, publication can lag by 20 minutes. Transparent areas include no rain and missing observations.';
-    const freshness = (frame) => ({ Observed: 'Radar is up to date.', Delayed: 'Radar is running late; showing the latest available frame.', Stale: 'Radar is out of date; showing the last available frame.' })[ageLabel(frame)];
+    // Source freshness comes from the newest available frame, not the one on screen,
+    // so stepping through older frames (or playback) never changes the message.
+    const freshness = () => { const latest = records.at(-1); if (!latest) return ''; const base = ({ Observed: 'Radar is up to date.', Delayed: 'Radar is running late.', Stale: 'Radar is out of date.' })[ageLabel(latest)]; return playing ? `${base} Playing the past 3 hours.` : base; };
     const ageLabel = (frame) => Date.now() - frame.observedAt > interval() * 3 ? 'Stale' : Date.now() - frame.observedAt > interval() * 1.5 ? 'Delayed' : 'Observed';
     let enabled = false, loading = false, timer = null, generation = 0, overlay = null, displayed = null, pending = null, cancelPending = null, records = [], followLatest = true;
     map.createPane('radar'); map.getPane('radar').style.zIndex = 250;
@@ -62,14 +64,49 @@
         }
       }
     }
+    // Playback steps through loaded frames only after each one has drawn, so a
+    // slow frame never gets skipped or stacked; any manual control stops it.
+    let playing = false, playTimer = null;
+    function setPlayButton() { const play = $('radarPlay'); if (!play) return; play.textContent = playing ? 'Pause' : 'Play'; play.setAttribute?.('aria-pressed', String(playing)); play.disabled = records.length < 2; }
+    function stopPlayback() { const was = playing; playing = false; clearTimeout(playTimer); playTimer = null; setPlayButton(); if (was && displayed) status.textContent = freshness(); }
+    async function stepPlayback(current = Number(slider.value)) {
+      if (!playing || !enabled || records.length < 2) return stopPlayback();
+      const index = (current + 1) % records.length;
+      slider.value = index; followLatest = index === records.length - 1;
+      await show(records[index]);
+      if (playing) playTimer = setTimeout(() => stepPlayback(index), index === records.length - 1 ? 1600 : 700);
+    }
+    // One-click decoder setup through the local server; progress is polled.
+    let setupTimer = null;
+    function showSetup(visible) { const setup = $('radarSetup'); if (setup) setup.hidden = !visible || demo; }
+    function renderSetup(snapshot) {
+      const setup = $('radarSetup');
+      if (snapshot.state === 'running') { status.textContent = `${snapshot.message} This can take a few minutes; you can keep using Stormtrace.`; if (setup) { setup.disabled = true; setup.textContent = 'Setting up…'; } return; }
+      clearInterval(setupTimer); setupTimer = null;
+      if (setup) { setup.disabled = false; setup.textContent = snapshot.state === 'failed' ? 'Try radar setup again' : 'Set up UK and Europe radar'; }
+      if (snapshot.state === 'failed') { status.textContent = snapshot.message; showSetup(true); }
+      if (snapshot.state === 'done') { status.textContent = snapshot.explicitPython ? 'Radar is set up, but your .env still selects another Python with STORMTRACE_RADAR_PYTHON. Remove that line to use the new setup.' : 'Radar is set up. Loading frames…'; showSetup(false); refresh(); }
+    }
+    async function pollSetup() {
+      try { const response = await fetcher('/api/radar/setup', { cache: 'no-store' }); if (response.ok) renderSetup(await response.json()); } catch { /* the next poll retries */ }
+    }
+    $('radarSetup')?.addEventListener('click', async () => {
+      try {
+        const response = await fetcher('/api/radar/setup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+        if (!response.ok) throw new Error('setup');
+        renderSetup(await response.json());
+        clearInterval(setupTimer); setupTimer = setInterval(pollSetup, 3000);
+      } catch { status.textContent = 'Radar setup could not start. See Radar setup below for the manual steps.'; }
+    });
     function stamp(frame) { return globalThis.StormtraceUI.date(frame.observedAt); }
     async function show(frame) {
       if (!enabled || !frame) return;
-      if (displayed?.id === frame.id) { status.textContent = freshness(frame); return; }
+      if (displayed?.id === frame.id) { status.textContent = freshness(); return; }
       const request = ++generation;
       cancelPending?.();
       if (pending) { map.removeLayer(pending); pending = null; }
-      status.textContent = `Loading radar observation ${stamp(frame)}…`;
+      // During playback the status line stays steady; loading shows on the frame line.
+      if (playing) $('radarFrameTime').textContent = `Loading ${stamp(frame)}…`; else status.textContent = `Loading radar observation ${stamp(frame)}…`;
       const [west, south, east, north] = frame.bounds;
       const next = L.imageOverlay(frame.resource.url, [[south, west], [north, east]], { pane: 'radar', opacity: .8, interactive: false }); pending = next;
       try {
@@ -86,7 +123,7 @@
         if (request !== generation || !enabled) { map.removeLayer(next); return; }
         if (overlay) map.removeLayer(overlay); overlay = next; pending = null; displayed = frame;
         $('radarFrameTime').textContent = `Observation: ${stamp(frame)}`;
-        status.textContent = freshness(frame);
+        status.textContent = freshness();
       } catch {
         globalThis.StormtraceDiagnostics?.count("errors");
         if (request === generation) map.removeLayer(next);
@@ -106,11 +143,12 @@
         globalThis.StormtraceDiagnostics?.count("radarSuccesses");
         globalThis.StormtraceDiagnostics?.radar(Date.now() - diagnosticStart, data.records.at(-1)?.observedAt);
         if (!enabled || epoch !== selectionGeneration) return;
-        if (data.missingDependencies.length) { status.textContent = 'Radar needs a one-time local setup. See Radar setup below; no key is needed.'; return; }
+        if (data.missingDependencies.length) { status.textContent = 'UK and European radar need a one-time setup on this computer. No key or account is needed.'; showSetup(true); return; }
+        showSetup(false);
         legendPresentation(data.legend);
         globalThis.StormtraceUI.sourceStatus('radarNavButton',{health:data.health});
         records = data.records.slice().sort((a, b) => a.observedAt - b.observedAt);
-        slider.disabled = !records.length; slider.max = Math.max(0, records.length - 1);
+        slider.disabled = !records.length; slider.max = Math.max(0, records.length - 1); setPlayButton();
         if (!records.length) { if (overlay) map.removeLayer(overlay); overlay = null; displayed = null; $('radarFrameTime').textContent = 'No frames available.'; status.textContent = 'No recent radar observations available. Older archive data is not shown as live.'; return; }
         let index = followLatest ? records.length - 1 : records.findIndex((f) => f.id === displayed?.id);
         if (index < 0) { followLatest = true; index = records.length - 1; }
@@ -121,28 +159,36 @@
     }
     // The Layers checkbox drives radar; its checked state always mirrors whether radar is on.
     button.addEventListener('click', () => {
-      enabled = !enabled; panel.hidden = !enabled; button.checked = enabled;
+      enabled = !enabled; panel.hidden = !enabled; button.checked = enabled; stopPlayback();
       if(enabled)globalThis.StormtraceUI.scrollTo(panel);
       if (!enabled) { generation++; selectionGeneration++; cancelPending?.(); clearInterval(timer); if (overlay) map.removeLayer(overlay); if (pending) map.removeLayer(pending); overlay = pending = displayed = null; return; }
       if (demo) { status.textContent = 'Live radar is disabled in demo mode.'; return; }
       refresh(); timer = setInterval(refresh, source.startsWith('noaa-') ? 60000 : 300000);
     });
     selection?.addEventListener('change', () => {
-      source = selection.value; selectionGeneration++; generation++; cancelPending?.();
+      source = selection.value; selectionGeneration++; generation++; cancelPending?.(); stopPlayback();
       if (overlay) map.removeLayer(overlay); if (pending) map.removeLayer(pending);
       overlay = pending = displayed = null; records = []; followLatest = true;
       slider.disabled = true; $('radarFrameTime').textContent = ''; sourcePresentation();
       status.textContent = demo ? 'Live radar is disabled in demo mode.' : enabled ? 'Loading selected radar source…' : 'Turn on Radar to load this source.';
       if (enabled) { clearInterval(timer); timer = setInterval(refresh, source.startsWith('noaa-') ? 60000 : 300000); refresh(); }
     });
-    slider.addEventListener('input' , () => { followLatest = false; show(records[Number(slider.value)]); });
+    slider.addEventListener('input' , () => { stopPlayback(); followLatest = false; show(records[Number(slider.value)]); });
+    $('radarPlay')?.addEventListener('click', () => {
+      if (playing) return stopPlayback();
+      if (records.length < 2) return;
+      playing = true; setPlayButton();
+      // From the latest frame, start the loop at the oldest one.
+      const current = Number(slider.value);
+      stepPlayback(current >= records.length - 1 ? -1 : current);
+    });
     $('radarViewRegion')?.addEventListener('click', () => {
       if (!records.length) { status.textContent = 'Load radar observations before viewing this region.'; return; }
       const [west, south, east, north] = records[0].bounds;
       map.fitBounds([[south, west], [north, east]], { maxZoom: 7 });
     });
     $('radarOff')?.addEventListener('click', () => { if (enabled) button.click(); });
-    $('radarLatest').addEventListener('click', () => { followLatest = true; slider.value = records.length - 1; show(records.at(-1)); refresh(); });
+    $('radarLatest').addEventListener('click', () => { stopPlayback(); followLatest = true; slider.value = records.length - 1; show(records.at(-1)); refresh(); });
     document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
     return { refresh };
   }

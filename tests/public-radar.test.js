@@ -275,3 +275,33 @@ test('radar panel renders precipitation type as a labelled categorical legend wi
     assert.throws(()=>globalThis.StormtraceRadar.validate({...result,legend:{unit:'category',categories:[{label:'Snow',colour:'url(evil)'}]}}));
   } finally {if(elements.radarButton.checked)elements.radarButton.listeners.click();Object.assign(globalThis,original);}
 });
+
+test('radar playback starts from the oldest frame, waits for each frame, loops, and stops on manual controls', async () => {
+  const original={document:globalThis.document,L:globalThis.L,setTimeout:globalThis.setTimeout,clearTimeout:globalThis.clearTimeout};
+  const ids=['radarButton','radarPanel','radarStatus','radarTimeline','radarAttribution','radarFrameTime','radarLatest','radarSource','radarSourceLink','radarCoverage','radarUnit','radarViewRegion','radarLegend','radarPlay'];
+  const make=()=>({children:[],style:{setProperty(){}},append(n){this.children.push(n);},replaceChildren(){this.children=[];},classList:{add(){},remove(){}},listeners:{},addEventListener(n,f){this.listeners[n]=f;},setAttribute(n,v){this[n]=v;}});
+  const elements=Object.fromEntries(ids.map(id=>[id,{...make(),value:id==='radarSource'?'noaa-conus':''}]));
+  const shown=[];const timers=[];
+  globalThis.document={hidden:false,getElementById:id=>elements[id],addEventListener(){},createElement:()=>({...make(),textContent:''})};
+  globalThis.L={imageOverlay(url){shown.push(url);return {listeners:{},once(n,f){this.listeners[n]=f;},addTo(){this.listeners.load();}};}};
+  globalThis.setTimeout=(fn,ms)=>{timers.push({fn,ms});return timers.length;};globalThis.clearTimeout=()=>{timers.length=0;};
+  const frame=i=>({id:'noaa-conus@'+i,observedAt:at-(3-i)*900000,bounds:[-126,24,-66,50],resource:{url:'/api/radar/frame?source=noaa-conus&key=f'+i,format:'image/png'}});
+  const result={records:[frame(0),frame(1),frame(2)],health:C.health(),missingDependencies:[],legend:{unit:'dBZ',image:'/api/radar/frame?source=noaa-conus&key=legend'}};
+  const settle=async()=>{for(let n=0;n<10;n++)await new Promise(r=>setImmediate(r));};
+  try {
+    globalThis.StormtraceRadar.mountRadar({map:{createPane(){},getPane:()=>({style:{}}),removeLayer(){},fitBounds(){}},fetch:async()=>({ok:true,json:async()=>result})});
+    elements.radarButton.listeners.click();await settle();
+    assert.equal(elements.radarPlay.disabled,false,elements.radarStatus.textContent+' / '+elements.radarTimeline.max);assert.equal(Number(elements.radarTimeline.value),2);
+    shown.length=0;timers.length=0;
+    elements.radarPlay.listeners.click();await settle();
+    assert.equal(elements.radarPlay.textContent,'Pause');assert.match(shown.at(-1),/key=f0$/,'starts from the oldest frame');
+    // Each frame is scheduled only after the previous one has drawn.
+    const playingStatus=elements.radarStatus.textContent;assert.match(playingStatus,/Playing the past 3 hours/);
+    timers.shift().fn();await settle();assert.match(shown.at(-1),/key=f1$/);assert.equal(elements.radarStatus.textContent,playingStatus,'status does not flicker between frames');
+    timers.shift().fn();await settle();assert.match(shown.at(-1),/key=f2$/);assert.equal(timers[0].ms,1600,'pauses longer on the latest frame');
+    timers.shift().fn();await settle();assert.match(shown.at(-1),/key=f0$/,'loops');
+    elements.radarTimeline.value=1;elements.radarTimeline.listeners.input();
+    assert.equal(elements.radarPlay.textContent,'Play');assert.equal(timers.length,0,'dragging the slider stops playback');
+    await settle();assert.doesNotMatch(elements.radarStatus.textContent,/Playing/);
+  } finally {if(elements.radarButton.checked)elements.radarButton.listeners.click();Object.assign(globalThis,original);}
+});

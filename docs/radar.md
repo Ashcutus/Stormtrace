@@ -15,7 +15,9 @@ The application links to each official source and displays its attribution. Sour
 
 ## Setup
 
-UK and European rain-rate decoding is optional and uses the same environment. NOAA radar imagery does not need scientific packages; it uses the standard Python runtime. Lightning and other hazards keep their existing dependencies. **Create the Python environment outside the plugin directory.** Omarchy rejects symlinks anywhere inside a plugin, including ignored files; Python environments contain symlinks and can block updates.
+The easiest way is one click: turn on Radar, choose a UK or European source, and press **Set up UK and Europe radar** in the radar panel. Stormtrace creates the environment at `${XDG_DATA_HOME:-~/.local/share}/stormtrace/radar-venv`, installs `requirements-radar.txt` (about 40 MB) and starts using it straight away. Progress and any failure are shown in the panel; Stormtrace keeps working while it runs. Both servers use that location automatically when `STORMTRACE_RADAR_PYTHON` is not set, so no `.env` change is needed. An explicit `STORMTRACE_RADAR_PYTHON` still takes priority.
+
+To set it up by hand instead, read on. UK and European rain-rate decoding is optional and uses the same environment. NOAA radar imagery does not need scientific packages; it uses the standard Python runtime. Lightning and other hazards keep their existing dependencies. **Create the Python environment outside the plugin directory.** Omarchy rejects symlinks anywhere inside a plugin, including ignored files; Python environments contain symlinks and can block updates.
 
 From the installed app directory (normally `~/.config/omarchy/plugins/stormtrace.lightning`):
 
@@ -25,7 +27,7 @@ python3 -m venv "$radar_env"
 "$radar_env/bin/python" -m pip install -r requirements-radar.txt
 ```
 
-Add the **expanded absolute Python executable path** to the existing `.env`, preserving other settings. For example:
+Stormtrace finds an environment at that default location by itself. Only if you put it somewhere else, add the **expanded absolute Python executable path** to the existing `.env`, preserving other settings. For example:
 
 ```dotenv
 STORMTRACE_RADAR_PYTHON=/home/your-user/.local/share/stormtrace/radar-venv/bin/python
@@ -50,6 +52,8 @@ Run these commands from the installed plugin directory. Do not replace the envir
 ## Controls and limits
 
 Turn **Radar** on or off with the toolbar **Radar** button or the **Layers** checkbox on the map (they are the same control), or use **Turn off radar** in the radar panel. The panel opens in the sidebar while radar is on. Choose **Source / region**, then use the frame selector or **Latest frame**. **View selected region** explicitly centres the map on the selected display crop. Toggling radar and switching sources preserve the map centre and zoom. Enable or disable **Lightning strikes** independently in Layers; this affects visibility only, while lightning collection and nearby alerts continue.
+
+**Play** steps through the loaded frames, waiting for each to draw and pausing on the latest before looping. Dragging the frame selector, **Latest frame**, switching source or turning radar off stops playback.
 
 Radar draws above the basemap and below lightning markers. The panel displays the loaded observation time, source attribution, official-source link, product-specific legend and retrieval status. Displayed observation times use labelled UK local time, or the device's time zone if chosen in **Appearance**; provenance retains the source timestamps. The NOAA source-generated legend can be scrolled horizontally with keyboard focus. Met Office warning polygons remain in their dedicated list.
 

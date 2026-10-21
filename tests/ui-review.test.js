@@ -204,3 +204,29 @@ test('a selection made while a map popup is open waits to open Layers so the pan
  const a=loadApp();a.document.querySelector('#layersPanel').open=false;a.bindControls();a.state.mapPopupOpen=true;
  a.document.listeners.hazardselected({detail:{label:'Test'}});assert.equal(a.elements.get('#layersPanel').open,false);assert.equal(a.state.pendingLayersOpen,true);
 });
+test('the sidebar grid column cannot grow past the sidebar, so wide legends scroll in place instead of widening it',()=>{
+ const css=readFileSync('styles.css','utf8');
+ assert.match(css,/\.sidebar \{[^}]*grid-template-columns: minmax\(0, 1fr\)/);assert.match(css,/\.sidebar > \* \{ min-width: 0; \}/);
+ assert.match(css,/\.radar-legend:has\(img\) \{[^}]*max-width: 100%[^}]*overflow-x: auto/);
+});
+test('the warning map opens full window with its own scrolling side panel and bounded popups',()=>{
+ const html=readFileSync('index.html','utf8'),css=readFileSync('styles.css','utf8');
+ assert.match(html,/<aside class="warning-map-side"[\s\S]*id="warningMapList"[\s\S]*metoffice\.gov\.uk[\s\S]*<\/aside>/);
+ assert.match(css,/#warningMapDialog \{ width: calc\(100vw - 24px\); height: calc\(100dvh - 24px\)/);
+ assert.match(css,/\.hazard-popup \.leaflet-popup-content, \.storm-popup \.leaflet-popup-content \{ max-height:[^}]*overflow-y: auto/);
+ assert.match(css,/#warningAreaMap \.leaflet-control-attribution a \{ color: #0b4f9e; \}/);
+});
+test('every map layer uses the shared popup behaviour: same options, bounded scrolling content and badge-first layout',()=>{
+ const files=['app.js','client/map-hazards.js','client/earthquakes.js','client/public-hazards.js','client/warning-map.js'];
+ for(const f of files){const s=readFileSync(f,'utf8');assert.doesNotMatch(s,/bindPopup\([^)]*\{\s*className:\s*'hazard-popup/,f+' must use UI.popupOptions');}
+ assert.equal((readFileSync('client/map-hazards.js','utf8').match(/UI\.popupOptions\(/g)||[]).length,4);
+ assert.match(readFileSync('app.js','utf8'),/UI\.popupOptions\(\{ className: "storm-popup"/);
+ const o=UI.popupOptions({minWidth:260});assert.equal(o.className,'hazard-popup flood-map-popup');assert.equal(o.minWidth,260);assert.deepEqual(o.autoPanPaddingTopLeft,[24,76]);
+ assert.match(readFileSync('styles.css','utf8'),/\.hazard-popup \.leaflet-popup-content, \.storm-popup \.leaflet-popup-content \{ max-height:[^}]*overflow-y: auto/);
+});
+test('hazard cards share one action row under the heading, and only located cyclone and volcano records offer Show on map',()=>{
+ for(const f of ['client/floods.js','client/earthquakes.js','client/public-hazards.js','client/warnings.js'])assert.match(readFileSync(f,'utf8'),/UI\.cardActions\(/,f);
+ for(const f of ['client/floods.js','client/earthquakes.js','client/public-hazards.js'])assert.doesNotMatch(readFileSync(f,'utf8'),/text\([^)]*'Show on map'/,f+' builds its own Show on map button');
+ assert.match(readFileSync('client/public-hazards.js','utf8'),/\['cyclone', 'volcano'\]\.includes\(r\.kind\) && r\.geometry\?\.type === 'Point'/);
+ assert.match(readFileSync('styles.css','utf8'),/dialog:has\(> \.hazard-dialog-card\) \{ width: calc\(100vw - 24px\); height: calc\(100dvh - 24px\)/);
+});

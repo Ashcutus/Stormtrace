@@ -4,12 +4,18 @@ Stormtrace combines a continuously connected lightning viewer with optional on-d
 
 - **Toolbar**: place search, the **Hazards** buttons, the **Lightning window** (Live, 1h, 6h, 24h) and **Set location**.
 - **Map**: **Layers** (top left), the strike-age legend, zoom controls, the latest-strike strip and notifications.
-- **Sidebar**: the radar panel (when radar is on), **Lightning activity** (counts and hotspots), **Nearby lightning** (location, alert radius and desktop alerts), and lightning source details.
+- **Sidebar**: the radar panel (when radar is on), **Lightning activity** (counts and hotspots), **Alerts near you** (location, alert radius, desktop alerts and hazard alerts), and lightning source details.
 - **Footer**: the visible region and centre coordinates, common shortcuts and the clock.
 
 On narrow windows, **Map** and **Lightning & location** tabs switch between the map and the sidebar.
 
-Only lightning has nearby desktop alerts; opening a hazard view does not enable background hazard alerts.
+## Alerts near you
+
+Desktop alerts cover nearby lightning plus any hazards ticked under **Also alert me about**: amber and red Met Office warning areas that contain your location (from the public map service, no key), England flood warnings (levels 1 and 2) whose published area contains your location, and earthquakes from the past day at or above a chosen magnitude within a chosen distance. Ticked hazards are checked every ten minutes while Stormtrace is open, from the same normalized sources as the views. Each source revision notifies once, remembered across restarts; a failed check keeps the last known result and says so. If Desktop alerts are off, alerts appear in the window only. Opening a hazard view alone does not enable alerts.
+
+The Omarchy bar icon mirrors the most urgent current alert: a bolt while lightning is inside your radius (any strike in the last ten minutes), an alert symbol while a ticked hazard affects you, the storm cloud otherwise, and a dimmed icon when Stormtrace is not running. The window reports this to the local server, which shares it through `/api/health` and lets it expire after five minutes without an update.
+
+A new install shows a short welcome with Locate me, Pick on map and Explore first. Existing settings mean it never appears.
 
 ## Layers and selected events
 
@@ -61,4 +67,4 @@ Monitoring coordinates are stored locally and distances/alerts are calculated lo
 
 Weather warnings include a **Warning map** action opening a dedicated UK map of official warning areas, separate from other weather layers. It uses the public Met Office map service (beta) without a key; summaries remain available in the list. Severity/type labels and the area buttons open full source-backed popups. The source link and retrieval/delay caveats remain visible. See [UK weather warnings](warnings.md).
 
-Existing plugin IDs, profile paths, saved settings and storage keys are unchanged. The time display preference is an additive `timeZone` setting that defaults to UK local time; no data migration is required.
+Existing plugin IDs, profile paths, saved settings and storage keys are unchanged. The time display preference (`timeZone`), hazard alert choices (`hazardAlerts`) and `welcomeSeen` are additive settings with safe defaults, and notified hazard revisions are kept under the new `stormtrace:hazard-alerts-notified` key; no data migration is required.

@@ -5,6 +5,8 @@ export class RadarResourceProvider {
     this.runner = new C.ProviderRunner(this.source, { now }); this.cached = null; this.inflight = null; this.images = new Map();
   }
   get health() { return this.runner.health; }
+  // Forget cached frames so a newly set-up decoder is used on the next check.
+  invalidate() { this.cached = null; this.images.clear(); }
   frames() {
     if (this.inflight) return this.inflight;
     if (this.cached && this.now() - this.health.lastSuccessfulFetch < this.cacheMs) return Promise.resolve(structuredClone({ ...this.cached, health: { ...this.health, freshness: C.freshness(this.health, this.now()) } }));

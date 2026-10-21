@@ -10,7 +10,7 @@ import os
 import re
 import time
 import math
-from stormtrace_platform import local_api_key, local_setting, read_omarchy_theme, RadarAdapter
+from stormtrace_platform import local_api_key, local_setting, read_omarchy_theme, RadarAdapter, RadarSetup
 from providers.metoffice_radar import RadarError
 from providers.map_overlays import MapOverlayProvider
 from providers.public_hazards import PublicHazardProvider, HazardError, SOURCES as HAZARD_SOURCES
@@ -41,9 +41,30 @@ FLOODS_PROVIDER = EnglandFloodProvider()
 HAZARD_PROVIDERS = {id: PublicHazardProvider(id) for id in HAZARD_SOURCES}
 RADAR_PROVIDER = RadarAdapter(ROOT)
 PUBLIC_RADAR_PROVIDERS = {source: RadarAdapter(ROOT, source) for source in ['opera-radar', 'noaa-conus', 'noaa-alaska', 'noaa-hawaii', 'noaa-carib', 'noaa-guam', 'noaa-ptype-conus', 'noaa-ptype-alaska', 'noaa-ptype-hawaii', 'noaa-ptype-carib', 'noaa-ptype-guam']}
+# A finished setup clears radar caches so the new decoder is used straight away.
+RADAR_SETUP = RadarSetup(ROOT, on_done=lambda: [provider.invalidate() for provider in [RADAR_PROVIDER, *PUBLIC_RADAR_PROVIDERS.values()] if hasattr(provider, 'invalidate')])
 
 DIAGNOSTICS_ENABLED = os.environ.get("STORMTRACE_DIAGNOSTICS") == "1"
 DIAGNOSTICS_SAMPLE = None
+# Bar alert state reported by the open window; mirrors platform/bar-status.js.
+BAR_ALERT = None
+BAR_ALERT_KINDS = ("lightning", "warning", "flood", "earthquake")
+BAR_ALERT_MAX_MS = 15 * 60 * 1000
+
+
+def sanitize_bar_status(value, now):
+    if value is None or (isinstance(value, dict) and "alert" in value and value["alert"] is None): return None
+    alert = value.get("alert") if isinstance(value, dict) else None
+    if not isinstance(alert, dict) or alert.get("kind") not in BAR_ALERT_KINDS: raise ValueError("invalid bar alert")
+    until = alert.get("until")
+    if isinstance(until, bool) or not isinstance(until, (int, float)) or not math.isfinite(until) or until <= now or until > now + BAR_ALERT_MAX_MS: raise ValueError("invalid bar alert expiry")
+    title = alert.get("title") if isinstance(alert.get("title"), str) else ""
+    title = "".join(" " if ord(ch) < 32 or ord(ch) == 127 else ch for ch in title).strip()[:140]
+    return {"kind": alert["kind"], "title": title, "until": until}
+
+
+def current_bar_alert(now):
+    return {"kind": BAR_ALERT["kind"], "title": BAR_ALERT["title"]} if BAR_ALERT and BAR_ALERT["until"] > now else None
 DIAGNOSTICS_FIELDS = json.loads((ROOT / "platform/diagnostics-fields.json").read_text())
 
 class Handler(SimpleHTTPRequestHandler):
@@ -51,7 +72,21 @@ class Handler(SimpleHTTPRequestHandler):
         super().__init__(*args, directory=str(ROOT), **kwargs)
 
     def do_POST(self):
-        global DIAGNOSTICS_SAMPLE
+        global DIAGNOSTICS_SAMPLE, BAR_ALERT
+        if self.path == "/api/radar/setup":
+            if self.headers.get("Origin", "http://" + self.headers.get("Host", "")) != "http://" + self.headers.get("Host", ""): return self.send_json(403, {})
+            if not self.headers.get("Content-Type", "").startswith("application/json"): return self.send_json(415, {})
+            return self.send_json(202, RADAR_SETUP.start())
+        if self.path == "/api/bar-status":
+            if self.headers.get("Origin", "http://" + self.headers.get("Host", "")) != "http://" + self.headers.get("Host", ""): return self.send_json(403, {})
+            if not self.headers.get("Content-Type", "").startswith("application/json"): return self.send_json(415, {})
+            try:
+                size = int(self.headers.get("Content-Length", "0"))
+                if size < 0 or size > 2048: return self.send_json(413, {})
+                now = int(time.time() * 1000)
+                BAR_ALERT = sanitize_bar_status(json.loads(self.rfile.read(size)), now)
+                return self.send_json(200, {"alert": current_bar_alert(now)})
+            except (ValueError, TypeError, AttributeError): return self.send_json(400, {})
         if self.path != "/api/diagnostics": return self.send_json(404, {})
         if not DIAGNOSTICS_ENABLED or self.headers.get("Origin", "http://" + self.headers.get("Host", "")) != "http://" + self.headers.get("Host", ""): return self.send_json(403, {})
         try:
@@ -75,11 +110,14 @@ class Handler(SimpleHTTPRequestHandler):
                 "root": str(ROOT),
                 "pid": os.getpid(),
                 "historyProvider": bool(API_KEY),
+                "alert": current_bar_alert(int(time.time() * 1000)),
             })
         if parsed.path == "/api/update":
             return self.update_check()
         if parsed.path == "/api/theme":
             return self.send_json(200, read_omarchy_theme())
+        if parsed.path == "/api/radar/setup":
+            return self.send_json(200, RADAR_SETUP.snapshot())
         if parsed.path in ("/api/radar", "/api/radar/frame"):
             source = parse_qs(parsed.query).get('source', ['metoffice-radar'])[0]
             selected = RADAR_PROVIDER if source == 'metoffice-radar' else PUBLIC_RADAR_PROVIDERS.get(source)

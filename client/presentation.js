@@ -77,6 +77,30 @@
     const n=text(parent,'p','','flood-map-time popup-retrieval');
     const update=(h=health,cache=cached)=>{popupStates.set(n,{health:h,cached:cache,format});n.textContent=`${cache||h.lastError?'Cached after retrieval failure. ':''}${h.lastSuccessfulFetch==null?'Retrieval time unavailable.':`Last checked ${format(h.lastSuccessfulFetch)}.`} Check the official source for current information.`;refreshPopupHealth();};update();return update;
   }
+  // MapLibre 6 requires WebGL2 and the module loader; without either, use raster tiles.
+  function vectorMapAvailable() {
+    if (!globalThis.maplibregl?.Map || !globalThis.L?.maplibreGL) return false;
+    try { return Boolean(document.createElement('canvas').getContext('webgl2')); } catch { return false; }
+  }
+  // One popup behaviour for every map layer: same surface, width, and auto-pan
+  // clearance from the map's overlays (Layers, controls and the strike strip).
+  function popupOptions(extra = {}) {
+    return { className: 'hazard-popup flood-map-popup', maxWidth: 380, minWidth: 280, autoPan: true, autoPanPaddingTopLeft: [24, 76], autoPanPaddingBottomRight: [64, 84], ...extra };
+  }
+  // Leaflet does not auto-pan a popup while the map is still moving, so finish
+  // the move first (instantly), then open the popup so it can pan into view.
+  function showOnMap(map, move, layer) {
+    move({ animate: false });
+    layer.openPopup?.();
+  }
+  // Every hazard card has its actions in one place, directly under the heading:
+  // Show on map (only when the event has a location) and the official link.
+  function cardActions(card, { onShowMap = null, link = null } = {}) {
+    const row = text(card, 'div', '', 'card-actions');
+    if (onShowMap) { const button = text(row, 'button', 'Show on map', 'mini-button card-map-button'); button.type = 'button'; button.addEventListener('click', onShowMap); }
+    if (link?.url) { const a = text(row, 'a', `${link.label} ↗`, 'card-source-link'); a.href = link.url; a.target = '_blank'; a.rel = 'noopener noreferrer'; }
+    return row;
+  }
   function scrollTo(node) { node?.scrollIntoView?.({block:'nearest',behavior:'auto'}); }
   function reducedMotion() { return Boolean(globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches); }
   function flyOptions(duration = 1) { return {duration: reducedMotion()?0:duration,animate:!reducedMotion()}; }
@@ -113,5 +137,5 @@
     };archive.renderArchive();
   }
   function matches(r, query) { return !query || JSON.stringify([r.sourceAuthority,r.domainPayload.title,r.domainPayload.headline,r.domainPayload.place,r.domainPayload.classification,r.domainPayload.status,r.domainPayload.centre,r.domainPayload.county,r.domainPayload.riverOrSea,r.domainPayload.badge,r.kind,r.domainPayload.classificationLabel,r.domainPayload.affectedAreas,r.domainPayload.areas,r.domainPayload.weatherTypes,r.domainPayload.details]).toLowerCase().includes(query); }
-  globalThis.StormtraceUI={date,fixedUkDate,setTimeZone,timeZone,depth,text,keyed,healthMessage,sourceStatus,popupHealth,refreshPopupHealth,scrollTo,reducedMotion,flyOptions,collection,archiveView,matches};
+  globalThis.StormtraceUI={date,fixedUkDate,setTimeZone,timeZone,depth,text,keyed,healthMessage,sourceStatus,popupHealth,refreshPopupHealth,scrollTo,cardActions,popupOptions,showOnMap,vectorMapAvailable,reducedMotion,flyOptions,collection,archiveView,matches};
 })();

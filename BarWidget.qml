@@ -8,6 +8,10 @@ BarWidget {
   moduleName: "stormtrace.lightning"
 
   property bool serverReady: false
+  // Alert reported by the open window through /api/health: "", "lightning",
+  // "warning", "flood" or "earthquake". It expires on the server by itself.
+  property string alertKind: ""
+  property string alertTitle: ""
   property string canonicalSourceDir: ""
   property string appVersion: ""
   readonly property string sourceDir: {
@@ -39,6 +43,17 @@ BarWidget {
         && data.root.replace(/\/$/, "") === canonicalSourceDir
     } catch (_) {
       return false
+    }
+  }
+
+  function alertFrom(output) {
+    try {
+      var alert = JSON.parse(output).alert
+      var kinds = ["lightning", "warning", "flood", "earthquake"]
+      if (!alert || kinds.indexOf(alert.kind) < 0) return { kind: "", title: "" }
+      return { kind: alert.kind, title: typeof alert.title === "string" ? alert.title.slice(0, 140) : "" }
+    } catch (_) {
+      return { kind: "", title: "" }
     }
   }
 
@@ -94,17 +109,27 @@ BarWidget {
     id: healthProc
     command: ["curl", "-fsS", "--max-time", "1", "http://127.0.0.1:4177/api/health"]
     stdout: StdioCollector { id: healthOutput }
-    onExited: function(exitCode) { root.serverReady = exitCode === 0 && root.healthMatches(healthOutput.text) }
+    onExited: function(exitCode) {
+      root.serverReady = exitCode === 0 && root.healthMatches(healthOutput.text)
+      var alert = root.serverReady ? root.alertFrom(healthOutput.text) : { kind: "", title: "" }
+      root.alertKind = alert.kind
+      root.alertTitle = alert.title
+    }
   }
 
   BarIconButton {
     id: button
     anchors.fill: parent
     bar: root.bar
-    // Material Design "weather-lightning" glyph (U+F0593) from the Nerd Font Omarchy's bar uses.
-    text: "󰖓"
-    active: root.serverReady
-    tooltipText: root.serverReady ? "Open Stormtrace · local service ready" : "Start Stormtrace weather and hazard monitor"
+    // Nerd Font Material Design glyphs, as used by Omarchy's own widgets:
+    // storm cloud normally, a bolt for nearby lightning, an alert for hazards.
+    text: root.alertKind === "lightning" ? "󱐋" : root.alertKind !== "" ? "󰀦" : "󰖓"
+    // The urgent colour is kept for real alerts; a stopped service is dimmed.
+    active: root.serverReady && root.alertKind !== ""
+    dimmed: !root.serverReady
+    tooltipText: !root.serverReady ? "Start Stormtrace weather and hazard monitor"
+      : root.alertTitle !== "" ? "Stormtrace · " + root.alertTitle
+      : "Open Stormtrace · local service ready"
     onPressed: root.launch()
   }
 }

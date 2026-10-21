@@ -141,7 +141,7 @@ test('hazard dialogs safely render source text, bind global fetch, stop on close
     get('cyclonesDialog').close();await get('cyclonesRefresh').listeners.click();assert.equal(calls,1);
     await ctrl.recordObserved(result.records);get('cyclonesDialog').showModal();await get('cyclonesHistory').listeners.click();assert.match(get('cyclonesArchive').content,/Saved on this device/);get('cyclonesDialog').close();
     get('cyclonesDialog').showModal();await ctrl.refresh();
-    get('cyclonesList').children[0].children.find(n=>n.tag==='button').listeners.click();assert.deepEqual(point,[20.4,-107.2]);assert.equal(get('cyclonesDialog').open,false);assert.match(popup.content,/Reported cyclone centre only/);mounted.clearMarker();assert.equal(removed,1);
+    (card=>{const row=card.children.find(n=>n.className==='card-actions');return row&&row.children.find(n=>n.tag==='button'&&n.textContent==='Show on map');})(get('cyclonesList').children[0]).listeners.click();assert.deepEqual(point,[20.4,-107.2]);assert.equal(get('cyclonesDialog').open,false);assert.match(popup.content,/Reported cyclone centre only/);mounted.clearMarker();assert.equal(removed,1);
     for (const key of ['volcanoes','tsunamis','space']) {
       get(`${key}Button`).listeners.click();const current=mounted.controllers[get(`${key}Source`).value];current.now=()=>now;
       for(let i=0;i<100&&(current.state.configured==null||current.state.loading);i++)await new Promise(resolve=>setImmediate(resolve));
@@ -182,4 +182,23 @@ test('official Esri warning areas retain native severity, geometry, source issue
  H.validBatch('metoffice-warnings-esri',{configured:true,...result,health:C.health()});
  for(const change of [v=>v.features[0].properties.warninglevel='BLUE',v=>v.features[0].geometry.coordinates[0][0][0]=999,v=>v.exceededTransferLimit=true,v=>v.features.push(structuredClone(v.features[0]))]){const bad=structuredClone(raw);change(bad);assert.throws(()=>normalize('metoffice-warnings-esri',bad));}
  assert.equal(normalize('metoffice-warnings-esri',{type:'FeatureCollection',features:[]}).records.length,0);
+});
+
+test('USGS volcano notices gain official summit locations by volcano number, without inventing missing ones', () => {
+  const out = execFileSync('python3', ['-c', `
+import json
+from providers.public_hazards import normalize_volcanoes, URLS
+notice=lambda vnum,name:{'vnum':vnum,'notice_identifier':'DOI-USGS-AVO-'+vnum,'volcano_name':name,'color_code':'ORANGE','alert_level':'WATCH','sent_unixtime':1792610858,'notice_url':'https://volcanoes.usgs.gov/hans-public/notice/x','obs_fullname':'Alaska Volcano Observatory'}
+locations=[{'vnum':'311120','latitude':52.0765,'longitude':-176.1109},{'vnum':'999','latitude':200,'longitude':0},{'vnum':'abc','latitude':1,'longitude':1}]
+records=normalize_volcanoes([[notice('311120','Great Sitkin'),notice('999','Bad coords'),notice('555','Unlisted')],locations],1792610900000)
+by={r['domainPayload']['title']:r for r in records}
+assert by['Great Sitkin']['geometry']=={'type':'Point','coordinates':[-176.1109,52.0765]}
+assert 'usgs-volcano-location-join-by-vnum' in by['Great Sitkin']['provenance']['transformations']
+assert by['Bad coords']['geometry'] is None and by['Unlisted']['geometry'] is None
+assert 'usgs-volcano-location-join-by-vnum' not in by['Unlisted']['provenance']['transformations']
+assert normalize_volcanoes([notice('311120','Great Sitkin')],1)[0]['geometry'] is None
+assert URLS['usgs-volcano'][1].startswith('https://volcanoes.usgs.gov/hans-public/api/volcano/getUSVolcanoes')
+print('ok')
+`], { encoding: 'utf8' }).trim();
+  assert.equal(out, 'ok');
 });

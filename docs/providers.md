@@ -29,7 +29,7 @@ V1 access, optional Met Office warnings, radar, floods, earthquakes and the [add
 | nhc | NOAA NHC / CPHC | Regional operational cyclones | Public current-storm summary, selected centre, official advisory/forecast links; local tracks/cones deferred |
 | ibtracs | NOAA NCEI and contributors | Historical cyclones | Historical capability and metadata |
 | gdacs | GDACS participating agencies | Supplementary global hazards | Metadata only; retain originating authority |
-| usgs-volcano | USGS Volcano Hazards Program / observatories | Regional volcano notices | Public HANS elevated notices; separate ground/aviation levels and local revisions |
+| usgs-volcano | USGS Volcano Hazards Program / observatories | Regional volcano notices | Public HANS elevated notices joined by `vnum` to HANS `getUSVolcanoes` summit coordinates (`usgs-volcano-location-join-by-vnum` transformation; no location when none is published); separate ground/aviation levels and local revisions |
 | gvp | Smithsonian Global Volcanism Program | Global volcano summaries | Optional weekly RSS summaries and local revisions; host can block retrieval |
 | noaa-tsunami | NOAA NTWC / PTWC | Regional tsunami bulletins | Latest CAP bulletin per centre, source expiry/update/cancel references; not complete active-alert coverage |
 | swpc | NOAA Space Weather Prediction Center | Space weather | Current/forecast scales and recent issued messages; only discrete messages archived |

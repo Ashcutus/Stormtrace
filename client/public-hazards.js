@@ -8,6 +8,8 @@
     tsunamis: { title: 'Tsunami bulletins', sources: ['noaa-tsunami'] },
     space: { title: 'Space weather', sources: ['swpc'] },
   };
+  // Official USGS aviation colour codes, used for volcano map markers.
+  const VOLCANO_COLOURS = { GREEN: '#008000', YELLOW: '#ffff00', ORANGE: '#ffa500', RED: '#ff0000' };
   function safeLink(value) {
     let u; try { u = new URL(value); } catch { return false; }
     return u.protocol === 'https:' && !u.username && !u.password && ['www.metoffice.gov.uk','weather.metoffice.gov.uk','www.nhc.noaa.gov','www.hurricanes.gov','www.weather.gov','volcanoes.usgs.gov','www.usgs.gov','volcano.si.edu','www.tsunami.gov','tsunami.gov','www.spaceweather.gov','www.swpc.noaa.gov'].includes(u.host);
@@ -45,10 +47,36 @@
     const link = (parent, label, url) => { const node = text(parent, 'a', label, 'text-button'); node.href = url; node.target = '_blank'; node.rel = 'noopener noreferrer'; return node; };
     function clearMarker() { marker?.remove(); marker = null;markerEvent=null; }
     function card(parent, r, key, archive = false) {
-      const p = r.domainPayload, el = text(parent, 'article', '', 'warning-card public-hazard-card');
+      const p = r.domainPayload;
+      // Cyclones carry a reported centre; volcanoes carry a USGS summit location.
+      // Other kinds have no map location, so they offer only the official link.
+      const mappable = !archive && ['cyclone', 'volcano'].includes(r.kind) && r.geometry?.type === 'Point' && getMap();
+      const showHere = mappable ? () => {
+          // Other modules clear their selection first, so only one event is selected.
+          document.dispatchEvent?.(new Event('clearselectedhazard'));
+          clearMarker(); const map = getMap(), [lon, lat] = r.geometry.coordinates, cyclone = r.kind === 'cyclone';
+          const ctrl = controllers[r.provider];
+          const node = document.createElement('section'); node.className = `flood-map-card ${cyclone ? 'cyclone-map-card' : 'volcano-map-card'}`;
+          if (!cyclone) node.style.setProperty('--flood-accent', VOLCANO_COLOURS[p.aviationColour] || '#ffb15c');
+          text(node, 'span', cyclone ? p.badge : `${p.activity} · aviation ${p.aviationColour}`, 'flood-map-badge'); text(node, 'h3', p.title, 'flood-map-title'); text(node, 'p', r.sourceAuthority, 'flood-map-attribution');
+          text(node, 'p', cyclone ? 'Reported cyclone centre only. Forecast track, cone and affected areas are available at the official source.' : 'Volcano summit location from USGS. Ash, gas and hazard areas are described in the official notice, not drawn here.');
+          const timeNode = r.updatedAt != null ? text(node, 'p', `${cyclone ? 'Source updated' : 'Notice issued'} ${UI.date(r.updatedAt)}`, 'flood-map-time') : null;
+          const health = UI.popupHealth(node, ctrl.state.health, ctrl.state.cached);
+          if (cyclone) { markerTime = timeNode; markerHealth = health; }
+          link(node, cyclone ? 'Open official advisory' : 'Open the official USGS notice', p.url).className = 'flood-map-link';
+          const close = text(node, 'button', 'Close', 'mini-button'); close.type = 'button'; close.addEventListener('click', () => marker?.closePopup());
+          markerEvent = r;
+          marker = (cyclone && globalThis.L.marker && globalThis.L.divIcon
+            ? globalThis.L.marker([lat,lon],{title:`${p.title} · reported cyclone centre`,icon:globalThis.L.divIcon({className:'cyclone-marker',html:'<span aria-hidden="true">↻</span>',iconSize:[28,28],iconAnchor:[14,14]}),bubblingMouseEvents:false})
+            : globalThis.L.circleMarker([lat, lon], { radius: cyclone ? 8 : 9, color: '#ffffff', weight: 3, fillColor: cyclone ? '#dfcbff' : (VOLCANO_COLOURS[p.aviationColour] || '#ffb15c'), fillOpacity: .9, bubblingMouseEvents: false })).addTo(map).bindPopup(node, UI.popupOptions());
+          UI.showOnMap(map, (options) => map.setView([lat, lon], Math.max(cyclone ? 4 : 6, map.getZoom()), options), marker); $(`${key}Dialog`).close();
+          document.dispatchEvent?.(new CustomEvent('hazardselected', { detail: { label: cyclone ? `${p.title} · reported centre` : `${p.title} volcano · ${p.activity}` } }));
+      } : null;
+      const el = text(parent, 'article', '', 'warning-card public-hazard-card');
       const lifecycle=bulletinState(r,Date.now());if(lifecycle)text(el,'strong',lifecycle,'bulletin-state');
       el.dataset.native = r.kind === 'volcano' ? p.aviationColour || '' : r.kind === 'tsunami' ? p.badge : '';
       text(el, 'span', p.classificationLabel ? `${p.classificationLabel} (${p.badge})` : p.badge, 'warning-badge'); text(el, 'h3', p.title);
+      UI.cardActions(el, { onShowMap: showHere, link: { label: 'Open official source', url: p.url } });
       text(el, 'p', r.sourceAuthority);
       if (r.observedAt != null) text(el, 'p', `${p.mode === 'forecast' ? 'Forecast source time' : p.mode === 'measurement' ? 'Observation / product time' : 'Source time'}: ${UI.date(r.observedAt)}`);
       if (r.validFrom != null) text(el, 'p', `${p.mode === 'forecast' ? 'Forecast reference time' : 'Effective / onset'}: ${UI.date(r.validFrom)}`);
@@ -62,31 +90,12 @@
         if (p.instruction) { text(disclosure, 'h4', 'Official source instructions'); text(disclosure, 'p', p.instruction, 'warning-text'); }
         link(disclosure, 'Open the official bulletin and current guidance', p.url);
       }
-      if (!(p.links || []).some(l=>l.url===p.url)) link(el, 'Open official source', p.url);
       for (const product of p.links || []) {
         link(el, product.label, product.url);
         if (product.issuedAt != null) text(el, 'p', `Advisory ${product.advisoryNumber || 'number not supplied'} · issued ${UI.date(product.issuedAt)}`);
       }
       const provenance=text(el,'details','','provenance-details');text(provenance,'summary','Source details');text(provenance,'p',`Source ID: ${r.id}`);
       if(r.kind==='cyclone')text(provenance,'p','Wind and movement speeds use knots (nautical miles per hour); pressure uses hectopascals. Classification is the source category.');
-      if (!archive && r.geometry?.type === 'Point' && getMap()) {
-        const button = text(el, 'button', 'Show on map', 'mini-button'); button.type = 'button';
-        button.addEventListener('click', () => {
-          // Other modules clear their selection first, so only one event is selected.
-          document.dispatchEvent?.(new Event('clearselectedhazard'));
-          clearMarker(); const map = getMap(), [lon, lat] = r.geometry.coordinates;
-          const node = document.createElement('section'); node.className = 'flood-map-card cyclone-map-card';
-          text(node, 'span', p.badge, 'flood-map-badge'); text(node, 'h3', p.title, 'flood-map-title'); text(node, 'p', r.sourceAuthority, 'flood-map-attribution');
-          text(node, 'p', 'Reported cyclone centre only. Forecast track, cone and affected areas are available at the official source.');
-          if (r.updatedAt != null) markerTime=text(node, 'p', `Source updated ${UI.date(r.updatedAt)}`, 'flood-map-time');
-          markerHealth=UI.popupHealth(node,controllers.nhc.state.health,controllers.nhc.state.cached);
-          link(node, 'Open official advisory', p.url).className = 'flood-map-link';
-          const close = text(node, 'button', 'Close', 'mini-button'); close.type = 'button'; close.addEventListener('click', () => marker?.closePopup());
-          markerEvent=r;marker = (globalThis.L.marker&&globalThis.L.divIcon?globalThis.L.marker([lat,lon],{title:`${p.title} · reported cyclone centre`,icon:globalThis.L.divIcon({className:'cyclone-marker',html:'<span aria-hidden="true">↻</span>',iconSize:[28,28],iconAnchor:[14,14]}),bubblingMouseEvents:false}):globalThis.L.circleMarker([lat, lon], { radius: 8, color: '#dfcbff', weight: 3, fillOpacity: .6,bubblingMouseEvents:false })).addTo(map).bindPopup(node, { className: 'hazard-popup flood-map-popup', maxWidth: 380, minWidth: 280 });
-          map.setView([lat, lon], Math.max(4, map.getZoom())); marker.openPopup(); $(`${key}Dialog`).close();
-          document.dispatchEvent?.(new CustomEvent('hazardselected', { detail: { label: `${p.title} · reported centre` } }));
-        });
-      }
     }
     document.addEventListener('clearselectedhazard',clearMarker);
     for (const [key, view] of Object.entries(VIEWS)) {

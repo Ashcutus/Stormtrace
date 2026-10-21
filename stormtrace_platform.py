@@ -3,6 +3,63 @@ import os
 import subprocess
 
 
+def default_radar_env(env=None):
+    """Optional radar decoder environment, outside the plugin folder (no symlinks there)."""
+    env = os.environ if env is None else env
+    data = env.get("XDG_DATA_HOME") or os.path.join(env.get("HOME") or os.path.expanduser("~"), ".local", "share")
+    return os.path.join(data, "stormtrace", "radar-venv")
+
+
+def radar_python(root, fallback, env=None):
+    """An explicit .env choice wins; otherwise the default environment once it exists."""
+    explicit = local_setting(root, "STORMTRACE_RADAR_PYTHON")
+    if explicit:
+        return explicit
+    candidate = os.path.join(default_radar_env(env), "bin", "python")
+    return candidate if os.path.exists(candidate) else fallback
+
+
+class RadarSetup:
+    """One-click decoder setup, mirroring platform/node.js: fixed commands, one job, bounded time."""
+    def __init__(self, root, run=None, on_done=None, now=None, env=None):
+        import threading
+        import time
+        self.root, self.on_done, self.env = root, on_done or (lambda: None), env
+        self.run = run or (lambda command, timeout: subprocess.run(command, cwd=root, capture_output=True, text=True, timeout=timeout, check=True))
+        self.now = now or (lambda: int(time.time() * 1000))
+        self.lock = threading.Lock()
+        self.status = {"state": "idle", "step": None, "message": "", "startedAt": None, "finishedAt": None}
+
+    def snapshot(self):
+        return {**self.status, "explicitPython": bool(local_setting(self.root, "STORMTRACE_RADAR_PYTHON")), "environment": default_radar_env(self.env)}
+
+    def start(self, background=True):
+        import threading
+        with self.lock:
+            if self.status["state"] == "running":
+                return self.snapshot()
+            self.status = {"state": "running", "step": "environment", "message": "Creating the radar environment…", "startedAt": self.now(), "finishedAt": None}
+        thread = threading.Thread(target=self._work, daemon=True)
+        thread.start()
+        if not background:
+            thread.join()
+        return self.snapshot()
+
+    def _work(self):
+        import sys
+        venv = default_radar_env(self.env)
+        try:
+            self.run([sys.executable, "-m", "venv", venv], 120)
+            self.status = {**self.status, "step": "packages", "message": "Installing radar packages (about 40 MB)…"}
+            self.run([os.path.join(venv, "bin", "python"), "-m", "pip", "install", "--disable-pip-version-check", "--no-input", "-r", str(self.root / "requirements-radar.txt")], 900)
+            self.status = {**self.status, "state": "done", "step": None, "message": "Radar is set up.", "finishedAt": self.now()}
+            self.on_done()
+        except Exception as error:  # surfaced to the user; the app keeps working without radar
+            lines = [line.strip() for line in str(getattr(error, "stderr", "") or error).splitlines() if line.strip()]
+            detail = "".join(" " if ord(ch) < 32 or ord(ch) == 127 else ch for ch in (lines[-1] if lines else ""))[:200]
+            self.status = {**self.status, "state": "failed", "message": f"Radar setup failed{': ' + detail if detail else ''}. See the radar setup guide.", "finishedAt": self.now()}
+
+
 def local_setting(root, name):
     if os.environ.get(name):
         return os.environ[name]
@@ -57,11 +114,16 @@ class RadarAdapter:
         self.id = "noaa-radar" if source.startswith("noaa-") else source
         self.health = {'lastAttemptedFetch': None, 'lastSuccessfulFetch': None, 'sourceDataTimestamp': None, 'expectedUpdateInterval': 120000 if source.startswith('noaa-') else 900000, 'lastError': None, 'consecutiveFailures': 0, 'available': False, 'freshnessBasis': 'source'}
 
+    def invalidate(self):
+        """Forget cached frames so a newly set-up decoder is used on the next check."""
+        with self.lock:
+            self.cached, self.images = None, {}
+
     def worker(self, operation, key=None):
         import json
         import sys
         from providers.metoffice_radar import RadarError
-        python = local_setting(self.root, 'STORMTRACE_RADAR_PYTHON') or sys.executable
+        python = radar_python(self.root, sys.executable)
         try:
             args = [str(self.root / 'providers/metoffice_radar.py'), operation] if self.source == 'metoffice-radar' else ['-m', 'providers.public_radar', self.source, operation]
             run = subprocess.run([python, *args, *([key] if key else [])], cwd=self.root, capture_output=True, timeout=45, check=False)
