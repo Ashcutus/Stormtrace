@@ -139,9 +139,9 @@ test('hazard dialogs safely render source text, bind global fetch, stop on close
     assert.equal(calls,1);assert.match(get('cyclonesList').content,/<img src=x/);assert.equal(get('cyclonesList').children[0].children.find(n=>n.tag==='h3').textContent,raw.activeStorms[0].name);
     globalThis.document.hidden=true;await get('cyclonesRefresh').listeners.click();assert.equal(calls,1);globalThis.document.hidden=false;
     get('cyclonesDialog').close();await get('cyclonesRefresh').listeners.click();assert.equal(calls,1);
-    await ctrl.recordObserved(result.records);get('cyclonesDialog').showModal();await get('cyclonesHistory').listeners.click();assert.match(get('cyclonesArchive').content,/Locally observed/);get('cyclonesDialog').close();
+    await ctrl.recordObserved(result.records);get('cyclonesDialog').showModal();await get('cyclonesHistory').listeners.click();assert.match(get('cyclonesArchive').content,/Saved on this device/);get('cyclonesDialog').close();
     get('cyclonesDialog').showModal();await ctrl.refresh();
-    get('cyclonesList').children[0].children.find(n=>n.tag==='button').listeners.click();assert.deepEqual(point,[20.4,-107.2]);assert.equal(get('cyclonesDialog').open,false);assert.match(popup.content,/Reported cyclone centre only/);get('cyclonesClearMarker').listeners.click();assert.equal(removed,1);
+    get('cyclonesList').children[0].children.find(n=>n.tag==='button').listeners.click();assert.deepEqual(point,[20.4,-107.2]);assert.equal(get('cyclonesDialog').open,false);assert.match(popup.content,/Reported cyclone centre only/);mounted.clearMarker();assert.equal(removed,1);
     for (const key of ['volcanoes','tsunamis','space']) {
       get(`${key}Button`).listeners.click();const current=mounted.controllers[get(`${key}Source`).value];current.now=()=>now;
       for(let i=0;i<100&&(current.state.configured==null||current.state.loading);i++)await new Promise(resolve=>setImmediate(resolve));

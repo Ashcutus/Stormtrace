@@ -22,6 +22,19 @@ REGIONS = {
     'guam': [143, 12, 147, 16],
 }
 EUROPE_BOUNDS = [-40, 30, 60, 72]
+# NOAA products per region. Precipitation type is the MRMS PrecipFlag display:
+# a radar classification assisted by model surface analyses, with no sleet or
+# freezing-rain category. Colours match NOAA's published legend.
+NOAA_LAYERS = {'reflectivity': '_bref_qcd', 'ptype': '_pcpn_typ'}
+PTYPE_CATEGORIES = [
+    {'code': 'WS', 'label': 'Rain (warm stratiform)', 'colour': '#0450a4'},
+    {'code': 'CS', 'label': 'Rain (cool stratiform)', 'colour': '#6effff'},
+    {'code': 'C', 'label': 'Rain (convective)', 'colour': '#ff3232'},
+    {'code': 'ST', 'label': 'Rain (tropical stratiform)', 'colour': '#00f900'},
+    {'code': 'CT', 'label': 'Rain (tropical convective)', 'colour': '#009700'},
+    {'code': 'S', 'label': 'Snow', 'colour': '#c8c8c8'},
+    {'code': 'H', 'label': 'Hail', 'colour': '#960096'},
+]
 WMS_NS = '{http://www.opengis.net/wms}'
 S3_NS = '{http://s3.amazonaws.com/doc/2006-03-01/}'
 
@@ -51,10 +64,25 @@ def xml(data):
     except ET.ParseError: raise RadarError('parse') from None
 
 
+def noaa_parts(source):
+    """Split a fixed NOAA source id into (region, product); reject anything else."""
+    if not isinstance(source, str) or not source.startswith('noaa-'): raise RadarError('configuration')
+    rest = source[5:]
+    product = 'reflectivity'
+    if rest.startswith('ptype-'): product, rest = 'ptype', rest[6:]
+    if rest not in REGIONS: raise RadarError('configuration')
+    return rest, product
+
+
+def noaa_layer(source):
+    region, product = noaa_parts(source)
+    return region + NOAA_LAYERS[product]
+
+
 def source_info(source):
     if source == 'opera-radar': return 'opera-radar', EUROPE_BOUNDS
-    if source.startswith('noaa-') and source[5:] in REGIONS: return 'noaa-radar', REGIONS[source[5:]]
-    raise RadarError('configuration')
+    region, _ = noaa_parts(source)
+    return 'noaa-radar', REGIONS[region]
 
 
 def opera_time(key):
@@ -82,16 +110,14 @@ def opera_listing(data):
 
 
 def wms_base(source):
-    source_info(source)
-    if not source.startswith('noaa-'): raise RadarError('configuration')
-    region = source[5:]
-    return f'https://opengeo.ncep.noaa.gov/geoserver/{region}/{region}_bref_qcd/ows'
+    region, _ = noaa_parts(source)
+    return f'https://opengeo.ncep.noaa.gov/geoserver/{region}/{noaa_layer(source)}/ows'
 
 
 def noaa_times(data, source):
     root = xml(data)
     if root.tag != WMS_NS + 'WMS_Capabilities': raise RadarError('unsupported_schema')
-    layers = [layer for layer in root.iter(WMS_NS + 'Layer') if layer.findtext(WMS_NS + 'Name') == source[5:] + '_bref_qcd']
+    layers = [layer for layer in root.iter(WMS_NS + 'Layer') if layer.findtext(WMS_NS + 'Name') == noaa_layer(source)]
     if len(layers) != 1: raise RadarError('unsupported_schema')
     dims = [d for d in layers[0].findall(WMS_NS + 'Dimension') if d.get('name') == 'time']
     if len(dims) != 1: raise RadarError('unsupported_schema')
@@ -126,8 +152,12 @@ def frames(source, now=None, opener=None):
     else:
         items = noaa_times(get(wms_base(source) + '?service=WMS&request=GetCapabilities&version=1.3.0', 2000000, opener), source)
         missing = []
-        legend = {'unit': 'dBZ', 'image': '/api/radar/frame?' + urllib.parse.urlencode({'source': source, 'key': 'legend'})}
-        transformations = ['noaa-wms-mercator-display-crop']
+        if noaa_parts(source)[1] == 'ptype':
+            legend = {'unit': 'category', 'categories': PTYPE_CATEGORIES}
+            transformations = ['noaa-wms-mercator-display-crop', 'mrms-precipflag-display']
+        else:
+            legend = {'unit': 'dBZ', 'image': '/api/radar/frame?' + urllib.parse.urlencode({'source': source, 'key': 'legend'})}
+            transformations = ['noaa-wms-mercator-display-crop']
     items = sorted(set(items), key=lambda x: x[1])
     items = [item for item in items if now - 3 * 3600000 <= item[1] <= now]
     # Sample US observations across the window rather than showing only 24 minutes.
@@ -155,7 +185,7 @@ def image(source, key, opener=None):
         at = opera_time(key)
         return render(get(OPERA_BASE + key, 20000000, opener), at, width=1000, height=700, bounds=bounds, product='opera')
     base = wms_base(source)
-    layer = source[5:] + '_bref_qcd'
+    layer = noaa_layer(source)
     if key == 'legend':
         query = {'service': 'WMS', 'request': 'GetLegendGraphic', 'version': '1.3.0', 'format': 'image/png', 'layer': layer}
     else:

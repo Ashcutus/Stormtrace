@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import '../core/index.js';
 import '../client/presentation.js';
 import assert from 'node:assert/strict';
@@ -214,4 +215,63 @@ for step in range(1,8):
   # Only the newest frame and at most one slot rolling off the window may change.
   assert len(set(before[:-1])-set(after))<=1, (step,before,after)
 `], { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
+});
+
+test('NOAA precipitation type uses the fixed MRMS layer per region, a categorical legend without sleet, and both servers route it', async context => {
+  assert.equal(execFileSync('python3',['-c',`
+from providers.public_radar import *
+import server
+now=${at}
+times=','.join(datetime.fromtimestamp((now-i*120000)/1000,timezone.utc).isoformat(timespec='milliseconds').replace('+00:00','Z') for i in range(90))
+caps=lambda layer:('<WMS_Capabilities xmlns="http://www.opengis.net/wms"><Layer><Name>'+layer+'</Name><Dimension name="time">'+times+'</Dimension></Layer></WMS_Capabilities>').encode()
+class Reply:
+ def __init__(self,data):self.data=data
+ def __enter__(self):return self
+ def __exit__(self,*args):pass
+ def read(self,n):return self.data[:n]
+calls=[]
+def opener(url,timeout):calls.append(url);return Reply(caps('conus_pcpn_typ') if 'GetCapabilities' in url else b'\\x89PNG\\r\\n\\x1a\\nfixture')
+for region in REGIONS:assert noaa_layer('noaa-ptype-'+region)==region+'_pcpn_typ' and noaa_layer('noaa-'+region)==region+'_bref_qcd'
+result=frames('noaa-ptype-conus',now,opener)
+assert '/conus/conus_pcpn_typ/ows' in calls[0] and len(result['records'])==12
+assert result['records'][-1]['id'].startswith('noaa-ptype-conus@') and result['records'][-1]['provenance']['provider']=='noaa-radar'
+assert 'mrms-precipflag-display' in result['records'][-1]['provenance']['transformations']
+legend=result['legend'];labels=[c['label'] for c in legend['categories']]
+assert legend['unit']=='category' and 'Snow' in labels and 'Hail' in labels and not any('sleet' in l.lower() or 'freezing' in l.lower() for l in labels)
+assert image('noaa-ptype-conus',result['records'][-1]['id'],opener).startswith(b'\\x89PNG') and 'layers=conus_pcpn_typ' in calls[-1]
+# A reflectivity key cannot be replayed against the precipitation-type source.
+try:image('noaa-ptype-conus',result['records'][-1]['id'].replace('noaa-ptype-','noaa-'),opener);raise AssertionError('cross-product key accepted')
+except RadarError:pass
+for bad in ['noaa-ptype-','noaa-ptype-evil','noaa-ptype-conus/../x','noaa-ptypeconus','noaa-ptype-ptype-conus']:
+ try:source_info(bad);raise AssertionError('bad source accepted: '+bad)
+ except RadarError:pass
+assert all('noaa-ptype-'+region in server.PUBLIC_RADAR_PROVIDERS for region in REGIONS)
+print('ok')
+`],{encoding:'utf8'}).trim(),'ok');
+  // The Node server's default source list registers every precipitation-type region.
+  const source=readFileSync(new URL('../server.js',import.meta.url),'utf8');for(const region of ['conus','alaska','hawaii','carib','guam'])assert.match(source,new RegExp(`'noaa-ptype-${region}'`));
+  const make=id=>({id,health:{},frames:async()=>({records:[],source:id}),image:async()=>Buffer.from('')});
+  const server=createStormtraceServer({radarProvider:make('metoffice-radar'),publicRadarProviders:{'noaa-ptype-conus':make('noaa-radar')}});
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));context.after(()=>new Promise(resolve=>server.close(resolve)));
+  assert.equal(JSON.parse((await get(server.address().port,'/api/radar?source=noaa-ptype-conus')).data).source,'noaa-radar');
+  assert.equal((await get(server.address().port,'/api/radar?source=noaa-ptype-evil')).status,400);
+});
+
+test('radar panel renders precipitation type as a labelled categorical legend with model-assisted, no-sleet context', async () => {
+  const original={document:globalThis.document,L:globalThis.L};
+  const ids=['radarButton','radarPanel','radarStatus','radarTimeline','radarAttribution','radarFrameTime','radarLatest','radarSource','radarSourceLink','radarCoverage','radarUnit','radarViewRegion','radarLegend'];
+  const make=()=>({children:[],style:{setProperty(n,v){this[n]=v;}},append(n){this.children.push(n);},replaceChildren(){this.children=[];},classList:{add(){},remove(){}},listeners:{},addEventListener(n,f){this.listeners[n]=f;},setAttribute(n,v){this[n]=v;}});
+  const elements=Object.fromEntries(ids.map(id=>[id,{...make(),value:id==='radarSource'?'noaa-ptype-conus':''}]));
+  globalThis.document={hidden:false,getElementById:id=>elements[id],addEventListener(){},createElement:()=>({...make(),textContent:''})};
+  globalThis.L={imageOverlay(){return {listeners:{},once(n,f){this.listeners[n]=f;},addTo(){this.listeners.load();}};}};
+  const categories=[{label:'Rain (warm stratiform)',colour:'#0450a4'},{label:'Snow',colour:'#c8c8c8'},{label:'Hail',colour:'#960096'}];
+  const result={records:[{id:'noaa-ptype-conus@x',observedAt:at,bounds:[-126,24,-66,50],resource:{url:'/api/radar/frame?source=noaa-ptype-conus&key=x',format:'image/png'}}],health:C.health(),missingDependencies:[],legend:{unit:'category',categories}};
+  const map={createPane(){},getPane:()=>({style:{}}),removeLayer(){},fitBounds(){}};
+  try {
+    globalThis.StormtraceRadar.mountRadar({map,fetch:async url=>{assert.equal(url,'/api/radar?source=noaa-ptype-conus');return {ok:true,json:async()=>result};}});
+    assert.match(elements.radarCoverage.textContent,/no sleet/);assert.match(elements.radarCoverage.textContent,/model/);assert.equal(elements.radarUnit.textContent,'Precipitation type');
+    elements.radarButton.listeners.click();for(let n=0;n<10;n++)await new Promise(resolve=>setImmediate(resolve));
+    assert.deepEqual(elements.radarLegend.children.map(n=>n.textContent),['Rain (warm stratiform)','Snow','Hail']);assert.equal(elements.radarLegend.children[1].style['--rain'],'#c8c8c8');
+    assert.throws(()=>globalThis.StormtraceRadar.validate({...result,legend:{unit:'category',categories:[{label:'Snow',colour:'url(evil)'}]}}));
+  } finally {if(elements.radarButton.checked)elements.radarButton.listeners.click();Object.assign(globalThis,original);}
 });

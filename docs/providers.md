@@ -17,7 +17,7 @@ V1 access, optional Met Office warnings, radar, floods, earthquakes and the [add
 | nominatim | Nominatim / OpenStreetMap contributors | Place search | Normalized place models and provenance |
 | metoffice-radar | Met Office UK radar observations | Radar frames/resources | Optional public ASDI observations, shared Python decoder, Node/Python routes; paid service deferred |
 | opera-radar | EUMETNET OPERA NIMBUS | European rain-rate frames/resources | Optional public ORD S3 composite, shared ODIM decoder and Node/Python routes |
-| noaa-radar | NOAA / National Weather Service | Regional reflectivity frames/resources | Optional timestamped WMS imagery and source legend for CONUS, Alaska, Hawaii, Caribbean and Guam |
+| noaa-radar | NOAA / National Weather Service | Regional reflectivity and precipitation-type frames/resources | Optional timestamped WMS imagery and source legend for CONUS, Alaska, Hawaii, Caribbean and Guam |
 | metoffice-warnings-esri | Met Office / official Esri beta mirror | Warning areas | Public no-key GeoJSON, NSWWS Open Licence; dedicated map with source-native fields, bounded geometry and three-minute cache; API unsupported by Met Office |
 | metoffice-warnings-rss | Met Office official RSS | Warning summaries | Automatic no-key fallback; shared Python normalization/transport, five-minute cache, direct official links; no geometry or per-warning source times |
 | metoffice-warnings | Met Office NSWWS | Official warnings | Optional DataHub v1.1 Atom/GeoJSON integration; server key, Node/Python parity, dedicated warnings view |
@@ -103,6 +103,8 @@ The dedicated client consumes normalized models; optional map selection shows on
 ## European and US radar
 
 `providers/public_radar.py` retrieves anonymous OPERA NIMBUS RATE composites from the ORD 24-hour S3 cache and NOAA regional WMS base reflectivity. Both local servers select this shared worker through their platform adapters. Upstream S3 keys, WMS XML, time dimensions and product formats remain in providers; the browser receives normalized frame resources, source-specific units/legends and health. NOAA identities include the region and source time. All requests use fixed official endpoints, bounded responses and redirect rejection.
+
+NOAA precipitation type uses the fixed `{region}_pcpn_typ` WMS layer (MRMS PrecipFlag) on the same host, with source ids `noaa-ptype-<region>` and the registry provider `noaa-radar`. The provider returns a categorical legend (`unit: "category"`) with colours matching NOAA's published legend, and records the `mrms-precipflag-display` transformation. Source ids are parsed against fixed regions and products, and frame keys are bound to their product, so a reflectivity key cannot be replayed against the precipitation-type source.
 
 OPERA reuses the optional ODIM-to-Mercator renderer with Cartesian-corner validation and a European display crop. NOAA requests prepared Mercator PNGs and the source-generated reflectivity legend without scientific dependencies. Radar products/resources do not create discrete event revisions. Source metadata and licence/attribution remain canonical in the registry. See [radar setup and limits](radar.md).
 

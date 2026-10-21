@@ -6,7 +6,7 @@ Warnings are optional. You don't need a key to use the lightning viewer or any o
 
 ## Without a key: public summaries
 
-Open **Weather warnings** in Explore. Without a key, Stormtrace retrieves the official Met Office UK warnings RSS feed and refreshes it every five minutes while the view is open.
+Open **Weather warnings** from the **Hazards** buttons. Without a key, Stormtrace retrieves the official Met Office UK warnings RSS feed and refreshes it every five minutes while the view is open.
 
 Each summary shows the warning title, the summary text, its official colour (yellow, amber or red) and a link to the full warning on the Met Office website.
 
@@ -43,16 +43,16 @@ With a valid key, the view refreshes once a minute while it is open and visible.
 - its official colour, weather types, headline and full "what to expect" text
 - affected regions and sub-regions
 - further details, advice and update reasons when the Met Office supplies them
-- issue, update and validity times in UK local time
+- issue, update and validity times in UK local time (always, whatever the **Appearance** time setting)
 - a highlight when your saved monitoring point is inside the warning area
 
 Warning colours always follow the official Met Office colours, whatever theme you use. Cancelled and expired warnings are not shown as current.
 
 If retrieval fails, Stormtrace keeps the last warnings it received and labels them as cached. A successful empty feed is shown differently from a failed check. An empty feed is not an all-clear. Use **Check the Met Office** for current information.
 
-### Observed history
+### Saved history
 
-**Observed history** lists the warning versions Stormtrace has seen, including updates, cancellations and expiries. History is kept on this device for up to 90 days, with a limit of 5,000 warnings.
+**Saved history** lists the warning versions Stormtrace has seen, including updates, cancellations and expiries. History is kept on this device for up to 90 days, with a limit of 5,000 warnings.
 
 This is not a complete archive. The Met Office keeps change records for about 24 hours, so changes that happen while Stormtrace is closed or offline can be missed. Clearing browser storage removes the history.
 

@@ -9,10 +9,10 @@
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="stylesheet" href="/vendor/leaflet/leaflet.css" />
-    <link rel="stylesheet" href="/styles.css" />
     <link rel="stylesheet" href="/vendor/maplibre/maplibre-gl.css" />
+    <link rel="stylesheet" href="/styles.css" />
   </head>
-  <body>
+  <body data-pane="map">
     <noscript>Stormtrace requires JavaScript to render its live map.</noscript>
 
     <main class="shell">
@@ -24,15 +24,15 @@
               <h1>Stormtrace</h1>
               <span class="version" id="appVersion">Local build</span>
             </div>
-            <p>Global weather & hazard awareness</p>
+            <p>Global weather &amp; hazard awareness</p>
           </div>
         </div>
 
-        <div class="status-cluster" aria-label="Lightning feed connection status">
+        <div class="status-cluster" aria-label="Lightning stream status">
           <span class="pulse-dot" id="statusDot"></span>
           <div>
-            <span class="eyebrow">Lightning feed</span>
-            <strong id="statusLabel">CONNECTING</strong>
+            <span class="eyebrow">Lightning stream</span>
+            <strong id="statusLabel">Connecting</strong>
             <span id="statusDetail">Opening lightning stream…</span>
           </div>
         </div>
@@ -42,11 +42,11 @@
             <svg class="monitor-pause-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M9 6v12M15 6v12" /></svg>
             <svg class="monitor-play-icon" aria-hidden="true" viewBox="0 0 24 24" hidden><path d="m9 6 9 6-9 6Z" /></svg>
           </button>
-          <button class="icon-button" id="themeButton" title="Theme and colours" aria-label="Theme and colours">
-            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18h1.5a1.8 1.8 0 0 0 0-3.6h-1a1.8 1.8 0 0 1 0-3.6H16A5 5 0 0 0 21 9c0-3.3-4-6-9-6Z"/><circle cx="7.5" cy="10" r=".7"/><circle cx="10" cy="6.8" r=".7"/><circle cx="15" cy="7" r=".7"/></svg>
+          <button class="icon-button" id="refreshButton" title="Reconnect lightning stream (R)" aria-label="Reconnect lightning stream">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M9 3v4M15 3v4M7 7h10v4a5 5 0 0 1-10 0V7ZM12 16v5" /></svg>
           </button>
-          <button class="icon-button" id="refreshButton" title="Reconnect lightning feed (R)" aria-label="Reconnect lightning feed">
-            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7" /></svg>
+          <button class="icon-button" id="themeButton" title="Appearance" aria-label="Appearance">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18h1.5a1.8 1.8 0 0 0 0-3.6h-1a1.8 1.8 0 0 1 0-3.6H16A5 5 0 0 0 21 9c0-3.3-4-6-9-6Z"/><circle cx="7.5" cy="10" r=".7"/><circle cx="10" cy="6.8" r=".7"/><circle cx="15" cy="7" r=".7"/></svg>
           </button>
           <button class="icon-button" id="infoButton" title="About Stormtrace and updates" aria-label="About Stormtrace and updates">
             <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/></svg>
@@ -61,7 +61,7 @@
         </div>
       </header>
 
-      <section class="toolbar" aria-label="Place search and lightning filters">
+      <section class="toolbar" aria-label="Search, hazard views and lightning window">
         <div class="search-wrap">
           <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m16 16 4 4"/></svg>
           <label class="sr-only" for="placeSearch">Find a place or coordinates</label>
@@ -71,57 +71,90 @@
           <span id="searchStatus" class="sr-only" role="status"></span>
         </div>
 
-        <div class="time-filter" role="group" aria-label="Lightning strike age filter">
-          <span class="filter-label">Lightning</span>
-          <button class="segment active" data-window="live">Live</button>
-          <button class="segment" data-window="60">1h</button>
-          <button class="segment" data-window="360">6h</button>
-          <button class="segment" data-window="1440" title="Rolling history collected on this device">24h</button>
-        </div>
+        <nav class="hazard-nav" aria-label="Hazard views">
+          <span class="filter-label">Hazards</span>
+          <button class="nav-button toggle-button" id="radarNavButton" type="button" aria-pressed="false" aria-controls="radarPanel" title="Show or hide radar on the map">Radar</button>
+          <button class="nav-button" id="warningsButton" type="button" aria-haspopup="dialog">Weather warnings</button>
+          <button class="nav-button" id="floodsButton" type="button" aria-haspopup="dialog">Floods</button>
+          <button class="nav-button" id="cyclonesButton" type="button" aria-haspopup="dialog">Cyclones</button>
+          <button class="nav-button" id="volcanoesButton" type="button" aria-haspopup="dialog">Volcanoes</button>
+          <button class="nav-button" id="tsunamisButton" type="button" aria-haspopup="dialog">Tsunami bulletins</button>
+          <button class="nav-button" id="spaceButton" type="button" aria-haspopup="dialog">Space weather</button>
+          <button class="nav-button" id="earthquakesButton" type="button" aria-haspopup="dialog">Earthquakes</button>
+        </nav>
 
-        <button class="text-button" id="locationButton">
-          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 21s6-5 6-11a6 6 0 1 0-12 0c0 6 6 11 6 11Z"/><circle cx="12" cy="10" r="2"/></svg>
-          <span>Set location</span>
-          <kbd>G</kbd>
-        </button>
+        <div class="toolbar-end">
+          <div class="time-filter" role="group" aria-label="Lightning window">
+            <span class="filter-label">Lightning window</span>
+            <button class="segment active" data-window="live" title="Strikes from the last 15 minutes">Live</button>
+            <button class="segment" data-window="60">1h</button>
+            <button class="segment" data-window="360">6h</button>
+            <button class="segment" data-window="1440" title="Rolling history collected on this device">24h</button>
+          </div>
+
+          <button class="text-button" id="locationButton" type="button" title="Request your current position (G)">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 21s6-5 6-11a6 6 0 1 0-12 0c0 6 6 11 6 11Z"/><circle cx="12" cy="10" r="2"/></svg>
+            <span>Set location</span>
+            <kbd>G</kbd>
+          </button>
+        </div>
       </section>
 
-      <nav class="domain-nav" aria-label="Weather and hazard views">
-        <label class="domain-chooser">Explore <select id="domainChooser" aria-label="Choose a hazard view"><option value="">Choose a view…</option><option value="radarButton">Radar — UK / Europe / US</option><option value="warningsButton">Weather warnings — UK public summaries</option><option value="floodsButton">Floods — England live / UK official links</option><option value="cyclonesButton">Cyclones — Atlantic / east and central Pacific</option><option value="volcanoesButton">Volcanoes — USGS / weekly global reports</option><option value="tsunamisButton">Tsunami bulletins — NOAA regional centres</option><option value="spaceButton">Space weather — conditions / forecasts / messages</option><option value="earthquakesButton">Earthquakes — global past day</option></select></label>
-        <span id="domainContext" role="status">Explore a hazard below. Lightning streams continuously; other sources are checked while open.</span>
-        <div class="domain-buttons">        <span class="eyebrow">Explore</span>
-        <button class="mini-button" id="radarButton" type="button" aria-pressed="false" aria-expanded="false" aria-controls="radarPanel">Radar</button>
-        <button class="mini-button" id="warningsButton" type="button" aria-haspopup="dialog">Weather warnings</button>
-        <button class="mini-button" id="floodsButton" type="button" aria-haspopup="dialog">Floods</button>
-        <button class="mini-button" id="cyclonesButton" type="button" aria-haspopup="dialog">Cyclones</button>
-        <button class="mini-button" id="volcanoesButton" type="button" aria-haspopup="dialog">Volcanoes</button>
-        <button class="mini-button" id="tsunamisButton" type="button" aria-haspopup="dialog">Tsunami bulletins</button>
-        <button class="mini-button" id="spaceButton" type="button" aria-haspopup="dialog">Space weather</button>
-        <button class="mini-button" id="earthquakesButton" type="button" aria-haspopup="dialog">Earthquakes</button></div>
-      </nav>
+      <div class="mobile-tabs" role="group" aria-label="Choose a pane">
+        <button type="button" class="segment active" data-pane-target="map" aria-pressed="true">Map</button>
+        <button type="button" class="segment" data-pane-target="details" aria-pressed="false">Lightning &amp; location</button>
+      </div>
 
       <div class="workspace">
         <section class="map-panel" aria-label="Weather and hazard map">
           <div id="map"></div>
           <div class="map-shade" aria-hidden="true"></div>
 
-          <div class="map-overlay top-left">
-            <span class="eyebrow">Visible area</span>
-            <strong id="mapRegion">WORLD VIEW</strong>
-            <span id="coordinates">20.000° N / 5.000° E</span>
-          </div>
+          <details class="map-overlay layers-panel" id="layersPanel">
+            <summary><span>Layers</span> <small id="layersSummary">Lightning</small></summary>
+            <div class="layers-body">
+              <label class="layer-row">
+                <input id="mapLightning" type="checkbox" checked />
+                <span><strong>Lightning strikes</strong><small>Hiding strikes keeps alerts, stats and history running.</small></span>
+              </label>
+              <label class="layer-row">
+                <input id="radarButton" type="checkbox" aria-controls="radarPanel" />
+                <span><strong>Radar</strong><small>UK, Europe and US. Source and timeline open in the sidebar.</small></span>
+              </label>
+              <label class="layer-row">
+                <input id="mapFloods" type="checkbox" />
+                <span><strong>Floods</strong><small>England warning areas, not observed floodwater.</small></span>
+              </label>
+              <label class="layer-row">
+                <input id="mapQuakes" type="checkbox" />
+                <span><strong>Earthquakes</strong><small>Past 24 hours. Select a point for estimated shaking.</small></span>
+              </label>
+              <div class="selected-row" id="selectedHazardRow" hidden>
+                <span>Selected: <strong id="selectedHazardLabel"></strong></span>
+                <button id="clearSelectedHazard" class="mini-button" type="button">Clear</button>
+              </div>
+              <div class="layers-actions">
+                <button id="mapHazardRefresh" type="button" class="mini-button">Refresh layers</button>
+              </div>
+              <p id="mapHazardStatus" role="status">Additional hazard layers off.</p>
+              <p id="mapShakingStatus" role="status"></p>
+              <details class="layer-notes"><summary>Coverage and attribution</summary>
+                <p>Flood polygons are warning coverage, not observed floodwater. Purple: alert; red: warning/severe warning. Earthquake point size indicates magnitude.</p>
+                <p>Environment Agency flood and river level data from the real-time data API (Beta). Earthquakes and estimated shaking: USGS.</p>
+              </details>
+            </div>
+          </details>
 
           <div class="map-overlay legend" aria-label="Strike age legend">
             <span class="eyebrow">Strike age</span>
-            <div class="legend-row"><i class="age-now"></i><span>&lt; 5 min</span></div>
-            <div class="legend-row"><i class="age-recent"></i><span>5–60 min</span></div>
-            <div class="legend-row"><i class="age-old"></i><span>1–24 hr</span></div>
+            <div class="legend-row" id="legendNow"><i class="age-now"></i><span>&lt; 5 min</span></div>
+            <div class="legend-row" id="legendRecent"><i class="age-recent"></i><span>5–15 min</span></div>
+            <div class="legend-row" id="legendOld" hidden><i class="age-old"></i><span>1–24 hr</span></div>
           </div>
 
           <div class="map-controls" aria-label="Map controls">
-            <button id="setHere" aria-pressed="false" title="Choose a manual monitoring point on the map">Set here</button>
-            <button id="zoomIn" aria-label="Zoom in">+</button>
-            <button id="zoomOut" aria-label="Zoom out">−</button>
+            <button id="zoomIn" aria-label="Zoom in" title="Zoom in (+)">+</button>
+            <button id="zoomOut" aria-label="Zoom out" title="Zoom out (−)">−</button>
             <button id="worldView" aria-label="Reset to world view" title="World view">
               <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4c2.5 2.2 3.5 4.9 3.5 8S14.5 17.8 12 20M12 4c-2.5 2.2-3.5 4.9-3.5 8s1 5.8 3.5 8"/></svg>
             </button>
@@ -149,122 +182,128 @@
               <span id="latestDistance">No position yet</span>
             </div>
           </div>
+
         </section>
 
         <aside class="sidebar">
-          <details class="panel map-hazard-panel" aria-label="Map hazard layers">
-            <summary>Map layers</summary>
-            <button id="clearSelectedHazard" class="mini-button" type="button" disabled>Clear selected event</button>
-            <label><input id="mapLightning" type="checkbox" checked /> Lightning strikes</label>
-            <label><input id="mapFloods" type="checkbox" /> England flood warning areas</label>
-            <label><input id="mapQuakes" type="checkbox" /> Earthquakes · past 24 hours</label>
-            <button id="mapHazardRefresh" type="button" class="mini-button">Refresh layers</button>
-            <p id="mapHazardStatus" role="status">Additional hazard layers off.</p>
-            <p id="mapShakingStatus" role="status"></p>
-            <details class="layer-notes"><summary>Coverage and attribution</summary><p>Flood polygons are warning coverage, not observed floodwater. Purple: alert; red: warning/severe warning. Quake point size indicates magnitude.</p>
-            <p>Environment Agency flood and river level data from the real-time data API (Beta). Earthquakes and estimated shaking: USGS.</p></details>
-          </details>
-          <section id="radarPanel" tabindex="-1" class="radar-panel" hidden aria-label="Radar observations">
-            <h2>Radar observations</h2>
+          <section id="radarPanel" tabindex="-1" class="panel radar-panel" hidden aria-labelledby="radarTitle">
+            <div class="panel-heading">
+              <h2 id="radarTitle">Radar</h2>
+              <button id="radarOff" type="button" class="mini-button">Turn off radar</button>
+            </div>
             <label for="radarSource">Source / region</label>
             <select id="radarSource">
-              <option value="metoffice-radar">UK · Met Office rain rate</option>
-              <option value="opera-radar">Europe · EUMETNET rain rate</option>
-              <option value="noaa-conus">US contiguous states · NOAA reflectivity</option>
-              <option value="noaa-alaska">Alaska · NOAA reflectivity</option>
-              <option value="noaa-hawaii">Hawaii · NOAA reflectivity</option>
-              <option value="noaa-carib">Caribbean · NOAA reflectivity</option>
-              <option value="noaa-guam">Guam · NOAA reflectivity</option>
+              <optgroup label="Rain rate">
+                <option value="metoffice-radar">UK · Met Office rain rate</option>
+                <option value="opera-radar">Europe · EUMETNET rain rate</option>
+              </optgroup>
+              <optgroup label="Reflectivity">
+                <option value="noaa-conus">US contiguous states · NOAA reflectivity</option>
+                <option value="noaa-alaska">Alaska · NOAA reflectivity</option>
+                <option value="noaa-hawaii">Hawaii · NOAA reflectivity</option>
+                <option value="noaa-carib">Caribbean · NOAA reflectivity</option>
+                <option value="noaa-guam">Guam · NOAA reflectivity</option>
+              </optgroup>
+              <optgroup label="Precipitation type (rain, snow, hail)">
+                <option value="noaa-ptype-conus">US contiguous states · NOAA precipitation type</option>
+                <option value="noaa-ptype-alaska">Alaska · NOAA precipitation type</option>
+                <option value="noaa-ptype-hawaii">Hawaii · NOAA precipitation type</option>
+                <option value="noaa-ptype-carib">Caribbean · NOAA precipitation type</option>
+                <option value="noaa-ptype-guam">Guam · NOAA precipitation type</option>
+              </optgroup>
             </select>
             <p id="radarStatus" role="status">Not checked yet.</p>
-            <strong id="radarFrameTime"></strong>
-            <label for="radarTimeline">Observed frames — past 3 hours</label>
-            <input id="radarTimeline" type="range" min="0" max="0" value="0" step="1" disabled />
-            <button id="radarLatest" type="button" class="mini-button">Latest / refresh</button>
-            <button id="radarViewRegion" type="button" class="mini-button">View selected region</button>
+            <label for="radarTimeline">Observed frames · past 3 hours</label>
+            <input id="radarTimeline" type="range" min="0" max="0" value="0" step="1" disabled aria-describedby="radarFrameTime" />
+            <strong id="radarFrameTime" class="radar-frame-time">Frames appear after the first check.</strong>
+            <div class="radar-actions">
+              <button id="radarLatest" type="button" class="mini-button">Latest frame</button>
+              <button id="radarViewRegion" type="button" class="mini-button">View selected region</button>
+            </div>
             <p id="radarUnit">Rainfall rate (mm/h)</p>
             <div class="radar-legend" id="radarLegend" tabindex="0" aria-label="Radar intensity legend"></div>
             <p id="radarCoverage">Transparent areas include no rain and missing coverage.</p>
             <p id="radarAttribution"></p>
             <p><a id="radarSourceLink" href="https://registry.opendata.aws/met-office-uk-radar-observations/" target="_blank" rel="noreferrer">Source and licence</a> · <a href="https://github.com/Ashcutus/Stormtrace/blob/main/docs/radar.md" target="_blank" rel="noreferrer">Radar setup</a></p>
           </section>
-          <details class="lightning-details">
+
+          <details class="panel lightning-details" open>
             <summary>Lightning activity</summary>
-          <section class="stats-grid" aria-label="Lightning statistics">
-            <article class="stat-card accent">
-              <span class="eyebrow">Strikes in area</span>
-              <strong id="visibleCount">000</strong>
-              <span id="renderCoverage" class="render-coverage"></span><span id="visibleWindow">Live · map bounds</span>
-            </article>
-            <article class="stat-card">
-              <span class="eyebrow">Lightning feed rate</span>
-              <strong><span id="globalRate">0</span><small>/min</small></strong>
-              <span id="rateTrend">Collecting baseline</span>
-            </article>
-          </section>
+            <section class="stats-grid" aria-label="Lightning statistics">
+              <article class="stat-card accent">
+                <span class="eyebrow">Strikes in view</span>
+                <strong id="visibleCount">0</strong>
+                <span id="renderCoverage" class="render-coverage"></span><span id="visibleWindow">Live · 15 min · map view</span>
+              </article>
+              <article class="stat-card">
+                <span class="eyebrow">Global rate</span>
+                <strong><span id="globalRate">0</span><small>/min</small></strong>
+                <span id="rateTrend">Collecting baseline</span>
+              </article>
+            </section>
 
-          <section class="panel hotspots-panel">
-            <div class="panel-heading">
-              <div>
-                <span class="eyebrow">Activity index</span>
-                <h2>Lightning hotspots</h2>
+            <section class="hotspots-panel" aria-labelledby="hotspotsTitle">
+              <div class="panel-heading">
+                <h3 id="hotspotsTitle">Hotspots · last hour</h3>
+                <button class="mini-button" id="hotspotFocus" title="Focus the leading hotspot">Focus top</button>
               </div>
-              <button class="mini-button" id="hotspotFocus" title="Focus the leading hotspot">Focus</button>
-            </div>
-            <div class="hotspot-list" id="hotspotList">
-              <div class="empty-state">Waiting for enough strikes to identify active cells…</div>
-            </div>
-          </section>
-
+              <div class="hotspot-list" id="hotspotList">
+                <div class="empty-state">Waiting for enough strikes to identify active cells…</div>
+              </div>
+            </section>
           </details>
 
-          <section class="panel proximity-panel">
-            <div class="panel-heading">
-              <div>
-                <span class="eyebrow">Lightning alert radius</span>
-                <h2>Nearby lightning</h2>
-              </div>
-              <label class="switch" title="Toggle lightning desktop notifications">
-                <input id="notificationToggle" type="checkbox" />
-                <span class="switch-track"><span class="switch-thumb"></span></span>
-                <span class="sr-only">Lightning desktop notifications</span>
-              </label>
-            </div>
+          <section class="panel proximity-panel" aria-labelledby="nearbyTitle">
+            <h2 id="nearbyTitle">Nearby lightning</h2>
 
-            <div class="location-state" id="locationState">
-              <span class="target-icon">⌾</span>
-              <div>
-                <strong>Location not set</strong>
-                <span>Set it once to monitor nearby strikes.</span>
+            <section class="location-group" id="locationGroup" tabindex="-1" aria-labelledby="locationTitle">
+              <h3 id="locationTitle">Your location</h3>
+              <div class="location-state" id="locationState">
+                <span class="target-icon">⌾</span>
+                <div>
+                  <strong>Location not set</strong>
+                  <span>Set it once to monitor nearby strikes.</span>
+                </div>
               </div>
-            </div>
+              <div class="location-actions">
+                <button class="wide-button" id="enableLocationButton" type="button">Locate me <kbd>G</kbd></button>
+                <button class="wide-button" id="setHere" type="button" aria-pressed="false" title="Click the map to choose a monitoring point">Pick on map</button>
+              </div>
+              <button class="wide-button" id="approximateLocationButton" type="button" hidden>Use approximate location</button>
+              <details class="manual-location">
+                <summary>Enter coordinates</summary>
+                <form id="manualLocationForm">
+                  <label>Latitude<input id="manualLatitude" type="number" min="-90" max="90" step="any" required placeholder="53.39" /></label>
+                  <label>Longitude<input id="manualLongitude" type="number" min="-180" max="180" step="any" required placeholder="-2.597" /></label>
+                  <button class="wide-button" type="submit">Save location</button>
+                </form>
+                <p class="permission-note">Works on Ethernet without automatic location.</p>
+              </details>
+              <p class="permission-note" id="locationFeedback" role="status"></p>
+            </section>
 
             <div class="radius-control">
               <div class="range-labels">
-                <label for="radiusRange">Lightning alert radius</label>
+                <label for="radiusRange">Alert radius</label>
                 <strong><span id="radiusValue">20</span> mi</strong>
               </div>
               <input id="radiusRange" type="range" min="5" max="50" step="5" value="20" />
               <div class="range-ticks"><span>5</span><span>20</span><span>35</span><span>50</span></div>
             </div>
 
+            <label class="alert-row">
+              <span><strong>Desktop alerts</strong><small id="notificationState">Off</small></span>
+              <span class="switch">
+                <input id="notificationToggle" type="checkbox" role="switch" />
+                <span class="switch-track"><span class="switch-thumb"></span></span>
+              </span>
+            </label>
+
             <div class="proximity-stats">
-              <div><span>Last hour</span><strong id="nearbyCount">—</strong></div>
+              <div><span>In radius · last hour</span><strong id="nearbyCount">—</strong></div>
               <div><span>Closest</span><strong id="closestStrike">—</strong></div>
             </div>
 
-            <button class="wide-button" id="enableLocationButton">Use my current location</button>
-            <button class="wide-button" id="approximateLocationButton" hidden>Use approximate location</button>
-            <details class="manual-location">
-              <summary>Enter location manually</summary>
-              <form id="manualLocationForm">
-                <label>Latitude<input id="manualLatitude" type="number" min="-90" max="90" step="any" required placeholder="53.39" /></label>
-                <label>Longitude<input id="manualLongitude" type="number" min="-180" max="180" step="any" required placeholder="-2.597" /></label>
-                <button class="wide-button" type="submit">Save location</button>
-              </form>
-              <p class="permission-note">Use the map’s “Set here” button, or enter coordinates for your chosen monitoring point. Works on Ethernet without automatic location.</p>
-            </details>
-            <p class="permission-note" id="locationFeedback" role="status"></p>
             <p class="permission-note" id="permissionNote">Notifications remain on this device. Monitoring coordinates and distances stay local. Maps, place search and automatic location use external services.</p>
           </section>
 
@@ -276,192 +315,213 @@
         </aside>
       </div>
 
+      <div class="toast-stack" id="toastStack" aria-live="polite"></div>
+
+      <aside id="settingsSaveStatus" class="save-status" role="status" hidden><span>Changes apply for this session, but could not be saved. Check profile storage, then retry.</span><button id="retrySettingsSave" type="button" class="mini-button">Retry saving</button></aside>
+
       <footer class="footerbar">
-        <span><kbd>Drag</kbd> move map</span>
-        <span><kbd>Scroll</kbd> zoom</span>
-        <span><kbd>L</kbd> live lightning</span>
-        <span><kbd>P</kbd> pause lightning</span>
+        <span class="map-readout"><strong id="mapRegion">World view</strong> <span id="coordinates">20.000° N / 5.000° E</span></span>
+        <span class="shortcut-hints">
+          <span><kbd>/</kbd> search</span>
+          <span><kbd>L</kbd> Live window</span>
+          <span><kbd>P</kbd> pause</span>
+          <button type="button" class="link-button" id="shortcutsButton"><kbd>?</kbd> all shortcuts</button>
+        </span>
         <span class="footer-right" id="clock">UK local 00:00</span>
       </footer>
     </main>
-    <aside id="settingsSaveStatus" class="save-status" role="status" hidden><span>Changes apply for this session, but could not be saved. Check profile storage, then retry.</span><button id="retrySettingsSave" type="button" class="mini-button">Retry saving</button></aside>
 
     <dialog id="warningsDialog" aria-labelledby="warningsTitle">
-      <section class="dialog-card warnings-dialog-card floods-dialog-card">
-        <header class="floods-dialog-header">
-        <h2 id="warningsTitle">Met Office Weather Warnings</h2>
-        <p id="warningAttribution"></p>
-        <p id="warningStatus" role="status" aria-live="polite">Not checked yet.</p>
-        <p><a href="https://weather.metoffice.gov.uk/warnings-and-advice/uk-warnings" target="_blank" rel="noopener noreferrer">Check the Met Office</a> · <a href="https://github.com/Ashcutus/Stormtrace/blob/main/docs/warnings.md#setup" target="_blank" rel="noopener noreferrer">Connection setup</a></p>
-        <div class="warning-actions">
-          <button type="button" class="mini-button" id="warningRefresh">Refresh</button>
-          <button type="button" class="mini-button" id="warningMapButton">Warning map</button>
-          <button type="button" class="mini-button" id="warningHistory">Observed history</button>
-          <form method="dialog"><button class="mini-button" value="close">Close</button></form>
-        </div>
+      <section class="dialog-card hazard-dialog-card">
+        <header class="hazard-dialog-header">
+          <div class="dialog-title-row"><h2 id="warningsTitle">Weather warnings</h2><form method="dialog"><button class="mini-button" value="close">Close</button></form></div>
+          <div class="dialog-controls">
+            <div class="dialog-actions-row">
+              <button type="button" class="mini-button" id="warningRefresh">Refresh</button>
+              <button type="button" class="mini-button" id="warningMapButton">Warning map</button>
+              <button type="button" class="mini-button" id="warningHistory">Saved history</button>
+            </div>
+          </div>
+          <p id="warningStatus" role="status" aria-live="polite">Not checked yet.</p>
+          <p id="warningAttribution" class="dialog-attribution"></p>
+          <p class="dialog-links"><a href="https://weather.metoffice.gov.uk/warnings-and-advice/uk-warnings" target="_blank" rel="noopener noreferrer">Met Office warnings ↗</a> · <a href="https://github.com/Ashcutus/Stormtrace/blob/main/docs/warnings.md#setup" target="_blank" rel="noopener noreferrer">Set up full warning details</a></p>
         </header>
-        <div class="floods-dialog-content" tabindex="0" role="region" aria-label="Warnings and local history">
-        <details class="history-notes"><summary>About local history</summary><p id="warningStorageStatus"></p></details>
-        <div id="warningList"></div>
-        <div id="warningArchive"></div>
+        <div class="hazard-dialog-content" tabindex="0" role="region" aria-label="Warnings and saved history">
+          <p class="history-notes" id="warningStorageStatus" hidden></p>
+          <div id="warningList"></div>
+          <div id="warningArchive"></div>
         </div>
       </section>
     </dialog>
 
     <dialog id="warningMapDialog" aria-labelledby="warningMapTitle">
-      <section class="dialog-card warnings-dialog-card floods-dialog-card">
-        <header class="floods-dialog-header">
-          <h2 id="warningMapTitle">Met Office Weather Warnings</h2>
-          <div class="warning-actions"><button id="warningMapRefresh" type="button" class="mini-button">Refresh</button><form method="dialog"><button value="close" class="mini-button">Close</button></form></div>
-          <p id="warningMapStatus" role="status">Not checked yet.</p><p id="warningMapAttribution"></p>
-          <p><a href="https://weather.metoffice.gov.uk/warnings-and-advice/uk-warnings" target="_blank" rel="noopener noreferrer">Check the Met Office</a> · <a href="https://www.metoffice.gov.uk/api/assets/file/NSWWSOpenLicencepdf?prefix=assets" target="_blank" rel="noopener noreferrer">Source licence</a></p>
+      <section class="dialog-card hazard-dialog-card warning-map-card">
+        <header class="hazard-dialog-header">
+          <div class="dialog-title-row"><h2 id="warningMapTitle">Weather warning map</h2><form method="dialog"><button value="close" class="mini-button">Close</button></form></div>
+          <div class="dialog-controls">
+            <div class="dialog-actions-row">
+              <button id="warningMapBack" type="button" class="mini-button">Back to warnings list</button>
+              <button id="warningMapRefresh" type="button" class="mini-button">Refresh</button>
+            </div>
+          </div>
+          <p id="warningMapStatus" role="status">Not checked yet.</p>
+          <p id="warningMapAttribution" class="dialog-attribution"></p>
+          <p class="dialog-links"><a href="https://weather.metoffice.gov.uk/warnings-and-advice/uk-warnings" target="_blank" rel="noopener noreferrer">Met Office warnings ↗</a> · <a href="https://www.metoffice.gov.uk/api/assets/file/NSWWSOpenLicencepdf?prefix=assets" target="_blank" rel="noopener noreferrer">Source licence</a></p>
         </header>
-        <div class="floods-dialog-content warning-map-content" tabindex="0" role="region" aria-label="Warning map and source guidance"><div id="warningAreaMap" aria-label="Dedicated UK weather warning areas"></div><div id="warningMapList" aria-label="Select a warning area"></div><p>Yellow · Amber · Red: Met Office severity. Select an area for warning text and validity. Future warnings are included; land outside UK coverage is not assessed. No other meteorological overlays are shown.</p><p>Time delays between this website and the metoffice.gov.uk domain are possible. For the most up-to-date awareness information as published by the Met Office, please refer to <a href="https://www.metoffice.gov.uk/" target="_blank" rel="noopener noreferrer">https://www.metoffice.gov.uk/</a></p></div>
+        <div class="hazard-dialog-content warning-map-content" tabindex="0" role="region" aria-label="Warning map and source guidance">
+          <div id="warningAreaMap" aria-label="Dedicated UK weather warning areas"></div>
+          <div class="severity-key" aria-label="Met Office severity">
+            <span class="severity-chip" data-level="YELLOW">Yellow</span>
+            <span class="severity-chip" data-level="AMBER">Amber</span>
+            <span class="severity-chip" data-level="RED">Red</span>
+            <span>Met Office severity. Select an area or a button below for warning text and validity.</span>
+          </div>
+          <div id="warningMapList" aria-label="Select a warning area"></div>
+          <p>Future warnings are included; land outside UK coverage is not assessed. No other meteorological overlays are shown.</p>
+          <p>Time delays between this website and the metoffice.gov.uk domain are possible. For the most up-to-date awareness information as published by the Met Office, please refer to <a href="https://www.metoffice.gov.uk/" target="_blank" rel="noopener noreferrer">https://www.metoffice.gov.uk/</a></p>
+        </div>
       </section>
     </dialog>
 
     <dialog id="floodsDialog" aria-labelledby="floodsTitle">
-      <section class="dialog-card warnings-dialog-card floods-dialog-card">
-        <header class="floods-dialog-header">
-          <h2 id="floodsTitle">UK flood information</h2>
-          <label for="floodCountry">Country</label>
-          <select id="floodCountry"><option value="ea-floods">England</option><option value="nrw-floods">Wales</option><option value="sepa-floods">Scotland</option><option value="ni-floods">Northern Ireland</option></select>
-          <div class="warning-actions">
-            <button type="button" class="mini-button" id="floodRefresh">Refresh</button>
-            <button type="button" class="mini-button" id="floodHistory">Observed history</button>
-            <form method="dialog"><button class="mini-button" value="close">Close</button></form>
+      <section class="dialog-card hazard-dialog-card">
+        <header class="hazard-dialog-header">
+          <div class="dialog-title-row"><h2 id="floodsTitle">Floods</h2><form method="dialog"><button class="mini-button" value="close">Close</button></form></div>
+          <div class="dialog-controls">
+            <label class="scope-field">Country <select id="floodCountry"><option value="ea-floods">England</option><option value="nrw-floods">Wales</option><option value="sepa-floods">Scotland</option><option value="ni-floods">Northern Ireland</option></select></label>
+            <div class="dialog-actions-row">
+              <button type="button" class="mini-button" id="floodRefresh">Refresh</button>
+              <button type="button" class="mini-button" id="floodHistory">Saved history</button>
+            </div>
           </div>
           <p id="floodStatus" role="status" aria-live="polite">Not checked yet.</p>
-        <p id="floodAttribution"></p>
-          <p><a id="floodOfficialLink" href="https://check-for-flooding.service.gov.uk/alerts-and-warnings" target="_blank" rel="noopener noreferrer">Check official flood warnings on GOV.UK</a></p>
-
+          <p id="floodAttribution" class="dialog-attribution"></p>
+          <p class="dialog-links"><a id="floodOfficialLink" href="https://check-for-flooding.service.gov.uk/alerts-and-warnings" target="_blank" rel="noopener noreferrer">Official England flood information ↗</a></p>
         </header>
-        <div class="floods-dialog-content" tabindex="0" role="region" aria-label="Flood warnings and observed history">
-
-          <p id="floodCoverage">England live feed · all areas. This list does not check whether your saved point is affected.</p>
-          <details class="history-notes"><summary>About local history</summary><p id="floodStorageStatus"></p></details>
+        <div class="hazard-dialog-content" tabindex="0" role="region" aria-label="Flood warnings and saved history">
+          <p id="floodCoverage" class="coverage-note">England live feed, all areas. This list does not check whether your saved point is affected.</p>
+          <p class="history-notes" id="floodStorageStatus" hidden></p>
           <div id="floodList"></div><div id="floodArchive" aria-live="polite"></div>
         </div>
       </section>
     </dialog>
 
     <dialog id="earthquakesDialog" aria-labelledby="earthquakesTitle">
-      <section class="dialog-card warnings-dialog-card floods-dialog-card">
-        <header class="floods-dialog-header">
-          <h2 id="earthquakesTitle">Recent earthquakes</h2>
-          <div class="warning-actions">
-            <button type="button" class="mini-button" id="earthquakeRefresh">Refresh</button>
-            <button type="button" class="mini-button" id="earthquakeHistory">Observed history</button>
-            <button type="button" class="mini-button" id="earthquakeClearMarker" disabled>Clear map marker</button>
-            <form method="dialog"><button class="mini-button" value="close">Close</button></form>
-          </div>
-          <div class="hazard-filters">
-            <label>Time <select id="earthquakeWindow"><option value="24">Past 24 hours</option><option value="1">Past hour</option><option value="6">Past 6 hours</option></select></label>
-            <label>Magnitude <select id="earthquakeMagnitude"><option value="all">All / unknown</option><option value="2.5">M 2.5+</option><option value="4.5">M 4.5+</option></select></label>
-            <label>Place <input id="earthquakeSearch" type="search" placeholder="Filter by place name"></label>
+      <section class="dialog-card hazard-dialog-card">
+        <header class="hazard-dialog-header">
+          <div class="dialog-title-row"><h2 id="earthquakesTitle">Earthquakes</h2><form method="dialog"><button class="mini-button" value="close">Close</button></form></div>
+          <div class="dialog-controls">
+            <label class="scope-field">Time <select id="earthquakeWindow"><option value="1">Past hour</option><option value="6">Past 6 hours</option><option value="24" selected>Past 24 hours</option></select></label>
+            <label class="scope-field">Magnitude <select id="earthquakeMagnitude"><option value="all">Any (including unknown)</option><option value="2.5">M 2.5+</option><option value="4.5">M 4.5+</option></select></label>
+            <div class="dialog-actions-row">
+              <button type="button" class="mini-button" id="earthquakeRefresh">Refresh</button>
+              <button type="button" class="mini-button" id="earthquakeHistory">Saved history</button>
+            </div>
           </div>
           <p id="earthquakeStatus" role="status" aria-live="polite">Not checked yet.</p>
-        <p id="earthquakeAttribution"></p>
-          <p><a href="https://earthquake.usgs.gov/earthquakes/map/" target="_blank" rel="noopener noreferrer">Check the latest earthquakes on USGS</a></p>
-
+          <p id="earthquakeAttribution" class="dialog-attribution"></p>
+          <p class="dialog-links"><a href="https://earthquake.usgs.gov/earthquakes/map/" target="_blank" rel="noopener noreferrer">Latest earthquakes on USGS ↗</a></p>
         </header>
-        <div class="floods-dialog-content" tabindex="0" role="region" aria-label="Earthquakes and observed history">
-
-          <p>USGS past-day feed · reporting varies by region. Preliminary magnitudes and locations can change. This is not earthquake early warning.</p>
-          <details class="history-notes"><summary>About local history</summary><p id="earthquakeStorageStatus"></p></details><div id="earthquakeList"></div><div id="earthquakeArchive" aria-live="polite"></div>
+        <div class="hazard-dialog-content" tabindex="0" role="region" aria-label="Earthquakes and saved history">
+          <p class="coverage-note">USGS past-day feed. Reporting varies by region, and preliminary magnitudes and locations can change. This is not earthquake early warning.</p>
+          <p class="history-notes" id="earthquakeStorageStatus" hidden></p>
+          <div id="earthquakeList"></div><div id="earthquakeArchive" aria-live="polite"></div>
         </div>
       </section>
     </dialog>
 
     <dialog id="cyclonesDialog" aria-labelledby="cyclonesTitle">
-      <section class="dialog-card warnings-dialog-card floods-dialog-card public-hazard-dialog">
-        <header class="floods-dialog-header">
-          <h2 id="cyclonesTitle">Tropical cyclones</h2>
-          <select id="cyclonesSource" aria-label="Tropical cyclones source"></select>
-          <div class="warning-actions">
-            <button type="button" class="mini-button" id="cyclonesRefresh">Refresh</button>
-            <button type="button" class="mini-button" id="cyclonesHistory">Observed history</button>
-            <button type="button" class="mini-button" id="cyclonesClearMarker" disabled>Clear map marker</button>
-            <form method="dialog"><button class="mini-button" value="close">Close</button></form>
+      <section class="dialog-card hazard-dialog-card">
+        <header class="hazard-dialog-header">
+          <div class="dialog-title-row"><h2 id="cyclonesTitle">Cyclones</h2><form method="dialog"><button class="mini-button" value="close">Close</button></form></div>
+          <div class="dialog-controls">
+            <label class="scope-field">Source <select id="cyclonesSource"></select></label>
+            <div class="dialog-actions-row">
+              <button type="button" class="mini-button" id="cyclonesRefresh">Refresh</button>
+              <button type="button" class="mini-button" id="cyclonesHistory">Saved history</button>
+            </div>
           </div>
           <p id="cyclonesStatus" role="status" aria-live="polite">Not checked yet.</p>
-          <p id="cyclonesAttribution"></p><p id="cyclonesComponents" role="status"></p>
-          <p><a id="cyclonesOfficialLink" target="_blank" rel="noopener noreferrer">Open official source</a> · <a id="cyclonesTerms" target="_blank" rel="noopener noreferrer">Source terms</a></p>
+          <p id="cyclonesComponents" role="status" hidden></p>
+          <p id="cyclonesAttribution" class="dialog-attribution"></p>
+          <p class="dialog-links"><a id="cyclonesOfficialLink" target="_blank" rel="noopener noreferrer">Official source ↗</a> · <a id="cyclonesTerms" target="_blank" rel="noopener noreferrer">Source terms</a></p>
         </header>
-        <div class="floods-dialog-content" tabindex="0" role="region" aria-label="Tropical cyclones records and observed history">
-          <p id="cyclonesCoverage"></p>
-          <details class="history-notes"><summary>About local history</summary><p id="cyclonesStorageStatus"></p></details>
+        <div class="hazard-dialog-content" tabindex="0" role="region" aria-label="Cyclone records and saved history">
+          <p id="cyclonesCoverage" class="coverage-note"></p>
+          <p class="history-notes" id="cyclonesStorageStatus" hidden></p>
           <div id="cyclonesList"></div><div id="cyclonesArchive" aria-live="polite"></div>
         </div>
       </section>
     </dialog>
 
     <dialog id="volcanoesDialog" aria-labelledby="volcanoesTitle">
-      <section class="dialog-card warnings-dialog-card floods-dialog-card public-hazard-dialog">
-        <header class="floods-dialog-header">
-          <h2 id="volcanoesTitle">Volcanic activity</h2>
-          <select id="volcanoesSource" aria-label="Volcanic activity source"></select>
-          <div class="warning-actions">
-            <button type="button" class="mini-button" id="volcanoesRefresh">Refresh</button>
-            <button type="button" class="mini-button" id="volcanoesHistory">Observed history</button>
-            <button type="button" class="mini-button" id="volcanoesClearMarker" hidden disabled>Clear map marker</button>
-            <form method="dialog"><button class="mini-button" value="close">Close</button></form>
+      <section class="dialog-card hazard-dialog-card">
+        <header class="hazard-dialog-header">
+          <div class="dialog-title-row"><h2 id="volcanoesTitle">Volcanoes</h2><form method="dialog"><button class="mini-button" value="close">Close</button></form></div>
+          <div class="dialog-controls">
+            <label class="scope-field">Source <select id="volcanoesSource"></select></label>
+            <div class="dialog-actions-row">
+              <button type="button" class="mini-button" id="volcanoesRefresh">Refresh</button>
+              <button type="button" class="mini-button" id="volcanoesHistory">Saved history</button>
+            </div>
           </div>
           <p id="volcanoesStatus" role="status" aria-live="polite">Not checked yet.</p>
-          <p id="volcanoesAttribution"></p><p id="volcanoesComponents" role="status"></p>
-          <p><a id="volcanoesOfficialLink" target="_blank" rel="noopener noreferrer">Open official source</a> · <a id="volcanoesTerms" target="_blank" rel="noopener noreferrer">Source terms</a></p>
+          <p id="volcanoesComponents" role="status" hidden></p>
+          <p id="volcanoesAttribution" class="dialog-attribution"></p>
+          <p class="dialog-links"><a id="volcanoesOfficialLink" target="_blank" rel="noopener noreferrer">Official source ↗</a> · <a id="volcanoesTerms" target="_blank" rel="noopener noreferrer">Source terms</a></p>
         </header>
-        <div class="floods-dialog-content" tabindex="0" role="region" aria-label="Volcanic activity records and observed history">
-          <p id="volcanoesCoverage"></p>
-          <details class="history-notes"><summary>About local history</summary><p id="volcanoesStorageStatus"></p></details>
+        <div class="hazard-dialog-content" tabindex="0" role="region" aria-label="Volcano records and saved history">
+          <p id="volcanoesCoverage" class="coverage-note"></p>
+          <p class="history-notes" id="volcanoesStorageStatus" hidden></p>
           <div id="volcanoesList"></div><div id="volcanoesArchive" aria-live="polite"></div>
         </div>
       </section>
     </dialog>
 
     <dialog id="tsunamisDialog" aria-labelledby="tsunamisTitle">
-      <section class="dialog-card warnings-dialog-card floods-dialog-card public-hazard-dialog">
-        <header class="floods-dialog-header">
-          <h2 id="tsunamisTitle">Tsunami centre bulletins</h2>
-          <select id="tsunamisSource" aria-label="Tsunami centre bulletins source"></select>
-          <div class="warning-actions">
-            <button type="button" class="mini-button" id="tsunamisRefresh">Refresh</button>
-            <button type="button" class="mini-button" id="tsunamisHistory">Observed history</button>
-            <button type="button" class="mini-button" id="tsunamisClearMarker" hidden disabled>Clear map marker</button>
-            <form method="dialog"><button class="mini-button" value="close">Close</button></form>
+      <section class="dialog-card hazard-dialog-card">
+        <header class="hazard-dialog-header">
+          <div class="dialog-title-row"><h2 id="tsunamisTitle">Tsunami bulletins</h2><form method="dialog"><button class="mini-button" value="close">Close</button></form></div>
+          <div class="dialog-controls">
+            <label class="scope-field">Source <select id="tsunamisSource"></select></label>
+            <div class="dialog-actions-row">
+              <button type="button" class="mini-button" id="tsunamisRefresh">Refresh</button>
+              <button type="button" class="mini-button" id="tsunamisHistory">Saved history</button>
+            </div>
           </div>
           <p id="tsunamisStatus" role="status" aria-live="polite">Not checked yet.</p>
-          <p id="tsunamisAttribution"></p><p id="tsunamisComponents" role="status"></p>
-          <p><a id="tsunamisOfficialLink" target="_blank" rel="noopener noreferrer">Open official source</a> · <a id="tsunamisTerms" target="_blank" rel="noopener noreferrer">Source terms</a></p>
+          <p id="tsunamisComponents" role="status" hidden></p>
+          <p id="tsunamisAttribution" class="dialog-attribution"></p>
+          <p class="dialog-links"><a id="tsunamisOfficialLink" target="_blank" rel="noopener noreferrer">Official source ↗</a> · <a id="tsunamisTerms" target="_blank" rel="noopener noreferrer">Source terms</a></p>
         </header>
-        <div class="floods-dialog-content" tabindex="0" role="region" aria-label="Tsunami centre bulletins records and observed history">
-          <p id="tsunamisCoverage"></p>
-          <details class="history-notes"><summary>About local history</summary><p id="tsunamisStorageStatus"></p></details>
+        <div class="hazard-dialog-content" tabindex="0" role="region" aria-label="Tsunami bulletins and saved history">
+          <p id="tsunamisCoverage" class="coverage-note"></p>
+          <p class="history-notes" id="tsunamisStorageStatus" hidden></p>
           <div id="tsunamisList"></div><div id="tsunamisArchive" aria-live="polite"></div>
         </div>
       </section>
     </dialog>
 
     <dialog id="spaceDialog" aria-labelledby="spaceTitle">
-      <section class="dialog-card warnings-dialog-card floods-dialog-card public-hazard-dialog">
-        <header class="floods-dialog-header">
-          <h2 id="spaceTitle">Space weather</h2>
-          <label>Show <select id="spaceProduct"><option value="conditions">Current and previous conditions</option><option value="forecasts">Dated forecasts</option><option value="messages">Recent issued messages</option></select></label>
-          <a href="https://www.spaceweather.gov/noaa-scales-explanation" target="_blank" rel="noopener noreferrer">What the R, S and G scales mean</a>
-          <select id="spaceSource" aria-label="Space weather source"></select>
-          <div class="warning-actions">
-            <button type="button" class="mini-button" id="spaceRefresh">Refresh</button>
-            <button type="button" class="mini-button" id="spaceHistory">Observed history</button>
-            <button type="button" class="mini-button" id="spaceClearMarker" hidden disabled>Clear map marker</button>
-            <form method="dialog"><button class="mini-button" value="close">Close</button></form>
+      <section class="dialog-card hazard-dialog-card">
+        <header class="hazard-dialog-header">
+          <div class="dialog-title-row"><h2 id="spaceTitle">Space weather</h2><form method="dialog"><button class="mini-button" value="close">Close</button></form></div>
+          <div class="dialog-controls">
+            <label class="scope-field">Show <select id="spaceProduct"><option value="conditions">Current and previous conditions</option><option value="forecasts">Dated forecasts</option><option value="messages">Recent issued messages</option></select></label>
+            <label class="scope-field">Source <select id="spaceSource"></select></label>
+            <div class="dialog-actions-row">
+              <button type="button" class="mini-button" id="spaceRefresh">Refresh</button>
+              <button type="button" class="mini-button" id="spaceHistory">Saved history</button>
+            </div>
           </div>
           <p id="spaceStatus" role="status" aria-live="polite">Not checked yet.</p>
-          <p id="spaceAttribution"></p><p id="spaceComponents" role="status"></p>
-          <p><a id="spaceOfficialLink" target="_blank" rel="noopener noreferrer">Open official source</a> · <a id="spaceTerms" target="_blank" rel="noopener noreferrer">Source terms</a></p>
+          <p id="spaceComponents" role="status" hidden></p>
+          <p id="spaceAttribution" class="dialog-attribution"></p>
+          <p class="dialog-links"><a id="spaceOfficialLink" target="_blank" rel="noopener noreferrer">Official source ↗</a> · <a id="spaceTerms" target="_blank" rel="noopener noreferrer">Source terms</a> · <a href="https://www.spaceweather.gov/noaa-scales-explanation" target="_blank" rel="noopener noreferrer">What the R, S and G scales mean</a></p>
         </header>
-        <div class="floods-dialog-content" tabindex="0" role="region" aria-label="Space weather records and observed history">
-          <p id="spaceCoverage"></p>
-          <details class="history-notes"><summary>About local history</summary><p id="spaceStorageStatus"></p></details>
+        <div class="hazard-dialog-content" tabindex="0" role="region" aria-label="Space weather records and saved history">
+          <p id="spaceCoverage" class="coverage-note"></p>
+          <p class="history-notes" id="spaceStorageStatus" hidden></p>
           <div id="spaceList"></div><div id="spaceArchive" aria-live="polite"></div>
         </div>
       </section>
@@ -469,100 +529,119 @@
 
     <dialog id="infoDialog" aria-labelledby="aboutTitle">
       <form method="dialog" class="dialog-card about-dialog-card">
-        <div class="dialog-icon">◈</div>
-        <span class="eyebrow">About Stormtrace</span>
-        <h2 id="aboutTitle">Weather & hazard monitoring</h2>
+        <div class="dialog-title-row">
+          <div><span class="eyebrow">About Stormtrace</span><h2 id="aboutTitle">Weather &amp; hazard monitoring</h2></div>
+          <button value="close" class="mini-button">Close</button>
+        </div>
         <div class="about-content" tabindex="0" aria-label="Coverage and limitations">
-        <p>Explore lightning, UK and European rain-rate radar, US radar reflectivity, UK flood information, recent global earthquakes, cyclone summaries, volcanic reports, tsunami bulletins and space weather. Each view shows its own source and retrieval status.</p>
-        <p>UK warning summaries use public RSS without a key; full DataHub warnings require a free Met Office subscription key. Live floods currently cover England; Wales, Scotland and Northern Ireland link to official services. Radar coverage varies and missing observations do not mean dry weather.</p>
-        <p>Pause, reconnect, strike-age filters, hotspots and nearby notifications apply to lightning. Other enabled views refresh independently. This app is for situational awareness; always consult official warnings.</p>
-        <h3>Lightning source and history</h3>
-        <p>Stormtrace listens to a community lightning feed and keeps a rolling 24-hour cache in this app. On a new install, the older time filters fill up as the app runs.</p>
-        <p>Monitoring points and distance calculations stay local. External map services receive tile requests, place searches go to OpenStreetMap Nominatim, and automatic location uses the system service.</p>
-        <p id="sourceTermsDetail"></p>
+          <p>Explore lightning, UK and European rain-rate radar, US radar reflectivity, UK flood information, recent global earthquakes, cyclone summaries, volcanic reports, tsunami bulletins and space weather. Each view shows its own source and retrieval status.</p>
+          <p>UK warning summaries work without setup; full warning details need a free Met Office key. Live floods currently cover England; Wales, Scotland and Northern Ireland link to official services. Radar coverage varies and missing observations do not mean dry weather.</p>
+          <p>Pause, reconnect, the lightning window, hotspots and nearby alerts apply to lightning. Other views refresh independently while open. This app is for situational awareness; always consult official warnings.</p>
+          <h3>Lightning source and history</h3>
+          <p>Stormtrace listens to a community lightning feed and keeps a rolling 24-hour cache in this app. On a new install, the longer windows fill up as the app runs.</p>
+          <p>Monitoring points and distance calculations stay local. External map services receive tile requests, place searches go to OpenStreetMap Nominatim, and automatic location uses the system service.</p>
+          <p id="sourceTermsDetail"></p>
         </div>
         <section class="update-check" id="updatePanel" aria-labelledby="updateStatus">
           <div class="update-copy" role="status" aria-live="polite">
             <span class="eyebrow">Application updates</span>
-            <strong id="updateStatus">Stormtrace</strong>
+            <strong id="updateStatus">Installed version</strong>
             <span id="updateDetail">Compare this installation with the version published for Omarchy.</span>
           </div>
           <button type="button" class="mini-button" id="checkUpdateButton">Check for updates</button>
           <code class="update-command" id="updateCommand" hidden>omarchy plugin update stormtrace.lightning --yes</code>
         </section>
         <div class="dialog-actions">
-          <button value="close" class="wide-button">Understood</button>
           <a href="https://github.com/Ashcutus/Stormtrace" target="_blank" rel="noreferrer">Project source ↗</a>
         </div>
+      </form>
+    </dialog>
+
+    <dialog id="shortcutsDialog" aria-labelledby="shortcutsTitle">
+      <form method="dialog" class="dialog-card shortcuts-dialog-card">
+        <div class="dialog-title-row"><h2 id="shortcutsTitle">Keyboard shortcuts</h2><button value="close" class="mini-button">Close</button></div>
+        <p>Shortcuts work on the main view. They pause while a dialog is open or a text field has focus.</p>
+        <dl class="shortcut-list">
+          <dt><kbd>/</kbd></dt><dd>Search for a place or coordinates</dd>
+          <dt><kbd>L</kbd></dt><dd>Switch to the Live lightning window</dd>
+          <dt><kbd>P</kbd></dt><dd>Pause or resume the lightning stream</dd>
+          <dt><kbd>R</kbd></dt><dd>Reconnect the lightning stream</dd>
+          <dt><kbd>G</kbd></dt><dd>Locate me (automatic location)</dd>
+          <dt><kbd>N</kbd></dt><dd>Turn desktop alerts on or off</dd>
+          <dt><kbd>+</kbd> <kbd>−</kbd></dt><dd>Zoom the map</dd>
+          <dt><kbd>Esc</kbd></dt><dd>Close a dialog or cancel picking on the map</dd>
+          <dt><kbd>?</kbd></dt><dd>Show this list</dd>
+        </dl>
       </form>
     </dialog>
 
     <dialog id="themeDialog" aria-labelledby="themeTitle">
       <form method="dialog" class="dialog-card theme-dialog-card">
         <header class="theme-dialog-heading">
-        <h2 id="themeTitle">Theme & colours</h2>
-        <button value="close" class="mini-button">Close</button>
-        <p id="appearanceState" role="status">Theme source, reading size and map controls apply immediately. Colour edits apply with “Apply custom palette”.</p>
+          <div class="dialog-title-row"><h2 id="themeTitle">Appearance</h2><button value="close" class="mini-button">Close</button></div>
+          <p id="appearanceState" role="status">Reading size, times, colour source and map controls apply immediately. Custom colour edits apply with “Apply custom colours”.</p>
         </header>
         <div class="theme-dialog-content" tabindex="0" role="region" aria-label="Appearance settings">
-        <p class="theme-intro">Stormtrace follows your active Omarchy palette by default. Choose a custom palette to override it only for this app.</p>
+          <section class="appearance-section" aria-labelledby="readingTitle">
+            <h3 id="readingTitle">Text and times</h3>
+            <label class="reading-control">Reading size <select id="readingScale"><option value="1">Default</option><option value="1.2">Larger</option><option value="1.4">Large</option></select></label>
+            <label class="reading-control">Show times in <select id="timeZoneSetting"><option value="uk">UK local time</option><option value="system">This device's time zone</option></select></label>
+            <p class="theme-intro">Met Office weather warnings always use UK local time.</p>
+          </section>
 
-        <label class="reading-control">Reading size <select id="readingScale"><option value="1">Default</option><option value="1.2">Larger</option><option value="1.4">Large</option></select></label>
-        <div class="theme-source" role="group" aria-label="Theme source">
-          <button type="button" class="theme-source-button active" data-theme-source="system">
-            <span>Omarchy</span><small id="currentThemeName">Current system theme</small>
-          </button>
-          <button type="button" class="theme-source-button" data-theme-source="custom">
-            <span>Custom</span><small>Saved in this app</small>
-          </button>
-        </div>
-
-        <div class="palette-grid" id="paletteGrid">
-          <label><span>App background</span><span class="color-field"><input type="color" data-palette-key="bg"/><output></output></span></label>
-          <label><span>Base surface</span><span class="color-field"><input type="color" data-palette-key="surface"/><output></output></span></label>
-          <label><span>Panel surface</span><span class="color-field"><input type="color" data-palette-key="surface2"/><output></output></span></label>
-          <label><span>Raised surface</span><span class="color-field"><input type="color" data-palette-key="surface3"/><output></output></span></label>
-          <label><span>Primary text</span><span class="color-field"><input type="color" data-palette-key="text"/><output></output></span></label>
-          <label><span>Muted text</span><span class="color-field"><input type="color" data-palette-key="muted"/><output></output></span></label>
-          <label><span>Interface accent</span><span class="color-field"><input type="color" data-palette-key="violet"/><output></output></span></label>
-          <label><span>Fresh strikes</span><span class="color-field"><input type="color" data-palette-key="magenta"/><output></output></span></label>
-          <label><span>Live connection accent</span><span class="color-field"><input type="color" data-palette-key="cyan"/><output></output></span></label>
-          <label><span>Interface warning accent</span><span class="color-field"><input type="color" data-palette-key="yellow"/><output></output></span></label>
-        </div>
-
-        <section class="map-appearance" aria-labelledby="mapAppearanceTitle">
-          <div class="map-appearance-heading">
-            <span class="eyebrow">Map visibility</span>
-            <h3 id="mapAppearanceTitle">Manual map controls</h3>
-          </div>
-          <div class="map-appearance-grid">
-            <div class="appearance-control">
-              <div class="range-labels"><label for="mapBrightness">Map brightness</label><strong><span id="mapBrightnessValue">100</span>%</strong></div>
-              <input id="mapBrightness" type="range" min="70" max="140" step="5" value="100" />
-              <div class="range-ticks"><span>Dim</span><span>Default</span><span>Bright</span></div>
+          <section class="appearance-section" aria-labelledby="coloursTitle">
+            <h3 id="coloursTitle">Colours</h3>
+            <p class="theme-intro">Stormtrace follows your active Omarchy palette by default. Choose Custom to override it only for this app. Strike-age and official warning colours stay fixed for legibility.</p>
+            <div class="theme-source" role="group" aria-label="Colour source">
+              <button type="button" class="theme-source-button active" data-theme-source="system">
+                <span>Omarchy</span><small id="currentThemeName">Current system theme</small>
+              </button>
+              <button type="button" class="theme-source-button" data-theme-source="custom">
+                <span>Custom</span><small>Saved in this app</small>
+              </button>
             </div>
-            <div class="appearance-control">
-              <div class="range-labels"><label for="mapOpacity">Map opacity</label><strong><span id="mapOpacityValue">100</span>%</strong></div>
-              <input id="mapOpacity" type="range" min="55" max="100" step="5" value="100" />
-              <div class="range-ticks"><span>Faint</span><span>Solid</span></div>
-            </div>
-            <div class="appearance-control">
-              <div class="range-labels"><label for="mapShade">Edge shade</label><strong><span id="mapShadeValue">10</span>%</strong></div>
-              <input id="mapShade" type="range" min="0" max="60" step="5" value="10" />
-              <div class="range-ticks"><span>None</span><span>Balanced</span><span>Strong</span></div>
-            </div>
-          </div>
-        </section>
 
+            <div class="palette-grid" id="paletteGrid">
+              <label><span>App background</span><span class="color-field"><input type="color" data-palette-key="bg"/><output></output></span></label>
+              <label><span>Base surface</span><span class="color-field"><input type="color" data-palette-key="surface"/><output></output></span></label>
+              <label><span>Panel surface</span><span class="color-field"><input type="color" data-palette-key="surface2"/><output></output></span></label>
+              <label><span>Raised surface</span><span class="color-field"><input type="color" data-palette-key="surface3"/><output></output></span></label>
+              <label><span>Primary text</span><span class="color-field"><input type="color" data-palette-key="text"/><output></output></span></label>
+              <label><span>Muted text</span><span class="color-field"><input type="color" data-palette-key="muted"/><output></output></span></label>
+              <label><span>Interface accent</span><span class="color-field"><input type="color" data-palette-key="violet"/><output></output></span></label>
+              <label><span>Highlight accent</span><span class="color-field"><input type="color" data-palette-key="magenta"/><output></output></span></label>
+              <label><span>Live connection accent</span><span class="color-field"><input type="color" data-palette-key="cyan"/><output></output></span></label>
+              <label><span>Interface warning accent</span><span class="color-field"><input type="color" data-palette-key="yellow"/><output></output></span></label>
+            </div>
+          </section>
+
+          <section class="appearance-section map-appearance" aria-labelledby="mapAppearanceTitle">
+            <h3 id="mapAppearanceTitle">Map visibility</h3>
+            <div class="map-appearance-grid">
+              <div class="appearance-control">
+                <div class="range-labels"><label for="mapBrightness">Map brightness</label><strong id="mapBrightnessValue">100%</strong></div>
+                <input id="mapBrightness" type="range" min="70" max="140" step="5" value="100" />
+                <div class="range-ticks"><span>Dim</span><span>Default</span><span>Bright</span></div>
+              </div>
+              <div class="appearance-control">
+                <div class="range-labels"><label for="mapOpacity">Map opacity</label><strong id="mapOpacityValue">100%</strong></div>
+                <input id="mapOpacity" type="range" min="55" max="100" step="5" value="100" />
+                <div class="range-ticks"><span>Faint</span><span>Solid</span></div>
+              </div>
+              <div class="appearance-control">
+                <div class="range-labels"><label for="mapShade">Edge shade</label><strong id="mapShadeValue">10%</strong></div>
+                <input id="mapShade" type="range" min="0" max="60" step="5" value="10" />
+                <div class="range-ticks"><span>None</span><span>Balanced</span><span>Strong</span></div>
+              </div>
+            </div>
+          </section>
         </div>
         <div class="theme-actions">
-          <button type="button" class="mini-button" id="resetCustomTheme">Copy Omarchy colours and use custom</button>
-          <button type="button" class="wide-button" id="applyCustomTheme">Apply custom palette</button>
+          <button type="button" class="mini-button" id="resetCustomTheme">Start custom from Omarchy colours</button>
+          <button type="button" class="wide-button" id="applyCustomTheme">Apply custom colours</button>
         </div>
       </form>
     </dialog>
-
-    <div class="toast-stack" id="toastStack" aria-live="polite"></div>
 
     <script src="/vendor/leaflet/leaflet.js"></script>
     <script src="/vendor/maplibre/maplibre-gl.js"></script>

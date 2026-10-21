@@ -62,3 +62,16 @@
 - For OPERA radar, scope object listings to hourly prefixes covering the displayed observation window. Full-day listings can exceed the S3 page limit; reject incomplete listings rather than treating truncation as missing observations.
 
 - Met Office public channels differ: RSS supplies unchanged summaries and links, without warning geometry or per-warning issue/expiry times. The official-linked Esri beta provides polygons and source fields under the NSWWS Open Licence, but its Feature Service API is unsupported by Met Office. Keep these separate provider identities and preserve their differing coverage/provenance and licence conditions.
+
+## Dependencies and security updates
+
+- Check for package updates and security advisories whenever making changes, so the project stays current. Run `npm outdated` and `npm audit`; check Python radar requirements against PyPI; and audit vendored libraries in `vendor/` separately, because `npm audit` cannot see them. Pin their exact versions in a scratch `package.json` outside the repository, run `npm audit --package-lock-only`, and compare with the latest releases.
+- Apply patch and minor security fixes in the same change where practical. Plan major upgrades as their own change, with the breaking changes reviewed and native WebKit checks recorded. Report any advisory you leave open, with its actual exposure, rather than silently deferring it.
+- Vendored files must match a named upstream release, or document their local patches. `vendor/maplibre/leaflet-maplibre-gl.js` carries local map-movement patches; `maplibre-gl.js` is unmodified upstream.
+
+## Future development checks
+
+Revisit these when touching the related area; they record verified gaps, not agreed scope.
+
+- **MapLibre GL v6 (security):** vendored MapLibre GL 5.x is affected by GHSA-jrc7-96c5-q579, an attribution `DOM.sanitize()` bypass that is only fixed in 6.4.1 and later. Stormtrace forces `attributionControl: false`, so the vulnerable path is not reached, but the upgrade is still required. v6 is ESM-only, requires WebGL2, removes `map.transform` and tightens legacy style expressions. The patched Leaflet bridge uses `_glMap.transform`, `setTransformConstrain` and `_actualCanvas`, so migrate it deliberately, keep a non-WebGL2 fallback, and validate map movement natively.
+- **Precipitation type (rain, sleet, snow, hail):** NOAA's MRMS `{region}_pcpn_typ` WMS layer is the only verified free observed source. It is delivered for the five US regions; it is model-assisted and has no sleet or freezing-rain category. UK (Met Office ASDI) and Europe (OPERA) public radar carry no precipitation type. The Met Office lists a 2D surface precipitation type product as in development; recheck whether it becomes public. Sleet or UK/European snow would need a forecast or nowcast source, which must be a separately labelled product with verified licence and access, never presented as a radar observation.

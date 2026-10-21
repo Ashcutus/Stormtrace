@@ -12,7 +12,7 @@
     }
     return payload;
   }
-  function mountFloods({ demo = false } = {}) {
+  function mountFloods({ demo = false, showOnMap = null } = {}) {
     const $ = (id) => document.getElementById(id), dialog = $('floodsDialog'), list = $('floodList');
     const country = $('floodCountry');
     const currentSource = () => C.getSource(country?.value || ID);
@@ -32,13 +32,17 @@
       })();
       await initialization;
     }
-    function card(parent, event) {
+    function card(parent, event, historyView = false) {
       const p = event.domainPayload, el = text(parent, 'article', '', 'warning-card flood-card');
       text(el, 'strong', p.classification, 'warning-badge'); text(el, 'h3', p.headline);
       text(el, 'p', [p.county, p.riverOrSea].filter(Boolean).join(' · '));
       text(el, 'p', p.description, 'warning-text');
       for (const [key, label] of [['reviewed','Last reviewed'],['messageChanged','Message changed'],['severityChanged','Severity changed']]) if (p.sourceTimes[key]) text(el, 'p', `${label}: ${p.sourceTimes[key]} (source time${/(?:Z|[+-]\d\d:\d\d)$/.test(p.sourceTimes[key]) ? '' : '; timezone not supplied'})`);
-      const link = text(el, 'a', 'Check this area on GOV.UK'); link.href = `https://check-for-flooding.service.gov.uk/target-area/${encodeURIComponent(p.areaId)}`; link.target = '_blank'; link.rel = 'noopener noreferrer';
+      const link = text(el, 'a', 'Check this area on GOV.UK ↗'); link.href = `https://check-for-flooding.service.gov.uk/target-area/${encodeURIComponent(p.areaId)}`; link.target = '_blank'; link.rel = 'noopener noreferrer';
+      if (showOnMap && !historyView) {
+        const button = text(el, 'button', 'Show on map', 'mini-button'); button.type = 'button';
+        button.addEventListener('click', () => { dialog.close(); showOnMap(event, controller.state.health, controller.state.cached); });
+      }
     }
     function render() {
       if (!dialog.open) return;
@@ -46,20 +50,20 @@
       const s=controller.state;
       const source = currentSource();
       $('floodAttribution').textContent = source.attribution;
-      if ($('floodCoverage')) $('floodCoverage').textContent = source.id === ID ? 'England live feed · all areas. No key required. This list does not check whether your saved point is affected.' : source.notes;
-      if ($('floodOfficialLink')) { $('floodOfficialLink').href = source.homepage; $('floodOfficialLink').textContent = `Check official ${source.coverage} flood information`; }
+      if ($('floodCoverage')) $('floodCoverage').textContent = source.id === ID ? 'England live feed, all areas. This list does not check whether your saved point is affected.' : source.summary || source.notes;
+      if ($('floodOfficialLink')) { $('floodOfficialLink').href = source.homepage; $('floodOfficialLink').textContent = `Official ${source.coverage} flood information ↗`; }
       if (source.id !== ID) {
         UI.keyed(list,[],card);
         $('floodRefresh').disabled = true; $('floodHistory').disabled = true;
-        $('floodStatus').textContent = demo ? 'Live flood warnings are disabled in demo mode.' : `Live warning coverage unavailable for ${source.coverage} in Stormtrace. Use the official service linked below.`;
-        if (s.storageError) document.getElementById('floodStatus').textContent += ' Local history is unavailable.';
-      $('floodStorageStatus').textContent = 'No live warnings are retrieved for this country; unavailable coverage is not an empty warning feed.';
+        $('floodStatus').textContent = demo ? 'Live flood warnings are disabled in demo mode.' : `Stormtrace does not have live warnings for ${source.coverage}. Use the official service linked above.`;
+        $('floodStorageStatus').textContent = 'No live warnings are retrieved for this country; unavailable coverage is not an empty warning feed.';
         return;
       }
       const fresh = C.freshness(s.health, controller.now()), records = s.records.filter((r) => r.domainPayload.status === 'ACTIVE').sort((a,b) => a.domainPayload.level-b.domainPayload.level || a.domainPayload.headline.localeCompare(b.domainPayload.headline));
       $('floodRefresh').disabled = s.loading || demo; $('floodHistory').disabled = demo;
       $('floodStatus').textContent=demo?'Live flood warnings are disabled in demo mode.':UI.healthMessage(s,controller.now(),'active alerts/warnings',records.length);
-      $('floodStorageStatus').textContent = s.storageError ? 'Local history is unavailable.' : 'Observed revisions are retained on this device for up to 90 days. Withdrawal requires an explicit source status.';
+      if (s.storageError && !demo) $('floodStatus').textContent += ' Saved history is unavailable.';
+      $('floodStorageStatus').textContent = s.storageError ? 'Saved history is unavailable on this device.' : 'This device keeps versions seen while this view was open, for up to 90 days. A warning is only shown as withdrawn when the source says so.';
       const selected=records.filter(r=>UI.matches(r,collection.filter()));
       if (!collection.isHistory?.()) collection.summary?.(selected.length,records.length);
       if (!demo) UI.keyed(list,selected.slice(0,collection.limit()),card);
@@ -70,9 +74,9 @@
     country?.addEventListener('change', async () => { collection.reset(); $('floodArchive').renderArchive=null; $('floodArchive').replaceChildren(); render(); await poll(); });
     $('floodRefresh').addEventListener('click',poll);
     $('floodHistory').addEventListener('click',async () => {
-      await initialize(); const archive = $('floodArchive'); archive.replaceChildren(); text(archive,'h3','Observed history — including warnings no longer in force');
-      try { const revisions = await controller.history?.query({ provider: ID, time: 'persistedAt' }) || []; revisions.sort((a,b) => b.persistedAt-a.persistedAt); if (!revisions.length) text(archive,'p','No local revisions recorded.'); UI.archiveView(archive,revisions,card,collection); }
-      catch { text(archive,'p','Local history is unavailable.'); }
+      await initialize(); const archive = $('floodArchive'); archive.replaceChildren();
+      try { const revisions = await controller.history?.query({ provider: ID, time: 'persistedAt' }) || []; revisions.sort((a,b) => b.persistedAt-a.persistedAt); UI.archiveView(archive,revisions,(parent,event)=>card(parent,event,true),collection); }
+      catch { text(archive,'p','Saved history is unavailable on this device.'); }
     });
     dialog.addEventListener('close',() => { clearInterval(timer); timer = null; $('floodArchive').replaceChildren(); });
     document.addEventListener('visibilitychange',() => { if (!document.hidden && dialog.open) poll(); });

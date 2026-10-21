@@ -27,6 +27,10 @@
     line: "#263c55", lineBright: "#405e80",
   };
 
+  // Strike age uses a fixed, theme-independent ramp so the three ages stay distinguishable.
+  const STRIKE_AGE = { now: "#ffe600", recent: "#ff8a00", old: "#d6336c", stroke: "#1a1022" };
+  const WINDOW_LABELS = { live: "Live · 15 min", 60: "Past hour", 360: "Past 6 hours", 1440: "Rolling 24 hours" };
+
   const REGIONS = [
     ["British Isles", 49, 61, -12, 3], ["Western Europe", 43, 55, -5, 16],
     ["Northern Europe", 55, 72, -10, 35], ["Mediterranean", 30, 45, -8, 38],
@@ -92,6 +96,8 @@
     manualLatitude: $("#manualLatitude"),
     manualLongitude: $("#manualLongitude"),
     notificationToggle: $("#notificationToggle"),
+    notificationState: $("#notificationState"),
+    shortcutsDialog: $("#shortcutsDialog"),
     radiusRange: $("#radiusRange"),
     radiusValue: $("#radiusValue"),
     permissionNote: $("#permissionNote"),
@@ -163,6 +169,7 @@
     loadedHistoryCount: 0,
     themeSource: persisted.themeSource === "custom" ? "custom" : "system",
     readingScale: readRangeSetting(persisted.readingScale,1,1,1.4),
+    timeZone: persisted.timeZone === "system" ? "system" : "uk",
     mapBrightness: readRangeSetting(persisted.mapBrightness, 100, 70, 140),
     mapOpacity: readRangeSetting(persisted.mapOpacity, 100, 55, 100),
     mapShade: readRangeSetting(persisted.mapShade, 10, 0, 60),
@@ -180,7 +187,10 @@
     bindControls();
     document.documentElement.style.setProperty("--reading-scale",String(state.readingScale));
     $("#readingScale").value=String(state.readingScale);
-    globalThis.StormtraceFloods.mountFloods({ demo: isDemo });
+    UI.setTimeZone(state.timeZone);
+    $("#timeZoneSetting").value=state.timeZone;
+    let mapHazards = null;
+    globalThis.StormtraceFloods.mountFloods({ demo: isDemo, showOnMap: (event, health, cached) => mapHazards?.showFlood(event, health, cached) });
     globalThis.StormtracePublicHazards.mount({ demo: isDemo, getMap: () => state.map });
     globalThis.StormtraceWarnings.mountWarnings({ getLocation: () => state.userLocation, demo: isDemo });
     globalThis.StormtraceWarningMap?.mount({demo:isDemo});
@@ -202,13 +212,13 @@
 
     if (!window.L) {
       showMapMessage("Map engine unavailable", "The map library could not load. Check the connection, then retry.");
-      setStatus("error", "OFFLINE", "Map library unavailable");
+      setStatus("error", "Offline", "Map library unavailable");
       return;
     }
 
     initMap();
     globalThis.StormtraceRadar.mountRadar({ map: state.map, demo: isDemo });
-    const mapHazards = globalThis.StormtraceMapHazards.mount({ map: state.map, demo: isDemo });
+    mapHazards = globalThis.StormtraceMapHazards.mount({ map: state.map, demo: isDemo });
     globalThis.StormtraceEarthquakes.mountEarthquakes({ map: state.map, demo: isDemo, mapHazards });
     await startReceiver();
   }
@@ -218,7 +228,10 @@
       const response = await fetch("/api/health", { cache: "no-store" });
       if (!response.ok) return;
       const payload = await response.json();
-      if (/^\d+\.\d+\.\d+$/.test(payload.version)) els.appVersion.textContent = `v${payload.version}`;
+      if (/^\d+\.\d+\.\d+$/.test(payload.version)) {
+        els.appVersion.textContent = `v${payload.version}`;
+        if (!els.updatePanel?.dataset?.state) els.updateStatus.textContent = `Installed v${payload.version}`;
+      }
     } catch { /* the connection status already reports local server failures */ }
   }
 
@@ -258,6 +271,42 @@
     if (visible) state.map.addLayer(state.strikeLayer); else state.map.removeLayer(state.strikeLayer);
     document.querySelector('.map-overlay.legend').hidden = !visible;
     document.querySelector('.latest-strip').hidden = !visible;
+    updateLayersSummary();
+  }
+
+  // The Layers summary names what is drawn on the main map while the panel is closed.
+  function updateLayersSummary() {
+    const names = [["#mapLightning", "Lightning"], ["#radarButton", "Radar"], ["#mapFloods", "Floods"], ["#mapQuakes", "Earthquakes"]]
+      .filter(([id]) => $(id)?.checked).map(([, name]) => name);
+    const selected = $("#selectedHazardRow");
+    if (selected && !selected.hidden) names.push("1 selected");
+    $("#layersSummary").textContent = names.length ? names.join(" · ") : "None on";
+  }
+
+  function showHazardSelection(label) {
+    $("#selectedHazardLabel").textContent = label || "Map event";
+    $("#selectedHazardRow").hidden = false;
+    // Open Layers so Clear is visible without hunting for it.
+    $("#layersPanel").open = true;
+    updateLayersSummary();
+  }
+
+  function clearHazardSelection() {
+    $("#selectedHazardRow").hidden = true;
+    updateLayersSummary();
+  }
+
+  // Keep location feedback visible after the toolbar request, including on narrow windows.
+  function revealLocationFeedback() {
+    setPane("details");
+    $("#locationGroup").scrollIntoView?.({ block: "nearest" });
+  }
+
+  // Narrow windows show the map and the sidebar as two panes.
+  function setPane(pane) {
+    document.body.dataset.pane = pane;
+    $$("[data-pane-target]").forEach((button) => { const active = button.dataset.paneTarget === pane; button.classList.toggle("active", active); button.setAttribute("aria-pressed", String(active)); });
+    if (pane === "map") state.map?.invalidateSize?.();
   }
 
   function initMap() {
@@ -304,14 +353,20 @@
 
   function bindControls() {
     $("#readingScale").addEventListener("change",event=>{state.readingScale=readRangeSetting(event.target.value,1,1,1.4);document.documentElement.style.setProperty("--reading-scale",String(state.readingScale));saveSettings();});
+    $("#timeZoneSetting").addEventListener("change",event=>{state.timeZone=event.target.value==="system"?"system":"uk";UI.setTimeZone(state.timeZone);updateClock();UI.refreshPopupHealth();saveSettings();});
     els.monitorButton.addEventListener("click", toggleMonitoring);
     els.refreshButton.addEventListener("click", reconnectFeed);
     els.windowModeButton.addEventListener("click", () => postNativeAction("toggle-fullscreen"));
-    $('#domainChooser')?.addEventListener('change',event=>{const selected=$(`#${event.target.value}`);
-      // Toggle views (radar) stay open when chosen again; reveal the panel instead.
-      if(selected?.getAttribute('aria-pressed')==='true')$(`#${selected.getAttribute('aria-controls')}`)?.scrollIntoView?.({block:'nearest'});else selected?.click();event.target.value='';});
     $('#retrySettingsSave')?.addEventListener('click',saveSettings);
     $('#clearSelectedHazard')?.addEventListener('click',()=>document.dispatchEvent(new Event('clearselectedhazard')));
+    document.addEventListener('hazardselected',event=>showHazardSelection(event.detail?.label));
+    document.addEventListener('clearselectedhazard',clearHazardSelection);
+    for (const id of ['#mapLightning','#radarButton','#mapFloods','#mapQuakes']) $(id)?.addEventListener('change',updateLayersSummary);
+    // The toolbar Radar button is a shortcut to the same Layers checkbox, so the two cannot disagree.
+    $('#radarNavButton')?.addEventListener('click',()=>{ $('#radarButton')?.click(); if ($('#radarButton')?.checked) $('#radarPanel')?.focus?.(); });
+    $('#radarButton')?.addEventListener('change',()=>$('#radarNavButton')?.setAttribute('aria-pressed',String(Boolean($('#radarButton').checked))));
+    $$("[data-pane-target]").forEach((button) => button.addEventListener("click", () => setPane(button.dataset.paneTarget)));
+    $('#shortcutsButton')?.addEventListener('click',()=>els.shortcutsDialog?.showModal());
     els.exitButton.addEventListener("click", () => {
       els.exitButton.disabled = true;
       postNativeAction("quit");
@@ -331,7 +386,7 @@
     $("#zoomOut").addEventListener("click", () => state.map?.zoomOut());
     $("#worldView").addEventListener("click", () => state.map?.setView([18, 6], 2));
     $("#setHere").addEventListener("click", toggleMapLocation);
-    els.locationButton.addEventListener("click", requestLocation);
+    els.locationButton.addEventListener("click", () => { requestLocation(); revealLocationFeedback(); });
     els.enableLocationButton.addEventListener("click", requestLocation);
     els.approximateLocationButton.addEventListener("click", useApproximateLocation);
     els.manualLocationForm.addEventListener("submit", setManualLocation);
@@ -357,7 +412,7 @@
         const key = input.dataset.paletteKey;
         state.customPalette = { ...(state.customPalette || editablePalette(state.systemPalette)), [key]: input.value };
         input.nextElementSibling.textContent = input.value;
-        $("#appearanceState").textContent="Colour edits are pending. Apply custom palette to use and save them; closing leaves the applied palette unchanged.";
+        $("#appearanceState").textContent="Colour edits are pending. Select Apply custom colours to use and save them; closing leaves the applied colours unchanged.";
       });
     });
     els.resetCustomTheme.addEventListener("click", () => {
@@ -370,8 +425,8 @@
       applyActivePalette();
       saveSettings();
       syncThemeDialog();
-      $("#appearanceState").textContent="Custom palette applied. Theme source and map controls apply immediately.";
-      toast("Custom palette applied", "Check the save-status message if profile storage is unavailable.");
+      $("#appearanceState").textContent="Custom colours applied. Other appearance settings apply immediately.";
+      toast("Custom colours applied", "Check the save-status message if profile storage is unavailable.");
     });
 
     els.mapBrightness.addEventListener("input", () => {
@@ -390,7 +445,7 @@
       saveSettings();
     });
 
-    $$(".segment").forEach((button) => {
+    $$(".segment[data-window]").forEach((button) => {
       button.addEventListener("click", () => selectWindow(button.dataset.window));
     });
     syncWindowButtons();
@@ -435,7 +490,8 @@
       else if (key === "n") {
         els.notificationToggle.checked = !els.notificationToggle.checked;
         toggleNotifications();
-      } else if (key === "+" || key === "=") state.map?.zoomIn();
+      } else if (key === "?") els.shortcutsDialog?.showModal();
+      else if (key === "+" || key === "=") state.map?.zoomIn();
       else if (key === "-") state.map?.zoomOut();
     });
   }
@@ -531,9 +587,37 @@
     };
     Object.entries(variables).forEach(([key, value]) => root.style.setProperty(key, value));
     document.body.dataset.systemMode = palette.mode;
-    els.themeButton.title = state.themeSource === "system" ? `Following Omarchy · ${state.systemPalette.name}` : "Custom Stormtrace palette";
+    els.themeButton.title = state.themeSource === "system" ? `Appearance · following Omarchy (${state.systemPalette.name})` : "Appearance · custom colours";
+    applyPopupPalette(palette);
     updateLocationLayers();
     scheduleRender();
+  }
+
+  // Dialogs and popups need opaque, high-contrast surfaces in every palette.
+  function applyPopupPalette(palette) {
+    const bg = mixHex(palette.surface2, palette.bg, 0.35);
+    const surface = mixHex(palette.surface3, bg, 0.4);
+    const text = ensureContrast(palette.text, bg, 7);
+    const variables = {
+      "--popup-bg": bg, "--popup-surface": surface, "--popup-text": text,
+      "--popup-muted": ensureContrast(mixHex(palette.muted, text, 0.35), bg, 4.5),
+      "--popup-line": mixHex(palette.lineBright, text, 0.15),
+      "--popup-accent": palette.violet,
+      "--popup-accent-bright": ensureContrast(palette.violetBright, bg, 4.5),
+    };
+    Object.entries(variables).forEach(([key, value]) => document.documentElement.style.setProperty(key, value));
+  }
+
+  function contrastRatio(a, b) {
+    const [high, low] = [colorLuminance(a), colorLuminance(b)].sort((x, y) => y - x);
+    return (high + 0.05) / (low + 0.05);
+  }
+
+  function ensureContrast(foreground, background, minimum) {
+    const target = colorLuminance(background) > 0.4 ? "#000000" : "#ffffff";
+    let colour = toHexColor(foreground, target);
+    for (let step = 0; step < 10 && contrastRatio(colour, background) < minimum; step++) colour = mixHex(colour, target, 0.25);
+    return colour;
   }
 
   function applyMapAppearance() {
@@ -574,6 +658,7 @@
     const sourcePalette = state.themeSource === "custom" ? (state.customPalette || editablePalette(state.systemPalette)) : editablePalette(state.systemPalette);
     els.paletteGrid.classList.toggle("system-locked", state.themeSource === "system");
     els.applyCustomTheme.disabled = state.themeSource === "system";
+    els.applyCustomTheme.title = state.themeSource === "system" ? "Choose Custom, or start custom from Omarchy colours, to edit colours" : "";
     els.paletteGrid.querySelectorAll('input[type="color"]').forEach((input) => {
       const value = toHexColor(sourcePalette[input.dataset.paletteKey], FALLBACK_PALETTE[input.dataset.paletteKey]);
       input.value = value;
@@ -623,7 +708,7 @@
       state.socket.close();
     }
 
-    setStatus("connecting", "CONNECTING", state.retryCount ? `Retry ${state.retryCount}…` : "Opening lightning stream…");
+    setStatus("connecting", "Connecting", state.retryCount ? `Retry ${state.retryCount}…` : "Opening lightning stream…");
     globalThis.StormtraceDiagnostics?.count("connections");
     liveProvider.attempted();
     const socket = new WebSocket(liveProvider.url);
@@ -633,7 +718,7 @@
       state.connectedAt = Date.now();
       state.retryCount = 0;
       socket.send(JSON.stringify(liveProvider.subscription()));
-      setStatus("live", "LIVE", "Lightning receiver connected");
+      setStatus("live", "Live", "Lightning receiver connected");
       toast("Lightning receiver ready", "Listening for worldwide strikes.");
     };
 
@@ -643,18 +728,18 @@
         globalThis.StormtraceDiagnostics?.count("received", result.records.length);
         globalThis.StormtraceDiagnostics?.lightning();
         state.providerHealth[liveProvider.id] = result.health;
-        if (result.records.length) { ingestStrikes(result.records,true);setStatus(result.health.lastError?"error":"live",result.health.lastError?"DEGRADED":"LIVE",result.health.lastError?"Some lightning records were rejected":"Lightning receiver connected"); }
-        else if (result.health.lastError) setStatus("error","DEGRADED","Some lightning data could not be read");
-        else if (result.receiver) setStatus("live", "LIVE", `${result.receiver.viewers.toLocaleString()} viewers · receiver ${result.receiver.name}`);
+        if (result.records.length) { ingestStrikes(result.records,true);setStatus(result.health.lastError?"error":"live",result.health.lastError?"Degraded":"Live",result.health.lastError?"Some lightning records were rejected":"Lightning receiver connected"); }
+        else if (result.health.lastError) setStatus("error","Degraded","Some lightning data could not be read");
+        else if (result.receiver) setStatus("live", "Live", `${result.receiver.viewers.toLocaleString()} viewers · receiver ${result.receiver.name}`);
       } catch (error) {
         state.providerHealth[liveProvider.id] = { ...liveProvider.health, freshness: core.freshness(liveProvider.health) };
         globalThis.StormtraceDiagnostics?.count("errors");
-        setStatus("error","DEGRADED","Lightning data could not be read · reconnect if this persists");
+        setStatus("error","Degraded","Lightning data could not be read · reconnect if this persists");
         console.warn("Ignored an unreadable feed message", error);
       }
     };
 
-    socket.onerror = () => { globalThis.StormtraceDiagnostics?.count("networkFailures"); liveProvider.failed(); state.providerHealth[liveProvider.id] = { ...liveProvider.health, freshness: core.freshness(liveProvider.health) }; setStatus("error", "DEGRADED", "Lightning receiver interrupted"); };
+    socket.onerror = () => { globalThis.StormtraceDiagnostics?.count("networkFailures"); liveProvider.failed(); state.providerHealth[liveProvider.id] = { ...liveProvider.health, freshness: core.freshness(liveProvider.health) }; setStatus("error", "Degraded", "Lightning receiver interrupted"); };
     socket.onclose = () => {
       if (state.socket !== socket || state.monitoringPaused) return;
       if (!liveProvider.health.lastError) liveProvider.failed("unavailable");
@@ -662,7 +747,7 @@
       globalThis.StormtraceDiagnostics?.count("reconnects");
       state.retryCount += 1;
       const delay = Math.min(30000, 1200 * 2 ** Math.min(5, state.retryCount));
-      setStatus("error", "RECONNECTING", `Next attempt in ${Math.ceil(delay / 1000)}s`);
+      setStatus("error", "Reconnecting", `Next attempt in ${Math.ceil(delay / 1000)}s`);
       state.socketRetry = setTimeout(connectFeed, delay);
     };
   }
@@ -697,7 +782,7 @@
       state.socket = null;
     }
     stopDemo();
-    setStatus("paused", "PAUSED", "Lightning stopped · other views remain available");
+    setStatus("paused", "Paused", "Lightning stopped · other views remain available");
     updateMonitoringButton();
     toast("Lightning paused", "Stormtrace is no longer listening for new strikes.");
   }
@@ -967,11 +1052,10 @@
       state.selectedStrikeId = null;
     }
 
-    els.visibleCount.textContent = String(visibleCount).padStart(3, "0");
+    els.visibleCount.textContent = visibleCount.toLocaleString();
     const hidden = $('#mapLightning')?.checked === false;
     $('#renderCoverage').textContent = hidden ? 'Lightning layer hidden; counts still include retained records.' : visibleCount > MAX_RENDERED_STRIKES ? `Showing newest ${MAX_RENDERED_STRIKES.toLocaleString()} of ${visibleCount.toLocaleString()} records in this area.` : `${visibleCount.toLocaleString()} points shown.`;
-    const labels = { live: "Live · 15 min", 60: "Past hour", 360: "Past 6 hours", 1440: "Rolling 24 hours" };
-    els.visibleWindow.textContent = `${labels[state.selectedWindow]} · map bounds`;
+    els.visibleWindow.textContent = `${WINDOW_LABELS[state.selectedWindow]} · map view`;
     if (state.latestStrikeDirty) {
       updateLatestStrike();
       state.latestStrikeDirty = false;
@@ -1046,14 +1130,13 @@
   }
 
   function strikePresentationForBand(ageBand) {
-    const palette = state.activePalette;
     if (ageBand === 0) {
-      return { color: palette.magenta, fillColor: palette.magenta, radius: 4.8, opacity: 0.95, fillOpacity: 0.76 };
+      return { color: STRIKE_AGE.stroke, fillColor: STRIKE_AGE.now, radius: 4.8, opacity: 0.9, fillOpacity: 0.92 };
     }
     if (ageBand === 1) {
-      return { color: palette.violet, fillColor: palette.violet, radius: 4.1, opacity: 0.84, fillOpacity: 0.62 };
+      return { color: STRIKE_AGE.stroke, fillColor: STRIKE_AGE.recent, radius: 4.1, opacity: 0.75, fillOpacity: 0.82 };
     }
-    return { color: palette.blue, fillColor: palette.blue, radius: 3.6, opacity: 0.64, fillOpacity: 0.44 };
+    return { color: STRIKE_AGE.stroke, fillColor: STRIKE_AGE.old, radius: 3.6, opacity: 0.55, fillOpacity: 0.66 };
   }
 
   function updateStrikeMarkerVisual(marker, strike, now = Date.now()) {
@@ -1082,15 +1165,15 @@
     return `<div class="strike-popup-content">
       <div class="strike-popup-heading"><span class="strike-popup-icon">ϟ</span><div><strong>LIGHTNING STRIKE</strong><span>${escapeHtml(strike.region)}</span></div></div>
       <div class="strike-detail"><span>Detected</span><strong data-strike-age>${age}</strong></div>
-      <div class="strike-detail"><span>Time (UK local)</span><strong>${formatStrikeTime(strike.time)}</strong></div>
+      <div class="strike-detail"><span>Time</span><strong>${formatStrikeTime(strike.time)}</strong></div>
       <div class="strike-detail"><span>Coordinates</span><strong>${formatCoordinates(strike.lat, strike.lon)}</strong></div>
       <div class="strike-detail"><span>Location uncertainty</span><strong>${deviation}</strong></div>
       <div class="strike-detail"><span>Polarity</span><strong>${polarity}</strong></div>
       ${distance}
       <div class="strike-detail"><span>Source</span><strong>${escapeHtml(strike.provenance?.sourceAuthority || 'Original source metadata unavailable')}</strong></div>
       <p class="flood-map-note">Detection location and uncertainty are source estimates; this is not an official safety warning.</p>
-      <a class="flood-map-link" href="${escapeHtml(strike.provenance?.sourceUrl || liveProvider.source.homepage)}" target="_blank" rel="noopener noreferrer">Official network information</a>
-      <button type="button" data-close-popup class="mini-button">Close popup</button>
+      <a class="flood-map-link" href="${escapeHtml(strike.provenance?.sourceUrl || liveProvider.source.homepage)}" target="_blank" rel="noopener noreferrer">Official network information ↗</a>
+      <button type="button" data-close-popup class="mini-button">Close</button>
     </div>`;
   }
 
@@ -1224,7 +1307,7 @@
     if (!state.map) return;
     const center = state.map.getCenter();
     els.coordinates.textContent = formatCoordinates(center.lat, center.lng);
-    els.mapRegion.textContent = state.map.getZoom() <= 2 ? "WORLD VIEW" : describeRegion(center.lat, center.lng).toUpperCase();
+    els.mapRegion.textContent = state.map.getZoom() <= 2 ? "World view" : describeRegion(center.lat, center.lng);
   }
 
   function selectWindow(windowValue) {
@@ -1236,14 +1319,27 @@
   }
 
   function syncWindowButtons() {
-    $$(".segment").forEach((button) => {button.classList.toggle("active", button.dataset.window === state.selectedWindow);button.setAttribute("aria-pressed",String(button.dataset.window===state.selectedWindow));});
+    $$(".segment[data-window]").forEach((button) => {button.classList.toggle("active", button.dataset.window === state.selectedWindow);button.setAttribute("aria-pressed",String(button.dataset.window===state.selectedWindow));});
+    syncLegend();
+  }
+
+  // The legend lists only the strike ages the selected window can contain.
+  function syncLegend() {
+    const selected = state.selectedWindow;
+    const recent = $("#legendRecent")?.querySelector?.("span"), old = $("#legendOld");
+    if (recent) recent.textContent = selected === "live" ? "5–15 min" : "5–60 min";
+    if (old) {
+      old.hidden = selected === "live" || selected === "60";
+      const label = old.querySelector?.("span"); if (label) label.textContent = selected === "360" ? "1–6 hr" : "1–24 hr";
+    }
   }
 
   let choosingMapLocation = false;
 
   function toggleMapLocation() {
     choosingMapLocation = !choosingMapLocation;
-    $("#setHere").textContent = choosingMapLocation ? "Cancel" : "Set here";
+    $("#setHere").textContent = choosingMapLocation ? "Cancel picking" : "Pick on map";
+    if (choosingMapLocation) setPane("map");
     $("#setHere").setAttribute("aria-pressed", String(choosingMapLocation));
     $("#map").classList.toggle("choosing-location", choosingMapLocation);
     if (choosingMapLocation) toast("Choose your location", "Zoom and drag to find your point, then click the map to save it.");
@@ -1338,7 +1434,7 @@
       } finally {
         els.enableLocationButton.disabled = false;
         els.locationButton.disabled = false;
-        els.enableLocationButton.textContent = state.userLocation ? state.userLocation?.source==="manual"?"Replace manual point with current location":"Update current location" : "Try location again";
+        els.enableLocationButton.innerHTML = 'Locate me <kbd>G</kbd>';
         locationRequest = null;
       }
     })();
@@ -1349,9 +1445,8 @@
     if (!state.userLocation) return;
     els.locationState.innerHTML = `
       <span class="target-icon">⌾</span>
-      <div><strong>${formatCoordinates(state.userLocation.lat, state.userLocation.lon)}</strong><span>${state.userLocation.source === "manual" ? "Manual monitoring point" : `Uncertainty ±${formatMiles(state.userLocation.accuracy / 1609.344)}`} · ${state.radiusMiles}-mile radius.</span></div>`;
+      <div><strong>${formatCoordinates(state.userLocation.lat, state.userLocation.lon)}</strong><span>${state.userLocation.source === "manual" ? "Chosen manually" : `Automatic · uncertainty ±${formatMiles(state.userLocation.accuracy / 1609.344)}`} · ${state.radiusMiles}-mile alert radius</span></div>`;
     els.enableLocationButton.disabled = false;
-    els.enableLocationButton.textContent = state.userLocation?.source==="manual"?"Replace manual point with current location":"Update current location";
   }
 
   function updateLocationLayers() {
@@ -1404,6 +1499,7 @@
   function updateNotificationUI() {
     els.notificationToggle.checked = state.notificationsEnabled;
     const permission = platform.notificationAdapter.permission();
+    if (els.notificationState) els.notificationState.textContent = permission === "denied" ? "Blocked by the system" : state.notificationsEnabled ? `On · within ${state.radiusMiles} mi` : "Off";
     if (permission === "denied") {
       els.permissionNote.textContent = "Desktop notifications are blocked. Location stays on this device.";
     } else if (state.notificationsEnabled) {
@@ -1419,6 +1515,7 @@
     const fill = ((state.radiusMiles - 5) / 45) * 100;
     els.radiusRange.style.setProperty("--range-fill", `${fill}%`);
     updateLocationUI();
+    if (els.notificationState) updateNotificationUI();
   }
 
   function updateProximityStats() {
@@ -1535,7 +1632,9 @@
 
   function updateClock() {
     if (document.hidden) return;
-    els.clock.textContent = `UK local ${new Intl.DateTimeFormat("en-GB",{timeZone:"Europe/London",timeStyle:"short"}).format(Date.now())}`;
+    els.clock.textContent = state.timeZone === "system"
+      ? `Local ${new Intl.DateTimeFormat("en-GB",{timeStyle:"short"}).format(Date.now())}`
+      : `UK local ${new Intl.DateTimeFormat("en-GB",{timeZone:"Europe/London",timeStyle:"short"}).format(Date.now())}`;
   }
 
   function relativeAge(time) {
@@ -1596,6 +1695,7 @@
       themeSource: state.themeSource,
       customPalette: state.customPalette,
       readingScale: state.readingScale,
+      timeZone: state.timeZone,
       mapBrightness: state.mapBrightness,
       mapOpacity: state.mapOpacity,
       mapShade: state.mapShade,
@@ -1689,7 +1789,7 @@
   function resumeDemo() {
     stopDemo();
     if (state.monitoringPaused) return;
-    setStatus("live", "DEMO", "Simulated global receiver");
+    setStatus("live", "Demo", "Simulated global receiver");
     els.historyState.textContent = "24h demonstration archive";
     state.demoTimer = setInterval(() => {
       const strike = generateDemoStrikes(1, true);

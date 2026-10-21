@@ -1,6 +1,6 @@
 # UK flood information
 
-Open **Floods** in Explore and choose a country.
+Open **Floods** from the **Hazards** buttons and choose a country.
 
 | Country | What Stormtrace shows |
 | --- | --- |
@@ -24,13 +24,13 @@ The list shows active severe flood warnings, flood warnings and flood alerts, or
 
 The Environment Agency currently supplies these times without a timezone. Stormtrace shows them exactly as supplied and labels the timezone as unspecified rather than guessing.
 
-The heading, **Refresh**, **Observed history** and **Close** controls stay visible while the list scrolls, and the list can be scrolled with the keyboard.
+The heading, **Close**, **Country**, **Refresh**, and the **Current** / **Saved history** tabs stay visible while the list scrolls, and the list can be scrolled with the keyboard. **Show on map** on an England warning closes the list and outlines that warning area on the main map; it appears as **Selected** in **Layers**, where **Clear** removes it.
 
 If retrieval fails, the last list is kept and labelled as cached. A successful empty feed is shown differently from unavailable data.
 
-## Observed history
+## Saved history
 
-**Observed history** includes warnings Stormtrace has seen, including those marked "no longer in force". History is kept on this device for up to 90 days, with a limit of 5,000 warnings. A warning disappearing from the feed is not treated as withdrawn; only the source's explicit "no longer in force" status marks it withdrawn.
+**Saved history** includes warnings Stormtrace has seen, including those marked "no longer in force". History is kept on this device for up to 90 days, with a limit of 5,000 warnings. A warning disappearing from the feed is not treated as withdrawn; only the source's explicit "no longer in force" status marks it withdrawn.
 
 This is local history, not a complete archive.
 

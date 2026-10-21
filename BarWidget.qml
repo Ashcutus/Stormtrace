@@ -101,7 +101,8 @@ BarWidget {
     id: button
     anchors.fill: parent
     bar: root.bar
-    text: "●"
+    // Material Design "weather-lightning" glyph (U+F0593) from the Nerd Font Omarchy's bar uses.
+    text: "󰖓"
     active: root.serverReady
     tooltipText: root.serverReady ? "Open Stormtrace · local service ready" : "Start Stormtrace weather and hazard monitor"
     onPressed: root.launch()

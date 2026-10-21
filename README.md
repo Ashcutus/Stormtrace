@@ -14,7 +14,7 @@ Stormtrace is a desktop viewer for live lightning, with private alerts when ligh
 - **Strike details.** Detection time, coordinates, location uncertainty, polarity where available, and distance from your monitoring point.
 - **Activity at a glance.** Visible strike totals, feed rate, ranked hotspots and the latest strike.
 - **Private nearby alerts.** A desktop notification when lightning strikes within 5 to 50 miles of your monitoring point, at most once every two minutes.
-- **Radar.** Rainfall for the UK and Europe, and radar reflectivity for the US, with recent frames to step through.
+- **Radar.** Rainfall for the UK and Europe, and radar reflectivity and precipitation type (rain, snow, hail) for the US, with recent frames to step through.
 - **UK weather warnings.** Met Office warnings with official colours. Public summaries need no setup; full details need a free key.
 - **Floods.** Live Environment Agency warnings for England, and official links for Wales, Scotland and Northern Ireland.
 - **Earthquakes.** The past day of USGS earthquakes, with filters and optional shaking contours on the map.
@@ -62,7 +62,7 @@ Hover over a strike for a quick summary. Select it to keep its details open whil
 
 ### Your monitoring point and alerts
 
-Distances and nearby alerts are measured from your monitoring point. Use **Set location** to request your current position, or **Set here** and then click the map to choose a point yourself. You can also enter coordinates manually. Press `Escape` or **Cancel** to leave your saved point unchanged.
+Distances and nearby alerts are measured from your monitoring point. All location controls are in **Your location** under **Nearby lightning** in the sidebar (the toolbar **Set location** button, or `G`, also requests your position): **Locate me** requests your current position, **Pick on map** lets you click the map to choose a point, and **Enter coordinates** accepts latitude and longitude. Press `Escape` or **Cancel picking** to leave your saved point unchanged. **Desktop alerts** turns nearby-lightning notifications on or off.
 
 If only a rough position (accurate to more than 5 km) is available, Stormtrace shows its coordinates and uncertainty so you can decide whether to use it. Wired (Ethernet) connections are supported.
 
@@ -72,19 +72,18 @@ If only a rough position (accurate to more than 5 km) is available, Stormtrace s
 
 ### Hazard views
 
-Open a view from **Explore**. Each one checks its source only while it is open, shows when it last checked, and links to the official source.
+Open a view from the **Hazards** buttons in the toolbar. Each one checks its source only while it is open, shows when it last checked, and links to the official source. A small dot on each button shows its last check: cyan for checked, yellow for checking or cached, red for a failed retrieval.
 
 | View | Source | Needs setup? | Guide |
 | --- | --- | --- | --- |
-| Radar | Met Office, EUMETNET OPERA, NOAA | UK and Europe need an optional decoder; US works without it | [Radar](docs/radar.md) |
 | Weather warnings | Met Office | No for summaries; a free key for full details | [Weather warnings](docs/warnings.md) |
 | Floods | Environment Agency (England) | No | [Floods](docs/floods.md) |
 | Cyclones, Volcanoes, Tsunami bulletins, Space weather | NOAA, USGS, Smithsonian | No | [Other hazards](docs/hazards.md) |
 | Earthquakes | USGS | No | [Earthquakes](docs/earthquakes.md) |
 
-Most views have a **Current** list and an **Observed history** list. History contains what Stormtrace has seen on this device; it is not a complete archive.
+Most views have a **Current** list and a **Saved history** list. Saved history contains what Stormtrace has seen on this device while the view was open; it is not a complete archive.
 
-**Map hazards** in the sidebar adds England flood warning areas and past-day earthquakes to the main map. Selecting an earthquake loads its official USGS shaking contours where they exist. See [map layers](docs/map-hazards.md).
+**Layers**, at the top left of the map, controls everything drawn on the main map: lightning strikes, radar, England flood warning areas and past-day earthquakes. Selecting an earthquake loads its official USGS shaking contours where they exist. **Show on map** in the Floods, Earthquakes and Cyclones lists highlights one event; it appears as **Selected** in Layers, with **Clear** to remove it. See [map layers](docs/map-hazards.md).
 
 ![Estimated shaking contours for a magnitude 6.0 earthquake near Vanuatu](docs/screenshots/earthquake-shaking.png)
 
@@ -108,15 +107,16 @@ Then exit and reopen Stormtrace. The [warnings guide](docs/warnings.md#setup) ex
 
 ### Radar
 
-Open **Radar** in Explore, then choose a **Source / region**. US radar works with the standard runtime. UK and European rainfall need an [optional decoder](docs/radar.md#setup), which takes a few commands to set up. No radar account or key is needed.
+Select **Radar** in the toolbar (or tick it in **Layers** on the map), then choose a **Source / region** in the radar panel that opens in the sidebar. US radar works with the standard runtime. UK and European rainfall need an [optional decoder](docs/radar.md#setup), which takes a few commands to set up. No radar account or key is needed.
 
 ![UK radar rainfall with the radar panel open](docs/screenshots/radar.png)
 
 UK and European frames arrive every 15 minutes (Met Office publication can lag by up to 20 minutes). US frames update about every two minutes. US radar shows reflectivity in dBZ, while UK and Europe show rainfall rate in mm/h; these are different measurements. Clear areas can mean no rain or no radar coverage.
+US **precipitation type** shows NOAA's rain, snow and hail classification for the same US regions. It is model-assisted and has no sleet or freezing-rain category. Precipitation type is not published for UK or European radar, so it is US-only for now.
 
 ### Appearance
 
-Stormtrace follows the active Omarchy theme automatically, or you can save your own colour scheme. The Appearance panel also adjusts map brightness, opacity and edge shading. The map has English place names where available. It needs WebGL; without it, Stormtrace falls back to standard OpenStreetMap tiles.
+Stormtrace follows the active Omarchy theme automatically, or you can save your own colour scheme. The **Appearance** panel also sets reading size, whether times show in UK local time or your device's time zone (Met Office warnings always use UK local time), and map brightness, opacity and edge shading. Strike-age colours (yellow, orange, crimson) and official warning colours stay fixed in every theme. The map has English place names where available. It needs WebGL; without it, Stormtrace falls back to standard OpenStreetMap tiles.
 
 ![Stormtrace theme and map appearance controls](docs/screenshots/appearance-controls.png)
 
@@ -124,15 +124,17 @@ Stormtrace follows the active Omarchy theme automatically, or you can save your 
 
 | Control | What it does |
 | --- | --- |
-| `Live` / `1h` / `6h` / `24h` | Change the strike-age window. |
-| `Focus` | Move to the leading hotspot. |
+| `Live` / `1h` / `6h` / `24h` | Change the lightning window. |
+| `Focus top` | Move to the leading hotspot. |
 | Drag / scroll | Move or zoom the map. |
-| `Set location` | Request your current position (up to 30 seconds). |
-| `Set here` | Choose a monitoring point by clicking the map. |
-| `Nearby lightning` | Turn lightning notifications on or off. |
+| `Layers` | Show or hide lightning strikes, radar, flood areas and earthquakes, or clear a selected event. Hiding strikes keeps collection and alerts running. |
+| `Set location` | Request your current position (up to 30 seconds), from the toolbar. |
+| `Locate me` | Request your current position (up to 30 seconds). |
+| `Pick on map` | Choose a monitoring point by clicking the map. |
+| `Desktop alerts` | Turn nearby-lightning notifications on or off. |
 | Alert radius | Set the alert distance, from 5 to 50 miles. |
-| Lightning strikes | Show or hide strike markers. Collection and alerts carry on. |
-| Pause / play | Pause or resume the lightning feed. Other views refresh independently. |
+| Pause / play | Pause or resume the lightning stream. Other views refresh independently. |
+| Reconnect (plug) | Reconnect the lightning stream. |
 | Expand / restore | Switch between the window and fullscreen. |
 | About | Read data notes and check for a newer version. |
 | Power | Exit Stormtrace and stop its local service. |
@@ -142,17 +144,18 @@ Stormtrace follows the active Omarchy theme automatically, or you can save your 
 | Key | Action |
 | --- | --- |
 | `/` | Search for a place or coordinates. |
-| `L` | Return to the live lightning window. |
-| `G` | Request or update your location. |
-| `N` | Turn nearby lightning notifications on or off. |
+| `L` | Switch to the Live lightning window. |
+| `G` | Locate me (request or update your location). |
+| `N` | Turn desktop alerts on or off. |
 | `P` | Pause or resume lightning. |
-| `R` | Reconnect the lightning feed. |
+| `R` | Reconnect the lightning stream. |
 | `+` / `−` | Zoom the map. |
-| `Escape` | Cancel choosing a monitoring point. |
+| `Escape` | Close a dialog or cancel picking a monitoring point. |
+| `?` | Show all keyboard shortcuts. |
 | `F11` | Toggle fullscreen. |
 | `Ctrl+Q` | Exit Stormtrace. |
 
-Shortcuts are paused while a dialog is open or you are typing.
+Shortcuts are paused while a dialog is open or you are typing. On narrow windows, **Map** and **Lightning & location** tabs switch between the map and the sidebar.
 
 ## Privacy
 
