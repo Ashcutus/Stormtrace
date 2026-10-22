@@ -10,6 +10,10 @@
   const ALERT_CLOCK_SKEW_MS = 30 * 1000;
   const UI = globalThis.StormtraceUI;
   const ALERT_COOLDOWN_MS = 2 * 60 * 1000;
+  // New-strike flashes: only fresh live strikes, bounded so a busy storm cannot flood the DOM.
+  const FLASH_MAX_AGE_MS = 60 * 1000;
+  const FLASH_DURATION_MS = 2600;
+  const MAX_ACTIVE_FLASHES = 48;
   const core = globalThis.StormtraceCore;
   const platform = globalThis.StormtracePlatform;
   const liveProvider = globalThis.StormtraceProviders.live;
@@ -27,7 +31,7 @@
     line: "#263c55", lineBright: "#405e80",
   };
 
-  // Strike age uses a fixed, theme-independent ramp so the three ages stay distinguishable.
+  // Strike age follows the theme; this ramp is used when a theme's colours are too close to tell apart.
   const STRIKE_AGE = { now: "#ffe600", recent: "#ff8a00", old: "#d6336c", stroke: "#1a1022" };
   const WINDOW_LABELS = { live: "Live · 15 min", 60: "Past hour", 360: "Past 6 hours", 1440: "Rolling 24 hours" };
 
@@ -129,6 +133,8 @@
     map: null,
     tileLayer: null,
     strikeLayer: null,
+    flashLayer: null,
+    activeFlashes: 0,
     rangeLayer: null,
     homeLayer: null,
     strikes: new Map(),
@@ -181,6 +187,7 @@
     customPalette: persisted.customPalette || null,
     activePalette: FALLBACK_PALETTE,
     paletteVersion: 0,
+    strikeAge: STRIKE_AGE,
     themeSignature: "",
     monitoringPaused: false,
   };
@@ -279,6 +286,7 @@
 
   function setLightningVisible(visible) {
     if (visible) state.map.addLayer(state.strikeLayer); else state.map.removeLayer(state.strikeLayer);
+    if (!visible) state.flashLayer?.clearLayers();
     document.querySelector('.map-overlay.legend').hidden = !visible;
     document.querySelector('.latest-strip').hidden = !visible;
     updateLayersSummary();
@@ -360,6 +368,11 @@
     applyMapAppearance();
 
     state.strikeLayer = L.layerGroup().addTo(state.map);
+    // Strikes draw on the overlay canvas; flashes are DOM markers just above it.
+    state.map.createPane("strikeFlash");
+    state.map.getPane("strikeFlash").style.zIndex = 450;
+    state.map.getPane("strikeFlash").style.pointerEvents = "none";
+    state.flashLayer = L.layerGroup().addTo(state.map);
     $("#mapLightning").addEventListener("change", (event) => {
       setLightningVisible(event.target.checked);
     });
@@ -632,6 +645,10 @@
     document.body.dataset.systemMode = palette.mode;
     els.themeButton.title = state.themeSource === "system" ? `Appearance · following Omarchy (${state.systemPalette.name})` : "Appearance · custom colours";
     applyPopupPalette(palette);
+    state.strikeAge = strikeAgePalette(palette);
+    const age = state.strikeAge;
+    Object.entries({ "--age-now": age.now, "--age-recent": age.recent, "--age-old": age.old, "--age-stroke": age.stroke })
+      .forEach(([key, value]) => root.style.setProperty(key, value));
     updateLocationLayers();
     scheduleRender();
   }
@@ -649,6 +666,23 @@
       "--popup-accent-bright": ensureContrast(palette.violetBright, bg, 4.5),
     };
     Object.entries(variables).forEach(([key, value]) => document.documentElement.style.setProperty(key, value));
+  }
+
+  // Newest strikes take the theme's yellow, recent ones its accent and older ones a muted accent.
+  function strikeAgePalette(palette) {
+    const hex = (key) => toHexColor(palette[key], FALLBACK_PALETTE[key]);
+    const now = hex("yellow"), recent = hex("violet");
+    const stroke = palette.mode === "light" ? mixHex(hex("text"), "#000000", 0.3) : mixHex(hex("bg"), "#000000", 0.4);
+    const legible = (fill) => contrastRatio(fill, stroke) >= 3;
+    // Prefer a muted magenta; a theme whose magenta sits near its accent uses its muted colour.
+    const old = [mixHex(hex("magenta"), hex("muted"), 0.45), hex("muted"), mixHex(hex("magenta"), hex("text"), 0.5)]
+      .find((fill) => colorDistance(now, fill) >= 120 && colorDistance(recent, fill) >= 60 && legible(fill));
+    return old && colorDistance(now, recent) >= 120 && legible(now) && legible(recent) ? { now, recent, old, stroke } : STRIKE_AGE;
+  }
+
+  function colorDistance(first, second) {
+    const a = toHexColor(first).slice(1), b = toHexColor(second).slice(1);
+    return Math.hypot(...[0, 2, 4].map((offset) => parseInt(a.slice(offset, offset + 2), 16) - parseInt(b.slice(offset, offset + 2), 16)));
   }
 
   function contrastRatio(a, b) {
@@ -927,11 +961,37 @@
       state.lastStrike = additions.at(-1);
       state.latestStrikeDirty = true;
     }
-    if (isNew) additions.forEach(checkProximityAlert);
+    if (isNew) {
+      additions.forEach(checkProximityAlert);
+      flashStrikes(additions);
+    }
     if (persist && state.db) storeStrikes(additions);
     trimMemory();
     scheduleRender();
     scheduleStats();
+  }
+
+  function flashStrikes(strikes) {
+    if (!state.flashLayer || document.hidden || state.monitoringPaused || $("#mapLightning")?.checked === false) return;
+    const now = Date.now();
+    const mapBounds = state.map.getBounds();
+    const bounds = { south: mapBounds.getSouth(), north: mapBounds.getNorth(), west: mapBounds.getWest(), east: mapBounds.getEast() };
+    // Newest first, so a large packet flashes its latest strikes when the cap is reached.
+    for (let index = strikes.length - 1; index >= 0 && state.activeFlashes < MAX_ACTIVE_FLASHES; index -= 1) {
+      const strike = strikes[index];
+      if (now - strike.time > FLASH_MAX_AGE_MS || !strikeIsInBounds(strike, bounds)) continue;
+      const flash = L.marker([strike.lat, displayLongitude(strike.lon, bounds)], {
+        icon: L.divIcon({ className: "strike-flash", html: "<i></i><i></i><i></i><b></b>", iconSize: [16, 16], iconAnchor: [8, 8] }),
+        pane: "strikeFlash",
+        interactive: false,
+        keyboard: false,
+      }).addTo(state.flashLayer);
+      state.activeFlashes += 1;
+      setTimeout(() => {
+        state.flashLayer.removeLayer(flash);
+        state.activeFlashes -= 1;
+      }, FLASH_DURATION_MS);
+    }
   }
 
   function appendStrikeTimeline(additions) {
@@ -1170,13 +1230,14 @@
   }
 
   function strikePresentationForBand(ageBand) {
+    const age = state.strikeAge;
     if (ageBand === 0) {
-      return { color: STRIKE_AGE.stroke, fillColor: STRIKE_AGE.now, radius: 4.8, opacity: 0.9, fillOpacity: 0.92 };
+      return { color: age.stroke, fillColor: age.now, radius: 4.8, opacity: 0.9, fillOpacity: 0.92 };
     }
     if (ageBand === 1) {
-      return { color: STRIKE_AGE.stroke, fillColor: STRIKE_AGE.recent, radius: 4.1, opacity: 0.75, fillOpacity: 0.82 };
+      return { color: age.stroke, fillColor: age.recent, radius: 4.1, opacity: 0.75, fillOpacity: 0.82 };
     }
-    return { color: STRIKE_AGE.stroke, fillColor: STRIKE_AGE.old, radius: 3.6, opacity: 0.55, fillOpacity: 0.66 };
+    return { color: age.stroke, fillColor: age.old, radius: 3.6, opacity: 0.55, fillOpacity: 0.66 };
   }
 
   function updateStrikeMarkerVisual(marker, strike, now = Date.now()) {

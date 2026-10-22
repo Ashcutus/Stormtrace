@@ -11,7 +11,7 @@ const exports = [
   "timelineIndexAtOrAfter", "displayLongitude", "strikeIsInBounds", "render",
   "scheduleStats", "selectWindow", "handleVisibilityChange", "strikeDistance",
   "updateProximityStats", "loadHistory", "storeStrikes", "flushStrikes", "startDemo",
-  "startReceiver", "refreshOmarchyTheme", "selectThemeSource",
+  "startReceiver", "refreshOmarchyTheme", "selectThemeSource", "strikeAgePalette",
   "locationErrorMessage", "validLocation", "locate", "requestLocation", "saveSettings", "useApproximateLocation", "setManualLocation", "toggleMapLocation", "setMapLocation",
 ];
 
@@ -99,6 +99,8 @@ export function loadApp({ search = "", indexedDB, keyRange, storage, notificatio
     clearInterval(id) { timers.delete(id); },
     IDBKeyRange: keyRange || { lowerBound: (lower) => ({ lower }) },
     L: {
+      marker([lat, lng], options) { return { latlng: { lat, lng }, options, addTo(layer) { layer.addLayer(this); return this; } }; },
+      divIcon(options) { return options; },
       circleMarker([lat, lng], options) {
         return {
           latlng: { lat, lng }, options, events: {}, popupOpen: false, tooltipOpen: false,

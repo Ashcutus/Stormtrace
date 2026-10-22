@@ -183,6 +183,35 @@ test("markers stay in the counted world copy while panning and keep selection", 
   assert.equal(marker.moves, 2);
 });
 
+test("only fresh live strikes in view flash, within a bounded and self-clearing set", () => {
+  const app = loadApp();
+  const flashes = new Set();
+  app.state.flashLayer = { addLayer(flash) { flashes.add(flash); }, removeLayer(flash) { flashes.delete(flash); }, clearLayers() { flashes.clear(); } };
+  Object.assign(app.bounds, { west: -10, east: 10, south: -10, north: 10 });
+  app.ingestStrikes([strike("fresh", app.now()), strike("stale", app.now() - 61000), strike("offscreen", app.now(), 40)], true, false);
+  assert.deepEqual([...flashes].map((flash) => flash.latlng), [{ lat: 0, lng: 0 }]);
+  assert.equal([...flashes][0].options.pane, "strikeFlash");
+  assert.equal([...flashes][0].options.interactive, false);
+  app.ingestStrikes([strike("backfill", app.now())], false, false);
+  assert.equal(flashes.size, 1);
+  app.ingestStrikes(Array.from({ length: 100 }, (_, i) => strike(`storm:${i}`, app.now())), true, false);
+  assert.equal(flashes.size, 48);
+  assert.equal(app.state.activeFlashes, 48);
+  app.advance(2600);
+  assert.equal(flashes.size, 0);
+  assert.equal(app.state.activeFlashes, 0);
+});
+
+test("strike ages follow the palette and fall back to the fixed ramp when colours are too close", () => {
+  const app = loadApp();
+  const theme = { mode: "dark", bg: "#101418", text: "#e0e0e0", muted: "#909090", yellow: "#f0d050", violet: "#4080ff", magenta: "#c060e0" };
+  const age = app.strikeAgePalette(theme);
+  assert.equal(age.now, "#f0d050");
+  assert.equal(age.recent, "#4080ff");
+  assert.notEqual(age.old, age.recent);
+  assert.deepEqual({ ...app.strikeAgePalette({ ...theme, violet: "#f0d058" }) }, { now: "#ffe600", recent: "#ff8a00", old: "#d6336c", stroke: "#1a1022" });
+});
+
 test("the final burst updates statistics at its deadline without another map render", () => {
   const app = loadApp();
   app.ingestStrikes([strike("initial", app.now())], false, false);

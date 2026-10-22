@@ -1,8 +1,9 @@
 /* Stormtrace interface styles.
    Palette tokens are replaced at runtime from the Omarchy or custom palette.
    --popup-* tokens give dialogs and map popups an opaque, high-contrast surface
-   derived from the active palette. Strike-age and official severity colours are
-   fixed so themes cannot reduce their legibility or change their meaning. */
+   derived from the active palette. Strike-age colours (--age-*) follow the palette
+   but fall back to a fixed ramp when a theme's colours are too close to separate.
+   Official severity colours are fixed so themes cannot change their meaning. */
 :root {
   color-scheme: dark;
   --bg: #07101d;
@@ -544,6 +545,18 @@ dialog > .hazard-dialog-card { width: 100%; height: 100%; max-height: none; padd
 .theme-actions button { flex: 1 1 200px; min-height: 38px; padding: 8px; white-space: normal; margin: 0; }
 
 /* ---------- Map popups (opaque, palette-derived) ---------- */
+/* New-strike flash: uses the newest strike-age colour.
+   Only transform and opacity animate, so a storm's worth of flashes stays cheap. */
+.strike-flash { pointer-events: none; }
+.strike-flash b, .strike-flash i { position: absolute; inset: 0; border-radius: 50%; }
+.strike-flash b { background: #fff; box-shadow: 0 0 6px 3px #fff, 0 0 18px 8px var(--age-now); animation: strikeFlashCore 2.6s ease-out forwards; }
+.strike-flash i { border: 2px solid var(--age-now); box-shadow: 0 0 6px var(--age-now); opacity: 0; animation: strikeFlashRing 1.5s cubic-bezier(.2, .6, .3, 1) both; }
+.strike-flash i:nth-child(2) { animation-delay: .4s; }
+.strike-flash i:nth-child(3) { animation-delay: .8s; }
+@keyframes strikeFlashCore { 0% { opacity: 1; transform: scale(1.9); } 8% { opacity: .35; } 16% { opacity: 1; transform: scale(1.3); } 100% { opacity: 0; transform: scale(.6); } }
+@keyframes strikeFlashRing { 0% { opacity: 1; transform: scale(.6); } 100% { opacity: 0; transform: scale(6); } }
+/* Without motion the core holds as a static highlight for the flash duration. */
+@media (prefers-reduced-motion: reduce) { .strike-flash b { opacity: .85; transform: scale(1.3); } }
 .strike-tooltip { padding: 0; pointer-events: none; color: var(--popup-text); background: var(--popup-bg); border: 1px solid var(--popup-line); border-radius: 0; box-shadow: var(--shadow); }
 .strike-tooltip::before { border-top-color: var(--popup-line); }
 .strike-tooltip-content { display: grid; gap: 4px; min-width: 180px; padding: 9px 11px; font: var(--font-xs)/1.45 var(--font-mono); }

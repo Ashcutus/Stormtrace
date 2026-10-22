@@ -14,7 +14,7 @@
   <img alt="Built for Omarchy" src="https://img.shields.io/badge/built%20for-Omarchy-ffe600">
 </p>
 
-![Stormtrace showing live lightning across the world, with hotspots and activity in the sidebar](docs/screenshots/overview.png)
+![Stormtrace showing live lightning across the world, with a new strike flashing and hotspots and activity in the sidebar](docs/screenshots/overview.png)
 
 Watch thunderstorms light up the map as strikes are detected around the world, and get a quiet desktop alert if lightning comes close to you. When you want the bigger picture, one click brings up rain radar, UK weather warnings, floods, earthquakes, tropical cyclones, volcanoes, tsunami bulletins and space weather, all straight from official and public sources.
 
@@ -26,11 +26,11 @@ Your location stays on your computer. There's no account, no cloud service and n
 
 ### ⚡ Follow lightning as it happens
 
-New strikes appear within moments, coloured by age: bright yellow for the last five minutes, orange for the last hour, crimson for older ones. Switch between the live view and the last hour, six hours or 24 hours, and jump straight to the busiest storm with **Focus top**.
+New strikes appear within moments with a bright flash and spreading rings, so they catch your eye while you watch a storm. Strikes are coloured by age in your theme's colours: its yellow for the last five minutes, its accent for the last hour, and a muted shade for older ones. Switch between the live view and the last hour, six hours or 24 hours, and jump straight to the busiest storm with **Focus top**.
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/screenshots/regional-map.png" alt="Zoomed in on an active storm, with strikes coloured by age"></td>
+    <td width="50%"><img src="docs/screenshots/regional-map.png" alt="Zoomed in on an active storm, with strikes coloured by age and a new strike flashing"></td>
     <td width="50%"><img src="docs/screenshots/strike-details.png" alt="Details for a single lightning strike, including time, coordinates and uncertainty"></td>
   </tr>
   <tr>
@@ -103,7 +103,7 @@ Use **Layers** in the top-left corner of the map to add flood areas or earthquak
 
 ### 🎨 Make it yours
 
-Stormtrace follows your Omarchy theme automatically, or you can pick your own colours. **Appearance** also has larger text sizes, a choice of UK or local time, and map brightness and shading. Strike colours and official warning colours never change, so they always mean the same thing.
+Stormtrace follows your Omarchy theme automatically, or you can pick your own colours. **Appearance** also has larger text sizes, a choice of UK or local time, and map brightness and shading. Strike-age colours come from your theme, but Stormtrace switches to a fixed yellow, orange and crimson set if a theme's colours are too close to tell apart. Official warning colours never change, so they always mean the same thing.
 
 ![The Appearance panel with text, time, colour and map settings](docs/screenshots/appearance-controls.png)
 

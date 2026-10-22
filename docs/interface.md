@@ -49,7 +49,7 @@ Displayed instants use labelled UK local time by default. **Appearance → Show 
 
 ## Colours
 
-Interface colours follow the active Omarchy palette or a custom palette. Dialogs and popups use opaque surfaces derived from that palette, with a minimum text contrast. Strike-age colours (yellow under 5 minutes, orange to the end of the first hour, crimson older) and official warning colours are fixed in every theme. The strike-age legend lists only the ages the selected window can contain.
+Interface colours follow the active Omarchy palette or a custom palette. Dialogs and popups use opaque surfaces derived from that palette, with a minimum text contrast. Strike-age colours follow the palette: its yellow under 5 minutes, its accent to the end of the first hour, and a muted accent for older strikes. If a theme's colours are too close to tell apart, Stormtrace uses a fixed yellow, orange and crimson ramp instead. Official warning colours are fixed in every theme. New live strikes in view flash briefly with expanding rings in the newest strike-age colour; with reduced motion they show a static highlight instead. The strike-age legend lists only the ages the selected window can contain.
 
 ## Keyboard, location and saved settings
 
