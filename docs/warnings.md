@@ -8,7 +8,7 @@ Warnings are optional. You don't need a key to use the lightning viewer or any o
 
 Open **Weather warnings** from the **Hazards** buttons. Without a key, Stormtrace retrieves the official Met Office UK warnings RSS feed and refreshes it every five minutes while the view is open.
 
-Each summary shows the warning title, the summary text, its official colour (yellow, amber or red) and a link to the full warning on the Met Office website.
+Each summary shows the warning title, the summary text, its official colour (yellow, amber or red) and a link to the full warning on the Met Office website. Select a summary, or its **Show on map** button, to open the warning map focused on the matching area. The two Met Office services share no warning ID, so Stormtrace matches them by colour, weather type and the places each lists. If the map service has no matching area yet, the map opens and says so.
 
 The RSS feed is a summary only. It does not include:
 
@@ -60,9 +60,9 @@ This is not a complete archive. The Met Office keeps change records for about 24
 
 Choose **Warning map** inside Weather warnings to see current warning areas on a dedicated UK map. It needs no key.
 
-![Amber and yellow wind warning areas on the dedicated UK warning map](screenshots/warning-map.png)
+![The UK warning map focused on an amber wind warning, with severity filters and a colour-coded list of areas](screenshots/warning-map.png)
 
-The map uses a public, Met Office-linked Esri beta service under the NSWWS Open Licence. The Met Office does not support that service's API, and it can lag behind the official website. Expired areas are left out, and future warnings stay visible. Select an area or its label to open the full warning.
+The map uses a public, Met Office-linked Esri beta service under the NSWWS Open Licence. The Met Office does not support that service's API, and it can lag behind the official website. Expired areas are left out, and future warnings stay visible. Select an area or its label to open the full warning. Each entry in the side list carries its official warning colour; hover over or focus an entry to highlight its area on the map, and hover over an area to highlight its entry. Select the Yellow, Amber or Red key to hide or show that level on the map and in the list; each shows how many areas it has.
 
 Warning areas are kept separate from lightning, radar and other weather layers, as the Met Office style guide requires, so they never appear on the main map.
 

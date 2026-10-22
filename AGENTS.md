@@ -61,7 +61,7 @@
 
 - For OPERA radar, scope object listings to hourly prefixes covering the displayed observation window. Full-day listings can exceed the S3 page limit; reject incomplete listings rather than treating truncation as missing observations.
 
-- Met Office public channels differ: RSS supplies unchanged summaries and links, without warning geometry or per-warning issue/expiry times. The official-linked Esri beta provides polygons and source fields under the NSWWS Open Licence, but its Feature Service API is unsupported by Met Office. Keep these separate provider identities and preserve their differing coverage/provenance and licence conditions.
+- Met Office public channels differ: RSS supplies unchanged summaries and links, without warning geometry or per-warning issue/expiry times. The official-linked Esri beta provides polygons and source fields under the NSWWS Open Licence, but its Feature Service API is unsupported by Met Office. Keep these separate provider identities and preserve their differing coverage/provenance and licence conditions. They share no warning ID (RSS link IDs group regions; Esri uses its own GlobalID), so the warning map links them only by level, weather type and normalized `affectedAreas` places; never present that match as source-confirmed identity.
 
 ## Dependencies and security updates
 

@@ -385,11 +385,11 @@
         <div class="hazard-dialog-content warning-map-content" tabindex="0" role="region" aria-label="Warning map and source guidance">
           <div id="warningAreaMap" aria-label="Dedicated UK weather warning areas"></div>
           <aside class="warning-map-side" tabindex="0" aria-label="Warning areas and guidance">
-          <div class="severity-key" aria-label="Met Office severity">
-            <span class="severity-chip" data-level="YELLOW">Yellow</span>
-            <span class="severity-chip" data-level="AMBER">Amber</span>
-            <span class="severity-chip" data-level="RED">Red</span>
-            <span>Met Office severity. Select an area or a button below for warning text and validity.</span>
+          <div class="severity-key" role="group" aria-label="Show Met Office severity levels">
+            <button type="button" class="severity-chip" data-level="YELLOW" aria-pressed="true">Yellow</button>
+            <button type="button" class="severity-chip" data-level="AMBER" aria-pressed="true">Amber</button>
+            <button type="button" class="severity-chip" data-level="RED" aria-pressed="true">Red</button>
+            <span>Met Office severity. Select a level to show or hide its areas. Select an area or a button below for warning text and validity.</span>
           </div>
           <div id="warningMapList" aria-label="Select a warning area"></div>
           <p>Future warnings are included; land outside UK coverage is not assessed. No other meteorological overlays are shown.</p>

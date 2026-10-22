@@ -162,6 +162,8 @@ test('public Met Office RSS summaries preserve supplied content/links without in
  const result=normalize('metoffice-warnings-rss',raw),r=result.records[0];
  assert.equal(r.provider,'metoffice-warnings-rss');assert.equal(r.sourceSeverity.classification,'YELLOW');assert.equal(r.geometry,null);
  for(const k of ['observedAt','updatedAt','validFrom','validTo'])assert.equal(r[k],null);
+ assert.deepEqual(r.domainPayload.affectedAreas,[{regionName:'Highlands & Eilean Siar',subRegions:['Na h-Eileanan Siar','Highland']}]);assert.ok(r.provenance.transformations.includes('affected-areas-from-summary-text'));
+ assert.deepEqual(normalize('metoffice-warnings-rss',raw.replace(': Na h-Eileanan Siar, Highland valid',' is in force, valid')).records[0].domainPayload.affectedAreas,[{regionName:'Highlands & Eilean Siar',subRegions:[]}],'places are not invented when the wording differs');
  assert.match(r.domainPayload.body,/valid from 0900 Wed 14 Oct to 1800 Wed 14 Oct/);assert.match(r.domainPayload.url,/#\?date=2026-10-14/);
  H.validBatch('metoffice-warnings-rss',{configured:true,...result,health:C.health(300000)});
  assert.equal(normalize('metoffice-warnings-rss',raw.replace(/<item>[\s\S]*?<\/item>/,'' )).records.length,0);
@@ -179,6 +181,7 @@ test('official Esri warning areas retain native severity, geometry, source issue
  const result=normalize('metoffice-warnings-esri',raw),r=result.records[0];
  assert.equal(r.geometry.type,'Polygon');assert.equal(r.sourceSeverity.classification,'YELLOW');assert.equal(r.sourceSeverity.impact,'2/Low');assert.equal(r.updatedAt,null);assert.equal(r.observedAt,raw.features[0].properties.issuedDate);
  assert.equal(r.validFrom,raw.features[0].properties.validfromdate);assert.match(r.provenance.sourceUrl,/services.arcgis.com/);
+ assert.deepEqual(r.domainPayload.affectedAreas,[{regionName:'Highlands & Eilean Siar',subRegions:['Eilean Siar','Highland']}]);assert.ok(r.provenance.transformations.includes('affected-areas-from-area-text'));
  H.validBatch('metoffice-warnings-esri',{configured:true,...result,health:C.health()});
  for(const change of [v=>v.features[0].properties.warninglevel='BLUE',v=>v.features[0].geometry.coordinates[0][0][0]=999,v=>v.exceededTransferLimit=true,v=>v.features.push(structuredClone(v.features[0]))]){const bad=structuredClone(raw);change(bad);assert.throws(()=>normalize('metoffice-warnings-esri',bad));}
  assert.equal(normalize('metoffice-warnings-esri',{type:'FeatureCollection',features:[]}).records.length,0);

@@ -115,6 +115,13 @@
       } catch { controller.storageFailure(); }
     }
     function text(parent, tag, value, className = "") { const node = document.createElement(tag); node.textContent = value; node.className = className; parent.append(node); return node; }
+    // Selecting a card opens the warning map focused on the matching area; its own links and buttons keep their actions.
+    function linkToMap(card, query) {
+      const show = () => globalThis.StormtraceWarningMap?.show(query);
+      card.classList?.add("warning-card-mappable");
+      card.addEventListener("click", (e) => { if (!e.target?.closest?.("a,button,summary,ul,input")) show(); });
+      return show;
+    }
     function paragraph(parent, heading, value) { if (!value) return; text(parent, "h4", heading); text(parent, "p", value, "warning-text"); }
     function render() {
       if (!dialog.open) return;
@@ -137,7 +144,7 @@
         UI.keyed(list,records.slice(0,collection.limit()),(parent,r)=>{
           const p=r.domainPayload,card=text(parent,'article','','warning-card');card.dataset.level=p.badge;
           text(card,'span',weatherName(p.badge),'warning-badge');text(card,'h3',p.title);
-          UI.cardActions(card,{link:{label:'Read the full Met Office warning',url:p.url}});
+          UI.cardActions(card,{onShowMap:linkToMap(card,{level:p.badge,types:p.weatherTypes,areas:p.affectedAreas||[]}),link:{label:'Read the full Met Office warning',url:p.url}});
           text(card,'p',p.body,'warning-text');
           text(card,'p','Official summary. Open the warning for full details, timing and advice.','warning-text');
         });
@@ -154,6 +161,7 @@
         const card = text(list, "article", "", "warning-card"); card.dataset.level = p.classification;
         text(card, "span", weatherName(p.classification), "warning-badge");
         text(card, "h3", p.weatherTypes.map(weatherName).join(" & "));
+        UI.cardActions(card, { onShowMap: linkToMap(card, { level: p.classification, types: p.weatherTypes, areas: p.affectedAreas, validFrom: event.validFrom }) });
         text(card, "p", `Issued ${ukDate(event.observedAt)} · updated ${ukDate(event.updatedAt)} · version ${p.version}`);
         text(card, "p", `${ukDate(event.validFrom)} – ${ukDate(event.validTo)}`);
         text(card, "h4", p.headline);

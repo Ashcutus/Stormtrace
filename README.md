@@ -80,12 +80,12 @@ The **Hazards** buttons along the top open each view. A small dot on each button
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/screenshots/weather-warnings.png" alt="Met Office weather warnings, including an amber wind warning"></td>
-    <td width="50%"><img src="docs/screenshots/warning-map.png" alt="The UK warning map showing amber and yellow wind warning areas"></td>
+    <td width="50%"><img src="docs/screenshots/weather-warnings.png" alt="Met Office weather warnings, including an amber wind warning, each with a Show on map button"></td>
+    <td width="50%"><img src="docs/screenshots/warning-map.png" alt="The UK warning map focused on an amber wind warning, with severity filters and a colour-coded list of areas"></td>
   </tr>
   <tr>
     <td align="center"><sub>UK warnings in their official colours</sub></td>
-    <td align="center"><sub>See exactly where each warning applies</sub></td>
+    <td align="center"><sub>Open any warning on the map, or filter by severity</sub></td>
   </tr>
   <tr>
     <td width="50%"><img src="docs/screenshots/earthquakes.png" alt="Earthquakes of magnitude 4.5 and above from the past day"></td>

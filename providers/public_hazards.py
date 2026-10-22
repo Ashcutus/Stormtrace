@@ -92,6 +92,10 @@ def event(provider, id, payload, fetched, issued=None, updated=None, valid_from=
 def payload(title, badge, url, details=None, body='', instruction='', **extra):
     return dict(title=title, badge=badge, url=url, details=details or [], body=body, instruction=instruction, **extra)
 
+def area_list(text):
+    # "Region (place, place); Region (place)" as published in Met Office area text.
+    return [dict(regionName=region.strip(), subRegions=[place.strip() for place in places.split(',') if place.strip()]) for region, places in re.findall(r'([^;()]+?)\s*\(([^()]*)\)', text or '')]
+
 def unique(records):
     require(len(records) <= 2000 and len({r['id'] for r in records}) == len(records))
     return records
@@ -282,8 +286,12 @@ def normalize_warning_summaries(raw, fetched):
         require(parsed.path=={'www.metoffice.gov.uk':'/weather/warnings-and-advice/uk-warnings','weather.metoffice.gov.uk':'/warnings-and-advice/uk-warnings'}.get(parsed.netloc))
         identity=string(item.findtext('guid'),True)
         native=match[1].upper()
-        p=payload(title,native,link,body=body,mode='summary',status='LISTED',weatherTypes=[match[2]],region=match[3],sourceFields=dict(title=title,description=body,link=link,guid=identity,feedPubDate=channel.findtext('pubDate')))
+        # The summary sentence lists the region's places; keep them only when that wording is present.
+        places=re.search(re.escape(match[3])+r': (.+?) valid from ',body)
+        areas=[dict(regionName=match[3],subRegions=[place.strip() for place in places[1].split(',') if place.strip()] if places else [])]
+        p=payload(title,native,link,body=body,mode='summary',status='LISTED',weatherTypes=[match[2]],region=match[3],affectedAreas=areas,sourceFields=dict(title=title,description=body,link=link,guid=identity,feedPubDate=channel.findtext('pubDate')))
         record=event('metoffice-warnings-rss',identity,p,fetched,severity=dict(classification=native))
+        record['provenance']['transformations'].append('affected-areas-from-summary-text')
         record['displayPriority']={'RED':'urgent','AMBER':'high','YELLOW':'normal'}[native]
         records.append(record)
     return unique(records)
@@ -302,11 +310,11 @@ def normalize_warning_areas(raw, fetched):
         try:geometry=normalize_overlay(feature,'metoffice-warnings-esri',URLS['metoffice-warnings-esri'][0],fetched)[0]['geometry']
         except Exception:raise HazardError('malformed','metoffice-warnings-esri') from None
         headline=string(p.get('warningheadline'),True);weather=string(p.get('weathertype'),True)
-        value=payload(weather,native,SOURCES['metoffice-warnings-esri']['homepage'],[string(p.get('affectedAreas'),True)],body=string(p.get('warningFurtherDetails') or ''),mode='bulletin',status='LISTED',headline=headline,whatToExpect=string(p.get('whatToExpect'),True),version=string(p.get('warningVersion'),True),sourceFields=p)
+        value=payload(weather,native,SOURCES['metoffice-warnings-esri']['homepage'],[string(p.get('affectedAreas'),True)],body=string(p.get('warningFurtherDetails') or ''),mode='bulletin',status='LISTED',affectedAreas=area_list(p.get('affectedAreas')),headline=headline,whatToExpect=string(p.get('whatToExpect'),True),version=string(p.get('warningVersion'),True),sourceFields=p)
         record=event('metoffice-warnings-esri',identity,value,fetched,issued,None,start,end,geometry,severity=dict(classification=native,impact=p.get('warningImpact'),likelihood=p.get('warningLikelihood')))
         record['displayPriority']={'RED':'urgent','AMBER':'high','YELLOW':'normal'}[native]
         record['provenance']['sourceUrl']=URLS['metoffice-warnings-esri'][0]
-        record['provenance']['transformations']=['metoffice-esri-geojson-normalization-v1','epsg4326-requested']
+        record['provenance']['transformations']=['metoffice-esri-geojson-normalization-v1','epsg4326-requested','affected-areas-from-area-text']
         records.append(record)
     return unique(records)
 

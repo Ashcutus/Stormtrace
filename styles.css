@@ -416,6 +416,8 @@ dialog > .hazard-dialog-card { width: 100%; height: 100%; max-height: none; padd
 
 /* Cards in hazard dialogs. Official NSWWS colours are fixed across all palettes. */
 .warning-card { border: 1px solid var(--line-bright); border-left: 6px solid var(--nsww-yellow); padding: 16px; margin: 0 0 12px; overflow-wrap: anywhere; }
+.warning-card-mappable { cursor: pointer; }
+.warning-card-mappable:hover { background: var(--surface-3); }
 .warning-card[data-level="AMBER"] { border-left-color: var(--nsww-amber); }
 .warning-card[data-level="RED"] { border-left-color: var(--nsww-red); }
 .warning-badge { display: inline-block; padding: 4px 10px; background: var(--nsww-yellow); color: #000; font-weight: 700; }
@@ -477,12 +479,21 @@ dialog > .hazard-dialog-card { width: 100%; height: 100%; max-height: none; padd
 #warningAreaMap .leaflet-control-attribution { background: rgba(255,255,255,.92); color: #222; }
 #warningAreaMap .leaflet-control-attribution a { color: #0b4f9e; }
 .warning-area-label { background: #fff; color: #111; border: 1px solid #333; font: 600 12px system-ui, sans-serif; white-space: normal; }
+.warning-area-label.active { z-index: 1000 !important; border: 3px solid var(--warning-colour, #111); box-shadow: 0 2px 10px rgb(0 0 0 / .45); }
+.warning-area-label.dimmed { opacity: .45 !important; }
 .severity-key { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: var(--font-xs); color: var(--text-secondary); }
-.severity-chip { padding: 2px 8px; font-weight: 700; color: #000; background: var(--nsww-yellow); }
-.severity-chip[data-level="AMBER"] { background: var(--nsww-amber); }
-.severity-chip[data-level="RED"] { background: var(--nsww-red); color: #fff; }
+.severity-chip { --level: var(--nsww-yellow); min-height: 28px; padding: 2px 9px; border: 2px solid var(--level); font: inherit; font-weight: 700; color: #000; background: var(--level); cursor: pointer; }
+.severity-chip[data-level="AMBER"] { --level: var(--nsww-amber); }
+.severity-chip[data-level="RED"] { --level: var(--nsww-red); color: #fff; }
+/* A hidden level keeps its official colour as an outline so the toggle stays recognisable. */
+.severity-chip[aria-pressed="false"] { color: var(--text-secondary); background: transparent; }
+.severity-chip:hover { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--level); }
 #warningMapList { display: grid; gap: 8px; }
 #warningMapList button { white-space: normal; padding: 8px 10px; text-align: left; justify-content: flex-start; line-height: 1.4; }
+/* Each entry carries its official Met Office colour; hovering or focusing it emphasises the area on the map. */
+.warning-area-button { display: grid; gap: 6px; border-left: 6px solid var(--warning-colour); }
+.warning-area-button.active { border-color: var(--warning-colour); background: var(--surface-3); box-shadow: inset 0 0 0 1px var(--warning-colour); }
+.warning-area-badge { justify-self: start; padding: 2px 7px; border-radius: 3px; font-weight: 800; letter-spacing: .03em; }
 .warning-area-card .flood-map-message { max-height: min(180px, 30vh); }
 .warning-area-card .flood-map-message h4 { margin: 0 0 6px; font-size: 13px; }
 
