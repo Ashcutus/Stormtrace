@@ -149,7 +149,7 @@ METOFFICE_WARNINGS_API_KEY=your_subscription_key
 
 Restart Stormtrace afterwards. The [warnings guide](docs/warnings.md#setup) walks you through getting a key.
 
-### Radar: UK and Europe
+### Radar
 
 US and Canadian radar work out of the box. UK and European rainfall need a small decoder on your computer: when you first choose them, press **Set up UK and Europe radar** in the radar panel and Stormtrace installs it for you (about 40 MB, a few minutes). No radar account or key is needed. The [radar guide](docs/radar.md#setup) has the manual steps if you prefer.
 

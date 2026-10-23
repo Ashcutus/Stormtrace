@@ -7,7 +7,7 @@ The [main README](../README.md) covers installation, everyday use, privacy and t
 | Guide | What it covers |
 | --- | --- |
 | [Interface](interface.md) | Navigation, current and history lists, filters, keyboard use, source status messages and saved settings |
-| [Radar](radar.md) | UK, European and US radar sources, optional decoder setup, controls and coverage limits |
+| [Radar](radar.md) | UK, European, Canadian and US radar sources, optional decoder setup, controls and coverage limits |
 | [UK weather warnings](warnings.md) | Public summaries, optional DataHub setup, warning history and the warning map |
 | [UK flood information](floods.md) | England live warnings, links for Wales, Scotland and Northern Ireland, and history |
 | [Earthquakes](earthquakes.md) | The USGS past-day list, filters, map location and history |
