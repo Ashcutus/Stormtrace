@@ -43,6 +43,7 @@ With a valid key, the view refreshes once a minute while it is open and visible.
 - its official colour, weather types, headline and full "what to expect" text
 - affected regions and sub-regions
 - further details, advice and update reasons when the Met Office supplies them
+- the validity period first and most prominently: whether the warning is in force now, starts soon or has ended, then its start and end in UK local time
 - issue, update and validity times in UK local time (always, whatever the **Appearance** time setting)
 - a highlight when your saved monitoring point is inside the warning area
 
@@ -62,7 +63,7 @@ Choose **Warning map** inside Weather warnings to see current warning areas on a
 
 ![The UK warning map focused on an amber wind warning, with severity filters and a colour-coded list of areas](screenshots/warning-map.png)
 
-The map uses a public, Met Office-linked Esri beta service under the NSWWS Open Licence. The Met Office does not support that service's API, and it can lag behind the official website. Expired areas are left out, and future warnings stay visible. Select an area or its label to open the full warning. Each entry in the side list carries its official warning colour; hover over or focus an entry to highlight its area on the map, and hover over an area to highlight its entry. Select the Yellow, Amber or Red key to hide or show that level on the map and in the list; each shows how many areas it has.
+The map uses a public, Met Office-linked Esri beta service under the NSWWS Open Licence. The Met Office does not support that service's API, and it can lag behind the official website. Expired areas are left out, and future warnings stay visible. Select an area or its label to open the full warning; its popup leads with the same validity period. Each entry in the side list carries its official warning colour; hover over or focus an entry to highlight its area on the map, and hover over an area to highlight its entry. Select the Yellow, Amber or Red key to hide or show that level on the map and in the list; each shows how many areas it has.
 
 Warning areas are kept separate from lightning, radar and other weather layers, as the Met Office style guide requires, so they never appear on the main map.
 

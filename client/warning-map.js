@@ -41,7 +41,7 @@
       const p=r.domainPayload,n=document.createElement('section');n.className='flood-map-card warning-area-card';n.style.borderTopColor=colours[p.badge];
       const badge=UI.text(n,'span',p.badge+' · '+p.title,'flood-map-badge');badge.style.background=colours[p.badge];badge.style.color=p.badge==='RED'?'#fff':'#000';
       // NSWWS presentation requires UK-local times regardless of the viewer's time preference.
-      UI.text(n,'h3',p.headline,'flood-map-title');UI.text(n,'p',`Issued ${UI.fixedUkDate(r.observedAt)} · ${UI.fixedUkDate(r.validFrom)} – ${UI.fixedUkDate(r.validTo)}`,'flood-map-time');
+      UI.text(n,'h3',p.headline,'flood-map-title');UI.validity(n,r.validFrom,r.validTo,ctrl.now()).style.setProperty('--warning-colour',colours[p.badge]);UI.text(n,'p',`Issued ${UI.fixedUkDate(r.observedAt)}`,'flood-map-time');
       const body=UI.text(n,'div','','flood-map-message');body.tabIndex=0;
       UI.text(body,'h4','What to expect');UI.text(body,'p',p.whatToExpect);UI.text(body,'h4','Further details');UI.text(body,'p',p.body);for(const d of p.details)UI.text(body,'p',d);
       UI.text(n,'p',`Met Office Weather Warnings · © Crown copyright ${new Date(r.observedAt).getUTCFullYear()}, Met Office`,'flood-map-attribution');updates.push(UI.popupHealth(n,ctrl.state.health,ctrl.state.cached,UI.fixedUkDate));
