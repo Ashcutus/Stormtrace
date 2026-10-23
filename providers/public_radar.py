@@ -35,6 +35,35 @@ PTYPE_CATEGORIES = [
     {'code': 'S', 'label': 'Snow', 'colour': '#c8c8c8'},
     {'code': 'H', 'label': 'Hail', 'colour': '#960096'},
 ]
+# Environment and Climate Change Canada MSC GeoMet: North American 1 km radar
+# composite (Canadian and US radars) in 6-minute frames. GeoMet serves one layer
+# per request, so each frame's coverage mask is a separate image that the client
+# draws beneath the precipitation layer to distinguish no coverage from no rain.
+ECCC_BASE = 'https://geo.weather.gc.ca/geomet'
+ECCC_BOUNDS = [-141, 41, -52, 67]
+ECCC_PRODUCTS = {
+    'eccc-rain': {'layer': 'RADAR_1KM_RRAI', 'style': 'Radar-Rain_14colors', 'coverage': 'RADAR_COVERAGE_RRAI.INV', 'unit': 'mm/h'},
+    'eccc-snow': {'layer': 'RADAR_1KM_RSNO', 'style': 'Radar-Snow_14colors', 'coverage': 'RADAR_COVERAGE_RSNO.INV', 'unit': 'cm/h'},
+    'eccc-ptype': {'layer': 'Radar_1km_SfcPrecipType', 'style': 'SfcPrecipType_Dis', 'coverage': 'Radar-Coverage_SfcPrecipType-Inverted', 'unit': 'category'},
+}
+ECCC_COVERAGE_STYLE = 'Radar-Coverage_Inv-CrosshatchFill'
+# ECCC radar surface precipitation type: dual-polarisation particle classification
+# with HRDPS model surface temperature. Colours match ECCC's published legend.
+ECCC_PTYPE_CATEGORIES = [
+    {'code': 'LS', 'label': 'Light snow', 'colour': '#7fdfeb'},
+    {'code': 'MS', 'label': 'Moderate snow', 'colour': '#47a4f0'},
+    {'code': 'HS', 'label': 'Heavy snow', 'colour': '#0000e0'},
+    {'code': 'LM', 'label': 'Light mixed rain/snow', 'colour': '#e0bde6'},
+    {'code': 'MM', 'label': 'Moderate mixed rain/snow', 'colour': '#c36dd2'},
+    {'code': 'HM', 'label': 'Heavy mixed rain/snow', 'colour': '#9b27af'},
+    {'code': 'LR', 'label': 'Light rain', 'colour': '#9afd9a'},
+    {'code': 'MR', 'label': 'Moderate rain', 'colour': '#00cb00'},
+    {'code': 'HR', 'label': 'Heavy rain', 'colour': '#008000'},
+    {'code': 'HA', 'label': 'Hail/rain', 'colour': '#fec007'},
+    {'code': 'LF', 'label': 'Light freezing rain', 'colour': '#fecbc8'},
+    {'code': 'HF', 'label': 'Moderate/heavy freezing rain', 'colour': '#fe1e0d'},
+]
+WMS_STAMP = re.compile(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z')
 WMS_NS = '{http://www.opengis.net/wms}'
 S3_NS = '{http://s3.amazonaws.com/doc/2006-03-01/}'
 
@@ -79,8 +108,16 @@ def noaa_layer(source):
     return region + NOAA_LAYERS[product]
 
 
+def eccc_product(source):
+    if source not in ECCC_PRODUCTS: raise RadarError('configuration')
+    return ECCC_PRODUCTS[source]
+
+
 def source_info(source):
     if source == 'opera-radar': return 'opera-radar', EUROPE_BOUNDS
+    if isinstance(source, str) and source.startswith('eccc-'):
+        eccc_product(source)
+        return 'eccc-radar', ECCC_BOUNDS
     region, _ = noaa_parts(source)
     return 'noaa-radar', REGIONS[region]
 
@@ -114,22 +151,31 @@ def wms_base(source):
     return f'https://opengeo.ncep.noaa.gov/geoserver/{region}/{noaa_layer(source)}/ows'
 
 
-def noaa_times(data, source):
+def stamp_time(stamp):
+    if not WMS_STAMP.fullmatch(stamp): raise RadarError('unsupported_schema')
+    try: return int(datetime.fromisoformat(stamp.replace('Z', '+00:00')).timestamp() * 1000)
+    except ValueError: raise RadarError('malformed') from None
+
+
+def wms_times(data, layer):
+    """Observation times of one WMS layer: a list of instants or a start/end/PTnM extent."""
     root = xml(data)
     if root.tag != WMS_NS + 'WMS_Capabilities': raise RadarError('unsupported_schema')
-    layers = [layer for layer in root.iter(WMS_NS + 'Layer') if layer.findtext(WMS_NS + 'Name') == noaa_layer(source)]
+    layers = [item for item in root.iter(WMS_NS + 'Layer') if item.findtext(WMS_NS + 'Name') == layer]
     if len(layers) != 1: raise RadarError('unsupported_schema')
     dims = [d for d in layers[0].findall(WMS_NS + 'Dimension') if d.get('name') == 'time']
     if len(dims) != 1: raise RadarError('unsupported_schema')
-    result = []
-    for stamp in (dims[0].text or '').split(','):
-        stamp = stamp.strip()
-        if not stamp: continue
-        if not re.fullmatch(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z', stamp): raise RadarError('unsupported_schema')
-        try: at = int(datetime.fromisoformat(stamp.replace('Z', '+00:00')).timestamp() * 1000)
-        except ValueError: raise RadarError('malformed') from None
-        result.append((stamp, at))
-    return result
+    text = (dims[0].text or '').strip()
+    extent = re.fullmatch(r'([^/,]+)/([^/,]+)/PT(\d{1,2})M', text)
+    if extent:
+        start, end, step = stamp_time(extent[1]), stamp_time(extent[2]), int(extent[3]) * 60000
+        if not step or end < start or (end - start) // step > 240: raise RadarError('unsupported_schema')
+        return [(datetime.fromtimestamp(at / 1000, timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'), at) for at in range(start, end + 1, step)]
+    return [(stamp.strip(), stamp_time(stamp.strip())) for stamp in text.split(',') if stamp.strip()]
+
+
+def noaa_times(data, source):
+    return wms_times(data, noaa_layer(source))
 
 
 def frames(source, now=None, opener=None):
@@ -149,6 +195,16 @@ def frames(source, now=None, opener=None):
         missing = [name for name in ['h5py', 'numpy', 'pyproj'] if importlib.util.find_spec(name) is None]
         legend = {'unit': 'mm/h', 'levels': LEVELS, 'colours': COLOURS}
         transformations = ['odim-rate-to-mercator-png-v1', 'europe-display-crop']
+    elif provider == 'eccc-radar':
+        product = eccc_product(source)
+        items = wms_times(get(ECCC_BASE + '?' + urllib.parse.urlencode({'service': 'WMS', 'request': 'GetCapabilities', 'version': '1.3.0', 'layer': product['layer']}), 2000000, opener), product['layer'])
+        missing = []
+        if product['unit'] == 'category':
+            legend = {'unit': 'category', 'categories': ECCC_PTYPE_CATEGORIES}
+            transformations = ['eccc-wms-mercator-display-crop', 'eccc-coverage-mask', 'eccc-surface-precipitation-type-display']
+        else:
+            legend = {'unit': product['unit'], 'layout': 'vertical', 'image': '/api/radar/frame?' + urllib.parse.urlencode({'source': source, 'key': 'legend'})}
+            transformations = ['eccc-wms-mercator-display-crop', 'eccc-coverage-mask']
     else:
         items = noaa_times(get(wms_base(source) + '?service=WMS&request=GetCapabilities&version=1.3.0', 2000000, opener), source)
         missing = []
@@ -169,36 +225,55 @@ def frames(source, now=None, opener=None):
         sampled = list(slots.values())[-12:]
         if sampled[-1] != items[-1]: sampled = sampled[-11:] + [items[-1]]
         items = sampled
-    if source.startswith('noaa-'): items = [(source + '@' + stamp, at) for stamp, at in items]
-    records = [{'id': key, 'observedAt': at, 'bounds': bounds,
-                'resource': {'url': '/api/radar/frame?' + urllib.parse.urlencode({'source': source, 'key': key}), 'format': 'image/png'},
-                'provenance': {'provider': provider, 'sourceAuthority': 'EUMETNET' if provider == 'opera-radar' else 'NOAA / National Weather Service',
-                               'sourceUrl': OPERA_BASE + key if provider == 'opera-radar' else wms_base(source),
+    if provider != 'opera-radar': items = [(source + '@' + stamp, at) for stamp, at in items]
+    authority = {'opera-radar': 'EUMETNET', 'noaa-radar': 'NOAA / National Weather Service', 'eccc-radar': 'Environment and Climate Change Canada'}[provider]
+    def resource(key): return {'url': '/api/radar/frame?' + urllib.parse.urlencode({'source': source, 'key': key}), 'format': 'image/png'}
+    records = [{'id': key, 'observedAt': at, 'bounds': bounds, 'resource': resource(key),
+                **({'coverage': resource(key + '@coverage')} if provider == 'eccc-radar' else {}),
+                'provenance': {'provider': provider, 'sourceAuthority': authority,
+                               'sourceUrl': OPERA_BASE + key if provider == 'opera-radar' else ECCC_BASE if provider == 'eccc-radar' else wms_base(source),
                                'upstreamId': key, 'fetchedAt': now, 'observedAt': at, 'updatedAt': None, 'transformations': transformations}}
                for key, at in items]
     return {'records': records, 'sourceDataTimestamp': items[-1][1] if items else None, 'missingDependencies': missing, 'legend': legend}
 
 
+def frame_stamp(source, key, suffix=''):
+    """The WMS time of a source-qualified frame key; a region-qualified identity
+    prevents coincident observation times colliding."""
+    if not isinstance(key, str) or not key.startswith(source + '@') or not key.endswith(suffix): raise RadarError('malformed')
+    stamp = key[len(source) + 1:len(key) - len(suffix)]
+    if not WMS_STAMP.fullmatch(stamp): raise RadarError('malformed')
+    stamp_time(stamp)
+    return stamp
+
+
+def get_map(bounds, layer, style, stamp, width, height):
+    from math import log, tan, pi
+    def merc(lon, lat): return lon * 20037508.342789244 / 180, 6378137 * log(tan(pi/4 + lat*pi/360))
+    west, south = merc(bounds[0], bounds[1]); east, north = merc(bounds[2], bounds[3])
+    return {'service': 'WMS', 'request': 'GetMap', 'version': '1.3.0', 'layers': layer, 'styles': style, 'crs': 'EPSG:3857',
+            'bbox': f'{west},{south},{east},{north}', 'width': width, 'height': height, 'format': 'image/png', 'transparent': 'true', 'time': stamp}
+
+
 def image(source, key, opener=None):
-    _, bounds = source_info(source)
+    provider, bounds = source_info(source)
     if source == 'opera-radar':
         at = opera_time(key)
         return render(get(OPERA_BASE + key, 20000000, opener), at, width=1000, height=700, bounds=bounds, product='opera')
-    base = wms_base(source)
-    layer = noaa_layer(source)
-    if key == 'legend':
-        query = {'service': 'WMS', 'request': 'GetLegendGraphic', 'version': '1.3.0', 'format': 'image/png', 'layer': layer}
+    if provider == 'eccc-radar':
+        base, product = ECCC_BASE, eccc_product(source)
+        if key == 'legend':
+            query = {'service': 'WMS', 'request': 'GetLegendGraphic', 'version': '1.3.0', 'sld_version': '1.1.0', 'format': 'image/png', 'layer': product['layer'], 'style': product['style']}
+        elif isinstance(key, str) and key.endswith('@coverage'):
+            query = get_map(bounds, product['coverage'], ECCC_COVERAGE_STYLE, frame_stamp(source, key, '@coverage'), 1600, 840)
+        else:
+            query = get_map(bounds, product['layer'], product['style'], frame_stamp(source, key), 1600, 840)
     else:
-        # A region-qualified identity prevents coincident observation times colliding.
-        if not isinstance(key, str) or not key.startswith(source + '@'): raise RadarError('malformed')
-        key = key[len(source) + 1:]
-        if not re.fullmatch(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z', key): raise RadarError('malformed')
-        noaa_times(('<WMS_Capabilities xmlns="http://www.opengis.net/wms"><Layer><Name>' + layer + '</Name><Dimension name="time">' + str(key) + '</Dimension></Layer></WMS_Capabilities>').encode(), source)
-        from math import log, tan, pi
-        def merc(lon, lat): return lon * 20037508.342789244 / 180, 6378137 * log(tan(pi/4 + lat*pi/360))
-        west, south = merc(bounds[0], bounds[1]); east, north = merc(bounds[2], bounds[3])
-        query = {'service': 'WMS', 'request': 'GetMap', 'version': '1.3.0', 'layers': layer, 'styles': '', 'crs': 'EPSG:3857',
-                 'bbox': f'{west},{south},{east},{north}', 'width': 960, 'height': 600, 'format': 'image/png', 'transparent': 'true', 'time': key}
+        base, layer = wms_base(source), noaa_layer(source)
+        if key == 'legend':
+            query = {'service': 'WMS', 'request': 'GetLegendGraphic', 'version': '1.3.0', 'format': 'image/png', 'layer': layer}
+        else:
+            query = get_map(bounds, layer, '', frame_stamp(source, key), 960, 600)
     data = get(base + '?' + urllib.parse.urlencode(query), 6000000, opener)
     if not data.startswith(b'\x89PNG\r\n\x1a\n'): raise RadarError('parse')
     return data

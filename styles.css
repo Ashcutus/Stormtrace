@@ -356,6 +356,7 @@ input[type="range"]::-moz-range-thumb { width: 10px; height: 10px; background: v
 .radar-legend-categories span::before { content: ""; width: 14px; height: 14px; background: var(--rain); border: 1px solid var(--line-bright); }
 .radar-legend:has(img) { display: block; max-width: 100%; overflow-x: auto; padding-bottom: 8px; }
 .radar-legend img { width: 500px; max-width: none; height: 30px; background: #fff; object-fit: contain; }
+.radar-legend img.vertical { width: auto; height: 220px; }
 
 .source-note { padding: 4px; color: var(--text-secondary); }
 .source-line { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 3px 0; font-size: var(--font-2xs); }

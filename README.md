@@ -51,16 +51,22 @@ Even with the window closed, the storm icon in your Omarchy bar keeps watch: it 
 
 ### 🌧️ See the rain
 
-Turn on **Radar** to see the last three hours of rainfall for the UK and Europe, or radar reflectivity for the US. Press **Play** to watch the rain move, or scrub through the frames yourself. In the US you can also switch to **precipitation type** to tell rain, snow and hail apart.
+Turn on **Radar** to see the last three hours of radar for the UK, Europe, the US and Canada. Press **Play** to watch the weather move, or scrub through the frames yourself.
+
+- **UK and Europe:** rainfall rate from the Met Office and EUMETNET, every 15 minutes.
+- **United States:** radar reflectivity from NOAA for the contiguous states, Alaska, Hawaii, the Caribbean and Guam, every couple of minutes. Switch to **precipitation type** to tell rain, snow and hail apart.
+- **Canada:** rain and snowfall rates from Environment and Climate Change Canada, every 6 minutes. Its **precipitation type** goes further, picking out mixed rain and snow and freezing rain by intensity. Areas outside radar coverage are hatched, so a clear patch inside coverage really does mean nothing is falling.
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/screenshots/radar.png" alt="UK rain radar with the radar panel open"></td>
-    <td width="50%"><img src="docs/screenshots/precipitation-type.png" alt="US precipitation type showing rain, snow and hail categories"></td>
+    <td width="33%"><img src="docs/screenshots/radar.png" alt="UK rain radar with the radar panel open"></td>
+    <td width="33%"><img src="docs/screenshots/precipitation-type.png" alt="US precipitation type showing rain, snow and hail categories"></td>
+    <td width="33%"><img src="docs/screenshots/precipitation-type-canada.png" alt="Canadian precipitation type showing snow, mixed rain and snow and rain bands over the Prairies, with areas outside radar coverage hatched"></td>
   </tr>
   <tr>
     <td align="center"><sub>UK rainfall from the Met Office</sub></td>
     <td align="center"><sub>US rain, snow and hail from NOAA</sub></td>
+    <td align="center"><sub>Canadian snow, mixed and freezing rain from Environment Canada</sub></td>
   </tr>
 </table>
 
@@ -107,7 +113,7 @@ Stormtrace follows your Omarchy theme automatically, or you can pick your own co
 
 ![The Appearance panel with text, time, colour and map settings](docs/screenshots/appearance-controls.png)
 
-<sub>Screenshots show live data captured on 22 October 2026.</sub>
+<sub>Screenshots show live data captured on 22 and 23 October 2026.</sub>
 
 ## Install
 
@@ -139,6 +145,10 @@ No `sudo` is needed, and nothing runs at boot. The small local service starts wh
 2. **Choose your alerts.** Pick a radius, turn on **Desktop alerts**, and tick any hazards you'd like to hear about.
 3. **Explore.** Try the **Hazards** buttons, turn on **Radar**, or press `?` to see every keyboard shortcut.
 
+![The first-run welcome, with Locate me, Pick on map and Explore first](docs/screenshots/welcome.png)
+
+The welcome appears once on a new install. If you already have saved settings, you won't see it.
+
 ### Weather warnings: full details
 
 Weather warnings work straight away using the Met Office's public summaries. For the full warning text, affected areas, validity times, saved history and a highlight when your location is inside a warning, add a free Met Office Weather DataHub key to the app's `.env`:
@@ -149,13 +159,13 @@ METOFFICE_WARNINGS_API_KEY=your_subscription_key
 
 Restart Stormtrace afterwards. The [warnings guide](docs/warnings.md#setup) walks you through getting a key.
 
-### Radar: UK and Europe
+### Radar
 
-US radar works out of the box. UK and European rainfall need a small decoder on your computer: when you first choose them, press **Set up UK and Europe radar** in the radar panel and Stormtrace installs it for you (about 40 MB, a few minutes). No radar account or key is needed. The [radar guide](docs/radar.md#setup) has the manual steps if you prefer.
+US and Canadian radar work out of the box. UK and European rainfall need a small decoder on your computer: when you first choose them, press **Set up UK and Europe radar** in the radar panel and Stormtrace installs it for you (about 40 MB, a few minutes). No radar account or key is needed. The [radar guide](docs/radar.md#setup) has the manual steps if you prefer.
 
-UK and European frames arrive every 15 minutes (the Met Office can be up to 20 minutes behind), and US frames about every two minutes. US radar shows reflectivity (dBZ) while the UK and Europe show rainfall rate (mm/h), so their colours mean different things. A clear patch can mean dry weather or simply no radar coverage.
+UK and European frames arrive every 15 minutes (the Met Office can be up to 20 minutes behind), Canadian frames every 6 minutes, and US frames about every two minutes. US radar shows reflectivity (dBZ) while the UK, Europe and Canada show rainfall rate (mm/h), and Canadian snowfall is in cm/h, so their colours mean different things. Elsewhere a clear patch can mean dry weather or simply no radar coverage; Canadian radar hatches areas outside coverage so you can tell them apart.
 
-US precipitation type is a NOAA classification that uses weather models as well as radar. It has no category for sleet or freezing rain, and it can miss some snow. The UK and Europe don't publish precipitation type yet.
+US precipitation type is a NOAA classification that uses weather models as well as radar. It has no category for sleet or freezing rain, and it can miss some snow. Canadian precipitation type from Environment and Climate Change Canada combines radar with model surface temperature and does include mixed rain and snow and freezing rain. The UK and Europe don't publish precipitation type yet.
 
 ## Keyboard shortcuts
 

@@ -40,7 +40,7 @@ EARTHQUAKES_PROVIDER = USGSEarthquakeProvider()
 FLOODS_PROVIDER = EnglandFloodProvider()
 HAZARD_PROVIDERS = {id: PublicHazardProvider(id) for id in HAZARD_SOURCES}
 RADAR_PROVIDER = RadarAdapter(ROOT)
-PUBLIC_RADAR_PROVIDERS = {source: RadarAdapter(ROOT, source) for source in ['opera-radar', 'noaa-conus', 'noaa-alaska', 'noaa-hawaii', 'noaa-carib', 'noaa-guam', 'noaa-ptype-conus', 'noaa-ptype-alaska', 'noaa-ptype-hawaii', 'noaa-ptype-carib', 'noaa-ptype-guam']}
+PUBLIC_RADAR_PROVIDERS = {source: RadarAdapter(ROOT, source) for source in ['opera-radar', 'noaa-conus', 'noaa-alaska', 'noaa-hawaii', 'noaa-carib', 'noaa-guam', 'noaa-ptype-conus', 'noaa-ptype-alaska', 'noaa-ptype-hawaii', 'noaa-ptype-carib', 'noaa-ptype-guam', 'eccc-rain', 'eccc-snow', 'eccc-ptype']}
 # A finished setup clears radar caches so the new decoder is used straight away.
 RADAR_SETUP = RadarSetup(ROOT, on_done=lambda: [provider.invalidate() for provider in [RADAR_PROVIDER, *PUBLIC_RADAR_PROVIDERS.values()] if hasattr(provider, 'invalidate')])
 

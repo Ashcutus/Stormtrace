@@ -97,8 +97,9 @@ test('NOAA metadata refreshes within a minute and on-demand resources stay bound
   await Promise.all([provider.frames(),provider.frames()]); assert.equal(calls,1);
   now += 60001; await provider.frames(); assert.equal(calls,2);
   for (const record of records) await provider.image(record.id);
-  assert.equal(provider.images.size,3);
-  await provider.image('legend'); assert.equal(provider.images.size,3);
+  // Shown and pending frames, each with a possible coverage mask.
+  assert.equal(provider.images.size,6);
+  await provider.image('legend'); assert.equal(provider.images.size,6);
   await assert.rejects(provider.image('https://evil'),{code:'unavailable'});
 });
 
@@ -304,4 +305,97 @@ test('radar playback starts from the oldest frame, waits for each frame, loops, 
     assert.equal(elements.radarPlay.textContent,'Play');assert.equal(timers.length,0,'dragging the slider stops playback');
     await settle();assert.doesNotMatch(elements.radarStatus.textContent,/Playing/);
   } finally {if(elements.radarButton.checked)elements.radarButton.listeners.click();Object.assign(globalThis,original);}
+});
+
+test('Canadian ECCC radar expands the GeoMet time extent, pairs each frame with its coverage mask and keeps keys bounded', () => {
+  const script = `
+import json
+from providers.public_radar import *
+now=${at}
+# GeoMet publishes a start/end/PT6M extent, not a list of instants.
+def caps(layer,extent='2026-10-12T11:42:00Z/2026-10-12T14:42:00Z/PT6M'):return ('<WMS_Capabilities xmlns="http://www.opengis.net/wms"><Layer><Name>'+layer+'</Name><Dimension name="time">'+extent+'</Dimension></Layer></WMS_Capabilities>').encode()
+class Reply:
+ def __init__(self,data):self.data=data
+ def __enter__(self):return self
+ def __exit__(self,*args):pass
+ def read(self,n):return self.data[:n]
+calls=[]
+def opener(url,timeout):calls.append(url);q=urllib.parse.parse_qs(urllib.parse.urlparse(url).query);return Reply(caps(q['layer'][0]))
+assert len(wms_times(caps('RADAR_1KM_RRAI'),'RADAR_1KM_RRAI'))==31
+for bad in ['2026-10-12T11:42:00Z/2026-10-12T14:42:00Z/PT0M','2026-10-12T14:42:00Z/2026-10-12T11:42:00Z/PT6M','2026-10-01T00:00:00Z/2026-10-12T14:42:00Z/PT1M','x/y/PT6M']:
+ try:wms_times(caps('L',bad),'L');raise AssertionError('bad extent accepted '+bad)
+ except RadarError:pass
+rain=frames('eccc-rain',now,opener)
+assert calls[-1].startswith(ECCC_BASE+'?') and 'layer=RADAR_1KM_RRAI' in calls[-1]
+r=rain['records'];assert len(r)==12 and r[-1]['id']=='eccc-rain@2026-10-12T14:42:00Z' and r[-1]['bounds']==ECCC_BOUNDS
+assert r[-1]['coverage']['url']=='/api/radar/frame?source=eccc-rain&key=eccc-rain%402026-10-12T14%3A42%3A00Z%40coverage'
+assert r[-1]['provenance']['provider']=='eccc-radar' and r[-1]['provenance']['sourceAuthority']=='Environment and Climate Change Canada'
+assert rain['legend']=={'unit':'mm/h','layout':'vertical','image':'/api/radar/frame?source=eccc-rain&key=legend'}
+assert frames('eccc-snow',now,opener)['legend']['unit']=='cm/h'
+ptype=frames('eccc-ptype',now,opener)['legend']
+assert ptype['unit']=='category' and any('freezing rain' in c['label'] for c in ptype['categories']) and any('mixed' in c['label'] for c in ptype['categories'])
+png=b'\\x89PNG\\r\\n\\x1a\\nfixture'
+def png_open(url,timeout):calls.append(url);return Reply(png)
+q=lambda:urllib.parse.parse_qs(urllib.parse.urlparse(calls[-1]).query)
+assert image('eccc-rain',r[-1]['id'],png_open)==png and q()['layers']==['RADAR_1KM_RRAI'] and q()['styles']==['Radar-Rain_14colors'] and q()['time']==['2026-10-12T14:42:00Z'] and q()['crs']==['EPSG:3857']
+assert image('eccc-rain',r[-1]['id']+'@coverage',png_open)==png and q()['layers']==['RADAR_COVERAGE_RRAI.INV'] and q()['styles']==[ECCC_COVERAGE_STYLE]
+assert image('eccc-ptype','eccc-ptype@2026-10-12T14:42:00Z@coverage',png_open)==png and q()['layers']==['Radar-Coverage_SfcPrecipType-Inverted']
+assert image('eccc-snow','legend',png_open)==png and q()['request']==['GetLegendGraphic'] and q()['layer']==['RADAR_1KM_RSNO']
+for bad in ['eccc-snow@2026-10-12T14:42:00Z','eccc-rain@2026-10-12T14:42:00Z@other','eccc-rain@<x>@coverage','eccc-rain@@coverage','../.env']:
+ try:image('eccc-rain',bad,png_open);raise AssertionError('bad key accepted '+bad)
+ except RadarError:pass
+for bad in ['eccc-evil','eccc-','eccc-rain?x']:
+ try:source_info(bad);raise AssertionError('bad source accepted')
+ except RadarError:pass
+from stormtrace_platform import RadarAdapter, radar_provider_id
+from pathlib import Path
+assert radar_provider_id('eccc-ptype')=='eccc-radar' and radar_provider_id('noaa-guam')=='noaa-radar'
+class Adapter(RadarAdapter):
+ def worker(self,operation,key=None):return json.dumps(rain).encode() if operation=='frames' else png
+adapter=Adapter(Path('.'),'eccc-rain');adapter.frames()
+assert adapter.id=='eccc-radar' and adapter.health['expectedUpdateInterval']==600000
+assert adapter.image(r[-1]['id']+'@coverage')==png and adapter.image('legend')==png
+try:adapter.image('eccc-rain@2026-10-12T00:00:00Z@coverage');raise AssertionError('coverage of unlisted frame accepted')
+except RadarError:pass
+print(json.dumps(rain))
+`;
+  const rain = JSON.parse(execFileSync('python3', ['-c', script], { encoding: 'utf8' }));
+  assert.equal(C.radarProviderId('eccc-snow'), 'eccc-radar'); assert.ok(C.radarUsesWms('eccc-radar'));
+  assert.equal(C.getSource('eccc-radar').licence.termsUrl, 'https://eccc-msc.github.io/open-data/licence/readme_en/');
+  assert.doesNotThrow(() => globalThis.StormtraceRadar.validate({ ...rain, health: C.health() }));
+  assert.throws(() => globalThis.StormtraceRadar.validate({ ...rain, health: C.health(), records: [{ ...rain.records[0], coverage: { url: 'https://evil/x.png', format: 'image/png' } }] }), /coverage/);
+  for (const file of ['server.js', 'server.py']) for (const source of ['eccc-rain', 'eccc-snow', 'eccc-ptype']) assert.match(readFileSync(file, 'utf8'), new RegExp(`'${source}'`), `${file} routes ${source}`);
+});
+
+test('Node ECCC provider caches each frame with its coverage mask and rejects coverage for unlisted frames', async () => {
+  const records = [{ id: 'eccc-rain@a', observedAt: at, coverage: { url: '/api/radar/frame?key=x', format: 'image/png' } }];
+  const provider = new MetOfficeRadarProvider({ id: 'eccc-radar', source: 'eccc-rain', now: () => at, worker: async (op, key) => op === 'frames' ? Buffer.from(JSON.stringify({ records, sourceDataTimestamp: at, missingDependencies: [], legend: { unit: 'mm/h' } })) : Buffer.from('PNG' + key) });
+  assert.equal(provider.cacheMs, 60000);
+  assert.equal((await provider.image('eccc-rain@a@coverage')).toString(), 'PNGeccc-rain@a@coverage');
+  assert.equal((await provider.image('legend')).toString(), 'PNGlegend');
+  await assert.rejects(provider.image('eccc-rain@b@coverage'), { code: 'unavailable' });
+});
+
+test('radar panel draws a Canadian frame only after both its coverage mask and precipitation image load, beneath and above', async () => {
+  const original = { document: globalThis.document, L: globalThis.L, fetch: globalThis.fetch };
+  const ids = ['radarButton', 'radarPanel', 'radarStatus', 'radarTimeline', 'radarAttribution', 'radarFrameTime', 'radarLatest', 'radarSource', 'radarSourceLink', 'radarCoverage', 'radarUnit', 'radarViewRegion', 'radarLegend'];
+  const elements = Object.fromEntries(ids.map(id => [id, { value: id === 'radarSource' ? 'eccc-rain' : '', listeners: {}, children: [], classList: { add() {}, remove() {} }, addEventListener(n, f) { this.listeners[n] = f; }, setAttribute(n, v) { this[n] = v; }, replaceChildren(...c) { this.children = c; }, append(c) { this.children.push(c); } }]));
+  const overlays = [], groups = [];
+  globalThis.document = { hidden: false, getElementById: id => elements[id], addEventListener() {}, createElement: () => ({ classList: { added: [], add(c) { this.added.push(c); } }, addEventListener() {}, style: { setProperty() {} } }) };
+  globalThis.L = { imageOverlay(url, bounds, options) { const layer = { url, options, listeners: {}, once(n, f) { this.listeners[n] = f; } }; overlays.push(layer); return layer; }, layerGroup(layers) { const group = { layers, addTo() { groups.push(this); } }; return group; } };
+  const map = { createPane() {}, getPane: () => ({ style: {} }), removeLayer() {}, fitBounds() {} };
+  const frame = { id: 'eccc-rain@t', observedAt: at, bounds: [-141, 41, -52, 67], resource: { url: '/api/radar/frame?source=eccc-rain&key=eccc-rain%40t', format: 'image/png' }, coverage: { url: '/api/radar/frame?source=eccc-rain&key=eccc-rain%40t%40coverage', format: 'image/png' } };
+  globalThis.fetch = function () { return Promise.resolve({ ok: true, json: async () => ({ records: [frame], health: C.health(), missingDependencies: [], legend: { unit: 'mm/h', layout: 'vertical', image: '/api/radar/frame?source=eccc-rain&key=legend' } }) }); };
+  const settle = async () => { for (let n = 0; n < 5; n++) await new Promise(resolve => setImmediate(resolve)); };
+  try {
+    globalThis.StormtraceRadar.mountRadar({ map }); elements.radarButton.listeners.click(); await settle();
+    assert.equal(groups.length, 1); const [coverage, image] = groups[0].layers;
+    assert.match(coverage.url, /coverage/); assert.ok(coverage.options.opacity < image.options.opacity, 'coverage mask sits beneath the precipitation layer');
+    image.listeners.load(); await settle(); assert.ok(!/^Observation/.test(elements.radarFrameTime.textContent || ''), 'waits for the coverage mask');
+    coverage.listeners.load(); await settle(); assert.match(elements.radarFrameTime.textContent, /^Observation/);
+    assert.match(elements.radarCoverage.textContent, /Hatched areas are outside radar coverage/);
+    assert.match(elements.radarAttribution.textContent, /Environment and Climate Change Canada/);
+    assert.equal(elements.radarUnit.textContent, 'Rainfall rate (mm/h)');
+    assert.deepEqual(elements.radarLegend.children[0].classList.added, ['vertical']);
+  } finally { if (elements.radarPanel.hidden === false) elements.radarButton.listeners.click(); Object.assign(globalThis, original); }
 });
