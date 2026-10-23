@@ -113,6 +113,10 @@
           <details class="map-overlay layers-panel" id="layersPanel">
             <summary><span>Layers</span> <small id="layersSummary">Lightning</small></summary>
             <div class="layers-body">
+              <div class="selected-row" id="selectedHazardRow" hidden>
+                <span>Selected: <strong id="selectedHazardLabel"></strong></span>
+                <button id="clearSelectedHazard" class="mini-button" type="button">Clear</button>
+              </div>
               <label class="layer-row">
                 <input id="mapLightning" type="checkbox" checked />
                 <span><strong>Lightning strikes</strong><small>Hiding strikes keeps alerts, stats and history running.</small></span>
@@ -129,10 +133,6 @@
                 <input id="mapQuakes" type="checkbox" />
                 <span><strong>Earthquakes</strong><small>Past 24 hours. Select a point for estimated shaking.</small></span>
               </label>
-              <div class="selected-row" id="selectedHazardRow" hidden>
-                <span>Selected: <strong id="selectedHazardLabel"></strong></span>
-                <button id="clearSelectedHazard" class="mini-button" type="button">Clear</button>
-              </div>
               <div class="layers-actions">
                 <button id="mapHazardRefresh" type="button" class="mini-button">Refresh layers</button>
               </div>

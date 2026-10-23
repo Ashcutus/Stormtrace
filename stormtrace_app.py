@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 from urllib.parse import urlparse
 
-from stormtrace_platform import profile_paths, show_notification
+from stormtrace_platform import hyprland_window_commands, profile_paths, show_notification
 
 import gi
 
@@ -80,6 +80,12 @@ class StormtraceApplication(Gtk.Application):
         )
         web_context = WebKit2.WebContext.new_with_website_data_manager(data_manager)
         web_context.set_cache_model(WebKit2.CacheModel.WEB_BROWSER)
+        # WebKitGTK forgets notification permission between launches; without
+        # this, restored desktop alerts read "On" but the page never notifies.
+        web_context.connect(
+            "initialize-notification-permissions",
+            self._on_initialize_notification_permissions,
+        )
 
         self.web_view = WebKit2.WebView.new_with_context(web_context)
         self.web_view.get_settings().set_enable_developer_extras(False)
@@ -110,6 +116,13 @@ class StormtraceApplication(Gtk.Application):
         self.window.show_all()
         self.window.present()
         GLib.timeout_add(120, self._apply_omarchy_window_layout)
+
+    def _on_initialize_notification_permissions(
+        self, web_context: WebKit2.WebContext
+    ) -> None:
+        # Only this app's own page; permission requests from it are allowed anyway.
+        origin = WebKit2.SecurityOrigin.new_for_uri(self.app_url)
+        web_context.initialize_notification_permissions([origin], [])
 
     def _on_window_destroyed(self, _window: Gtk.Window) -> None:
         self.window = None
@@ -253,20 +266,11 @@ class StormtraceApplication(Gtk.Application):
         except (json.JSONDecodeError, OSError, StopIteration, subprocess.SubprocessError):
             return self.layout_attempts < 20
 
-        scale = max(1.0, float(monitor.get("scale") or 1))
-        reserved = monitor.get("reserved") or [0, 0, 0, 0]
-        available_width = float(monitor.get("width") or DEFAULT_WIDTH) / scale
-        available_height = float(monitor.get("height") or DEFAULT_HEIGHT) / scale
-        available_width -= float(reserved[0] + reserved[2])
-        available_height -= float(reserved[1] + reserved[3])
-        width = min(DEFAULT_WIDTH, max(MIN_WIDTH, int(available_width * 0.84)))
-        height = min(DEFAULT_HEIGHT, max(MIN_HEIGHT, int(available_height * 0.84)))
-        selector = f"address:{client['address']}"
-
-        commands = (
-            f'hl.dsp.window.float({{ action = "set", window = "{selector}" }})',
-            f'hl.dsp.window.resize({{ x = {width}, y = {height}, window = "{selector}" }})',
-            f'hl.dsp.window.center({{ window = "{selector}" }})',
+        commands = hyprland_window_commands(
+            client,
+            monitor,
+            (DEFAULT_WIDTH, DEFAULT_HEIGHT),
+            (MIN_WIDTH, MIN_HEIGHT),
         )
         for command in commands:
             try:

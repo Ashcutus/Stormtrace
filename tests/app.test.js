@@ -506,3 +506,22 @@ test('lightning visibility only changes its map layer and legends while retainin
   app.setLightningVisible(true);assert.equal(layers.has(app.state.strikeLayer),true);
   assert.equal(app.document.querySelector('.map-overlay.legend').hidden,false);
 });
+
+test("quick zoom presses during a zoom animation are queued instead of dropped, on whole levels within limits", () => {
+  const app = loadApp();
+  const handlers = {}, requests = [];
+  // Leaflet ignores setZoom while animating; this fake starts an animation on each request.
+  const map = { zoom: 2.3, on(name, fn) { handlers[name] = fn; }, getZoom() { return this.zoom; }, getMinZoom: () => 2.3, getMaxZoom: () => 18,
+    setZoom(target) { requests.push(target); this.zoom = target; handlers.zoomstart(); } };
+  app.state.map = map;
+  app.trackZoomAnimation(map);
+  app.stepZoom(1); app.stepZoom(1); app.stepZoom(1);
+  assert.deepEqual(requests, [3], "first press starts at the next whole level");
+  handlers.zoomend();
+  assert.deepEqual(requests, [3, 5], "presses made while animating are applied together");
+  handlers.zoomend();
+  app.stepZoom(-1); app.stepZoom(-1); handlers.zoomend(); handlers.zoomend();
+  assert.deepEqual(requests, [3, 5, 4, 3]);
+  app.stepZoom(-1); app.stepZoom(-1); handlers.zoomend(); handlers.zoomend();
+  assert.equal(map.zoom, 2.3, "zooming out stops at the fitted minimum");
+});

@@ -56,6 +56,14 @@
       features.get(id)?.bringToFront();
       for(const [key,geo] of features){const label=geo.getTooltip?.()?.getElement?.();if(label){label.style.setProperty('--warning-colour',geo.options?.style?.color);label.classList.toggle('active',key===id);label.classList.toggle('dimmed',id!=null&&key!==id);}}
       for(const button of $('warningMapList').querySelectorAll('[data-warning-id]'))button.classList.toggle('active',button.dataset.warningId===id);
+      declutter();
+    }
+    // Centre labels collide where areas overlap: place the emphasised label, then the most
+    // severe, and hide any label that would cover one already placed. Areas stay selectable.
+    function declutter() {
+      const id=highlighted??pinned,order=[...features].reverse().sort(([a],[b])=>(b===id)-(a===id)),placed=[];
+      for(const [,geo] of order){const label=geo.getTooltip?.()?.getElement?.(),r=label?.getBoundingClientRect?.();if(!r)continue;
+        const hit=placed.some(p=>r.left<p.right&&r.right>p.left&&r.top<p.bottom&&r.bottom>p.top);label.classList.toggle('collided',hit);if(!hit)placed.push(r);}
     }
     function render() {
       if(!dialog.open)return;
@@ -107,7 +115,7 @@
         // Match the main map's English-labelled basemap; fall back to raster tiles without WebGL.
         try { if(!UI.vectorMapAvailable())throw new Error('vector map unavailable'); globalThis.L.maplibreGL({style:'/client/map-style.json',attributionControl:false}).addTo(map);map.attributionControl.addAttribution('<a href="https://openfreemap.org/" target="_blank" rel="noreferrer">OpenFreeMap</a> · © OpenMapTiles · © OpenStreetMap contributors'); }
         catch { globalThis.L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18,attribution:'© OpenStreetMap contributors'}).addTo(map); }
-        layer=globalThis.L.layerGroup().addTo(map);map.fitBounds([[49.5,-11],[61.5,2.5]]);
+        layer=globalThis.L.layerGroup().addTo(map);map.on('zoomend',declutter);map.fitBounds([[49.5,-11],[61.5,2.5]]);
       }
       map.invalidateSize();render();poll();clearInterval(timer);timer=setInterval(poll,60000);
     }

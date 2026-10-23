@@ -40,6 +40,8 @@
 
 - For recurring IndexedDB archive maintenance, avoid per-row cursor enumeration and unchanged-row writes. The native WebKit soak investigation reproduced rising RSS with cursor scans; bounded bulk reads and provider-scoped mutation checks reduced that pressure. Preserve atomic rechecks and verify full viewer stability separately from isolated storage benchmarks.
 
+- Hyprland restores a floating window after fullscreen to the position last set by `window.move`, not `window.center`; place the native window with an absolute move. WebKitGTK forgets notification permission between launches, so the shell seeds its own origin through `initialize-notification-permissions`; without it, restored desktop alerts read "On" while the page silently never notifies. Leaflet silently drops zoom requests made during a zoom animation; route button and key zooms through the queued `stepZoom` instead of calling `zoomIn`/`zoomOut` directly.
+
 - Keep installed runtime environments outside the Omarchy plugin directory (for example under XDG_DATA_HOME/stormtrace). Plugin validation rejects symlinks even in ignored files; Python venvs and symlink shortcuts inside the plugin can block updates. Recreate environments at their final path instead of assuming relocated scripts still work.
 
 ## Multi-phase documentation

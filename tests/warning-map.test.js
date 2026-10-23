@@ -17,6 +17,7 @@ class Element {
     this.style = { setProperty: (key, value) => { this.style[key] = value; } };
     this.classList = { toggle: (name, on) => { if (on) this.classes.add(name); else this.classes.delete(name); } }; }
   get firstElementChild() { return this.children[0]; }
+  getBoundingClientRect() { return this.rect; }
   setAttribute(name, value) { this.attributes[name] = value; }
   append(node) { this.children.push(node); }
   replaceChildren(...nodes) { this.children = nodes; }
@@ -37,13 +38,13 @@ test('warning list entries carry official colours, highlight their map area and 
   globalThis.document = { hidden: false, getElementById: get, createElement: (tag) => new Element(tag), addEventListener() {} };
   globalThis.fetch = async function () { return { ok: true, json: async () => ({ configured: true, records, observations: [], health: { ...C.health(300000), available: true, lastSuccessfulFetch: now } }) }; };
   const fitted = [];
-  const map = { setView() { return map; }, attributionControl: { setPrefix() {}, addAttribution() {} }, fitBounds(bounds) { fitted.push(bounds); }, invalidateSize() {}, closePopup() {} };
+  const map = { setView() { return map; }, attributionControl: { setPrefix() {}, addAttribution() {} }, fitBounds(bounds) { fitted.push(bounds); }, invalidateSize() {}, closePopup() {}, on(name, fn) { (map.events ||= {})[name] = fn; return map; } };
   globalThis.L = {
     map: () => map,
     tileLayer: () => ({ addTo() { return this; } }),
     layerGroup: () => ({ addTo() { return this; }, addLayer() {}, clearLayers() { areas.length = 0; } }),
     geoJSON(geometry, { style }) {
-      const label = new Element();
+      const label = new Element(); label.rect = { left: 0, right: 120, top: 0, bottom: 24 };
       const area = { geometry, popupOpen: false, getBounds: () => geometry.coordinates[0], openPopup() { this.popupOpen = true; }, style: { ...style }, options: { style }, label, front: 0, events: {}, setStyle(next) { Object.assign(this.style, next); }, bringToFront() { this.front++; }, getTooltip: () => ({ getElement: () => label }),
         bindTooltip() { return this; }, bindPopup() { return this; }, on(name, fn) { this.events[name] = fn; return this; } };
       areas.push(area); return area;
@@ -62,6 +63,15 @@ test('warning list entries carry official colours, highlight their map area and 
   assert.equal(buttons[1].children[1].textContent, 'Kent');
 
   const [yellow, red] = areas;
+  // Overlapping centre labels: the most severe shows, the focused one wins while emphasised.
+  assert.ok(yellow.label.classes.has('collided')); assert.ok(!red.label.classes.has('collided'));
+  buttons[0].fire('mouseenter');
+  assert.ok(!yellow.label.classes.has('collided')); assert.ok(red.label.classes.has('collided'));
+  buttons[0].fire('mouseleave');
+  assert.ok(yellow.label.classes.has('collided')); assert.ok(!red.label.classes.has('collided'));
+  yellow.label.rect = { left: 200, right: 320, top: 0, bottom: 24 }; map.events.zoomend();
+  assert.ok(!yellow.label.classes.has('collided'), 'separated labels both show after zooming');
+  yellow.label.rect = { left: 0, right: 120, top: 0, bottom: 24 }; map.events.zoomend();
   buttons[1].fire('mouseenter');
   assert.equal(red.style.weight, 5); assert.equal(red.front, 1); assert.ok(yellow.style.fillOpacity < 0.4);
   assert.equal(red.style.color, '#CC0033', 'official colours are not changed by highlighting');

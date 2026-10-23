@@ -82,10 +82,21 @@
     if (!globalThis.maplibregl?.Map || !globalThis.L?.maplibreGL) return false;
     try { return Boolean(document.createElement('canvas').getContext('webgl2')); } catch { return false; }
   }
+  const POPUP_PAD_TOP = 76, POPUP_PAD_BOTTOM = 84;
   // One popup behaviour for every map layer: same surface, width, and auto-pan
   // clearance from the map's overlays (Layers, controls and the strike strip).
   function popupOptions(extra = {}) {
-    return { className: 'hazard-popup flood-map-popup', maxWidth: 380, minWidth: 280, autoPan: true, autoPanPaddingTopLeft: [24, 76], autoPanPaddingBottomRight: [64, 84], ...extra };
+    return { className: 'hazard-popup flood-map-popup', maxWidth: 380, minWidth: 280, autoPan: true, autoPanPaddingTopLeft: [24, POPUP_PAD_TOP], autoPanPaddingBottomRight: [64, POPUP_PAD_BOTTOM], ...extra };
+  }
+  // Scrollable popup content height that fits between the auto-pan paddings,
+  // leaving room for the popup tip and its offset from the anchor.
+  function popupMaxHeight(mapHeight) {
+    return Math.max(160, Math.floor(mapHeight - POPUP_PAD_TOP - POPUP_PAD_BOTTOM - 32));
+  }
+  // Lowest zoom at which the Web Mercator world (256px tall at zoom 0) is at
+  // least as tall as the map, so no empty band shows beyond the poles.
+  function worldMinZoom(mapHeight) {
+    return Math.max(2, Math.log2(Math.max(1, mapHeight) / 256));
   }
   // Leaflet does not auto-pan a popup while the map is still moving, so finish
   // the move first (instantly), then open the popup so it can pan into view.
@@ -137,5 +148,5 @@
     };archive.renderArchive();
   }
   function matches(r, query) { return !query || JSON.stringify([r.sourceAuthority,r.domainPayload.title,r.domainPayload.headline,r.domainPayload.place,r.domainPayload.classification,r.domainPayload.status,r.domainPayload.centre,r.domainPayload.county,r.domainPayload.riverOrSea,r.domainPayload.badge,r.kind,r.domainPayload.classificationLabel,r.domainPayload.affectedAreas,r.domainPayload.areas,r.domainPayload.weatherTypes,r.domainPayload.details]).toLowerCase().includes(query); }
-  globalThis.StormtraceUI={date,fixedUkDate,setTimeZone,timeZone,depth,text,keyed,healthMessage,sourceStatus,popupHealth,refreshPopupHealth,scrollTo,cardActions,popupOptions,showOnMap,vectorMapAvailable,reducedMotion,flyOptions,collection,archiveView,matches};
+  globalThis.StormtraceUI={date,fixedUkDate,setTimeZone,timeZone,depth,text,keyed,healthMessage,sourceStatus,popupHealth,refreshPopupHealth,scrollTo,cardActions,popupOptions,popupMaxHeight,worldMinZoom,showOnMap,vectorMapAvailable,reducedMotion,flyOptions,collection,archiveView,matches};
 })();
