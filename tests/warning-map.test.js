@@ -34,7 +34,9 @@ test('warning list entries carry official colours, highlight their map area and 
   const records = [warning('y', 'YELLOW', square(-6, 49, -2, 52)), warning('r', 'RED', square(-5, 50, -3, 51))];
   const areas = [];
   const chips = ['YELLOW', 'AMBER', 'RED'].map((level) => { const chip = new Element('button'); chip.className = 'severity-chip'; chip.dataset.level = level; get('warningMapDialog').append(chip); return chip; });
-  const old = { document: globalThis.document, fetch: globalThis.fetch, L: globalThis.L };
+  const old = { document: globalThis.document, fetch: globalThis.fetch, L: globalThis.L, StormtracePlatform: globalThis.StormtracePlatform };
+  const stored = new Map([['stormtrace:warning-popup-size', 'small']]);
+  globalThis.StormtracePlatform = { settingsStorage: { getItem: (k) => stored.get(k) ?? null, setItem: (k, v) => stored.set(k, v) } };
   t.after(() => Object.assign(globalThis, old));
   globalThis.document = { hidden: false, getElementById: get, createElement: (tag) => new Element(tag), addEventListener() {} };
   globalThis.fetch = async function () { return { ok: true, json: async () => ({ configured: true, records, observations: [], health: { ...C.health(300000), available: true, lastSuccessfulFetch: now } }) }; };
@@ -47,7 +49,8 @@ test('warning list entries carry official colours, highlight their map area and 
     geoJSON(geometry, { style }) {
       const label = new Element(); label.rect = { left: 0, right: 120, top: 0, bottom: 24 };
       const area = { geometry, popupOpen: false, getBounds: () => geometry.coordinates[0], openPopup() { this.popupOpen = true; }, style: { ...style }, options: { style }, label, front: 0, events: {}, setStyle(next) { Object.assign(this.style, next); }, bringToFront() { this.front++; }, getTooltip: () => ({ getElement: () => label }),
-        bindTooltip() { return this; }, bindPopup() { return this; }, on(name, fn) { this.events[name] = fn; return this; } };
+        bindTooltip() { return this; }, bindPopup(node, options) { this.popupNode = node; this.popup = { options: { ...options }, updates: 0, element: { dataset: {} }, open: false, isOpen() { return this.open; }, update() { this.updates++; }, getElement() { return this.element; } }; return this; },
+        getPopup() { return this.popup; }, on(name, fn) { this.events[name] = fn; return this; } };
       areas.push(area); return area;
     },
   };
@@ -64,6 +67,21 @@ test('warning list entries carry official colours, highlight their map area and 
   assert.equal(buttons[1].children[1].textContent, 'Kent');
 
   const [yellow, red] = areas;
+  // One scroll area: collapsible sections instead of a scroll box, with the remembered size.
+  const all = (node, out = []) => { for (const c of node.children || []) { out.push(c); all(c, out); } return out; };
+  const nodes = all(red.popupNode), sections = nodes.filter((c) => c.tag === 'details');
+  assert.deepEqual(sections.map((d) => [d.children[0].textContent, d.open]), [['What to expect', true], ['Further details', false]]);
+  assert.ok(!nodes.some((c) => c.className === 'flood-map-message'), 'no nested scroll box');
+  assert.deepEqual([red.popup.options.minWidth, red.popup.options.maxWidth], [320, 320]);
+  red.events.popupopen({ popup: red.popup }); assert.equal(red.popup.element.dataset.size, 'small');
+  const large = nodes.find((c) => c.dataset?.popupSize === 'large');
+  assert.equal(large.attributes['aria-label'], 'Large popup');
+  red.popup.open = true; large.fire('click');
+  assert.equal(stored.get('stormtrace:warning-popup-size'), 'large');
+  assert.deepEqual([red.popup.options.maxWidth, yellow.popup.options.maxWidth], [620, 620], 'every warning popup follows the choice');
+  assert.equal(red.popup.updates, 1, 'an open popup resizes in place'); assert.equal(yellow.popup.updates, 0);
+  assert.equal(large.attributes['aria-pressed'], 'true');
+  assert.equal(all(yellow.popupNode).find((c) => c.dataset?.popupSize === 'small').attributes['aria-pressed'], 'false');
   // Overlapping centre labels: the most severe shows, the focused one wins while emphasised.
   assert.ok(yellow.label.classes.has('collided')); assert.ok(!red.label.classes.has('collided'));
   buttons[0].fire('mouseenter');

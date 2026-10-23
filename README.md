@@ -87,7 +87,7 @@ The **Hazards** buttons along the top open each view. A small dot on each button
 <table>
   <tr>
     <td width="50%"><img src="docs/screenshots/weather-warnings.png" alt="Met Office weather warnings, including an amber wind warning, each with a Show on map button"></td>
-    <td width="50%"><img src="docs/screenshots/warning-map.png" alt="The UK warning map focused on an amber wind warning, with severity filters and a colour-coded list of areas"></td>
+    <td width="50%"><img src="docs/screenshots/warning-map.png" alt="The UK warning map with an amber Storm Boelo wind warning open: when it starts, its period in UK local time, popup size buttons and a collapsible What to expect section, beside severity filters and a colour-coded list of areas"></td>
   </tr>
   <tr>
     <td align="center"><sub>UK warnings in their official colours</sub></td>
@@ -111,7 +111,7 @@ Use **Layers** in the top-left corner of the map to add flood areas or earthquak
 
 Stormtrace follows your Omarchy theme automatically, or you can pick your own colours. Prefer light or dark regardless of your theme? Choose **Light** or **Dark** under **Light or dark**: Stormtrace builds a matching version of your Omarchy theme that keeps its accent colours. **Appearance** also has larger text sizes, a choice of UK or local time, and map brightness and shading. Strike-age colours come from your theme, but Stormtrace switches to a fixed yellow, orange and crimson set if a theme's colours are too close to tell apart. Official warning colours never change, so they always mean the same thing.
 
-![The Appearance panel with text, time, colour and map settings](docs/screenshots/appearance-controls.png)
+![The Appearance panel with Omarchy or custom colours, the Light or dark choice, the palette and map settings](docs/screenshots/appearance-controls.png)
 
 <sub>Screenshots show live data captured on 22 and 23 October 2026.</sub>
 
