@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import C from '../core/index.js';
 import '../client/presentation.js';
 import '../client/warnings.js';
@@ -143,4 +144,24 @@ test('warnings match the map area with the closest places, ignoring other levels
   // Identical places fall back to the closest start time.
   const later = area('later', 'YELLOW', 'WIND', exact.domainPayload.affectedAreas, now + 86400000);
   assert.equal(matchArea(query('YELLOW', ['Gloucestershire', 'South Gloucestershire', 'Swindon', 'Wiltshire'], ['wind'], now + 86000000), [exact, later]), later);
+});
+
+test('warning validity leads with whether it is in force and the period in UK local time, across the clock change', (t) => {
+  const UI = globalThis.StormtraceUI, old = globalThis.document;
+  t.after(() => { globalThis.document = old; });
+  globalThis.document = { createElement: (tag) => new Element(tag) };
+  // Storm Boelo: Sat 24 Oct 12:00 BST (11:00Z) to Sun 25 Oct 21:00 GMT, after clocks go back at 02:00.
+  const from = Date.parse('2026-10-24T11:00:00Z'), to = Date.parse('2026-10-25T21:00:00Z');
+  assert.equal(UI.ukPeriod(from, to), 'Sat 24 Oct, 12:00 – Sun 25 Oct, 21:00');
+  assert.equal(UI.ukPeriod(from, from + 6 * 3600000), 'Sat 24 Oct, 12:00 – 18:00', 'same-day periods name the day once');
+  assert.deepEqual(UI.validityStatus(from, to, from - 13 * 3600000), { state: 'upcoming', text: 'Starts in 13 hours' });
+  assert.deepEqual(UI.validityStatus(from, to, from - 20 * 60000), { state: 'upcoming', text: 'Starts in 20 minutes' });
+  assert.deepEqual(UI.validityStatus(from, to, from), { state: 'active', text: 'In force now · ends in 34 hours' });
+  assert.deepEqual(UI.validityStatus(from, to + 4 * 86400000, from), { state: 'active', text: 'In force now · ends in 5 days' });
+  assert.deepEqual(UI.validityStatus(from, to, to), { state: 'ended', text: 'Ended' });
+  const parent = new Element(), block = UI.validity(parent, from, to, from - 3600000);
+  assert.equal(parent.children[0], block); assert.equal(block.className, 'warning-validity'); assert.equal(block.dataset.state, 'upcoming');
+  assert.deepEqual(block.children.map((c) => [c.className, c.textContent]), [['warning-validity-status', 'Starts in 1 hour'], ['warning-validity-period', 'Sat\u00a024\u00a0Oct,\u00a012:00 – Sun\u00a025\u00a0Oct,\u00a021:00'], ['warning-validity-zone', 'UK local time']]);
+  assert.equal(UI.validity(new Element(), null, to).children[0].textContent, 'Validity period not supplied', 'missing source times are never invented');
+  for (const file of ['client/warnings.js', 'client/warning-map.js']) assert.match(readFileSync(file, 'utf8'), /UI\.validity\(/, file);
 });
