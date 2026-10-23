@@ -184,6 +184,8 @@ body.native-shell .icon-button.native-only { display: grid; }
 .workspace { min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 348px; }
 .map-panel { position: relative; min-width: 0; overflow: hidden; contain: layout paint; border-right: 1px solid var(--line); background: var(--bg); }
 #map { position: absolute; inset: 0; z-index: 0; background: var(--bg); }
+/* Dark-tuned shadows are too heavy on light surfaces. */
+body[data-system-mode="light"] { --shadow: 0 14px 44px rgba(24, 22, 40, 0.18); }
 .map-shade { position: absolute; inset: 0; z-index: 401; pointer-events: none; background: radial-gradient(ellipse at center, transparent 55%, rgba(2, 1, 5, var(--map-shade-opacity, .45)) 100%); }
 .leaflet-control-container { display: none; }
 .leaflet-container { font: inherit; }

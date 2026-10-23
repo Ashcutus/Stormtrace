@@ -174,6 +174,7 @@
     demoTimer: null,
     loadedHistoryCount: 0,
     themeSource: persisted.themeSource === "custom" ? "custom" : "system",
+    themeMode: ["light", "dark"].includes(persisted.themeMode) ? persisted.themeMode : "auto",
     readingScale: readRangeSetting(persisted.readingScale,1,1,1.4),
     timeZone: persisted.timeZone === "system" ? "system" : "uk",
     hazardAlerts: globalThis.StormtraceHazardAlerts?.readSettings(persisted.hazardAlerts) || {},
@@ -432,6 +433,12 @@
   }
 
   function bindControls() {
+    $("#themeMode")?.addEventListener("change", (event) => {
+      state.themeMode = ["light", "dark"].includes(event.target.value) ? event.target.value : "auto";
+      applyActivePalette();
+      saveSettings();
+      syncThemeDialog();
+    });
     $("#readingScale").addEventListener("change",event=>{state.readingScale=readRangeSetting(event.target.value,1,1,1.4);document.documentElement.style.setProperty("--reading-scale",String(state.readingScale));saveSettings();});
     $("#timeZoneSetting").addEventListener("change",event=>{state.timeZone=event.target.value==="system"?"system":"uk";UI.setTimeZone(state.timeZone);updateClock();UI.refreshPopupHealth();saveSettings();});
     els.monitorButton.addEventListener("click", toggleMonitoring);
@@ -511,7 +518,7 @@
       });
     });
     els.resetCustomTheme.addEventListener("click", () => {
-      state.customPalette = editablePalette(state.systemPalette);
+      state.customPalette = editablePalette(shownSystemPalette());
       selectThemeSource("custom");
       syncThemeDialog();
     });
@@ -667,8 +674,39 @@
     };
   }
 
+  // A light or dark counterpart of an Omarchy palette for the opposite mode. Surfaces
+  // and text are rebuilt from the theme's own colours; accents keep their hue but are
+  // shifted until they read against the new background.
+  function modePalette(palette, mode) {
+    if (mode !== "light" && mode !== "dark") return palette;
+    const current = palette.mode === "light" || colorLuminance(toHexColor(palette.bg)) > 0.58 ? "light" : "dark";
+    if (current === mode) return palette;
+    const hex = (key) => toHexColor(palette[key], FALLBACK_PALETTE[key]);
+    const light = mode === "light";
+    const paper = light ? "#ffffff" : "#000000", ink = light ? "#000000" : "#ffffff";
+    // The old text colour carries the theme's tint into the new background, and back.
+    const tint = hex("text"), shade = hex("bg");
+    const bg = mixHex(tint, paper, light ? 0.93 : 0.88);
+    const step = (amount) => mixHex(bg, light ? mixHex(tint, ink, 0.2) : mixHex(tint, ink, 0.1), amount);
+    const text = ensureContrast(mixHex(shade, ink, light ? 0.15 : 0.08), bg, 10);
+    const accent = (key, minimum) => ensureContrast(hex(key), bg, minimum);
+    const violet = accent("violet", 3.4);
+    return {
+      name: palette.name, mode,
+      bg, surface: step(light ? 0.035 : 0.04), surface2: step(light ? 0.07 : 0.08), surface3: step(light ? 0.12 : 0.13),
+      text, brightText: ensureContrast(mixHex(text, ink, 0.4), bg, 12),
+      muted: ensureContrast(mixHex(hex("muted"), text, 0.2), bg, 4.8), muted2: ensureContrast(hex("muted2"), bg, 3.2),
+      violet, violetBright: accent("violetBright", 4.5), magenta: accent("magenta", 3.4), cyan: accent("cyan", 3.4),
+      blue: accent("blue", 3.4), yellow: accent("yellow", 2.4), danger: accent("danger", 4.5),
+      line: mixHex(bg, text, light ? 0.16 : 0.2), lineBright: mixHex(violet, bg, 0.3),
+    };
+  }
+
+  // The Omarchy palette as shown, including any light or dark choice.
+  function shownSystemPalette() { return modePalette(state.systemPalette, state.themeMode); }
+
   function applyActivePalette() {
-    const palette = state.themeSource === "custom" ? derivedCustomPalette(state.customPalette) : state.systemPalette;
+    const palette = state.themeSource === "custom" ? derivedCustomPalette(state.customPalette) : shownSystemPalette();
     state.activePalette = palette;
     state.paletteVersion += 1;
     const root = document.documentElement;
@@ -682,6 +720,7 @@
     };
     Object.entries(variables).forEach(([key, value]) => root.style.setProperty(key, value));
     document.body.dataset.systemMode = palette.mode;
+    root.style.colorScheme = palette.mode;
     els.themeButton.title = state.themeSource === "system" ? `Appearance · following Omarchy (${state.systemPalette.name})` : "Appearance · custom colours";
     applyPopupPalette(palette);
     state.strikeAge = strikeAgePalette(palette);
@@ -770,8 +809,15 @@
   function syncThemeDialog() {
     if (!els.paletteGrid) return;
     els.currentThemeName.textContent = state.systemPalette.name || "Current system theme";
+    const modeSelect = $("#themeMode");
+    if (modeSelect) {
+      modeSelect.value = state.themeMode;
+      // Custom colours set their own light or dark look.
+      modeSelect.disabled = state.themeSource === "custom";
+      $("#themeModeNote").textContent = state.themeSource === "custom" ? "Custom colours set their own light or dark look." : state.themeMode === "auto" ? `Following ${state.systemPalette.name || "Omarchy"}, which is ${state.systemPalette.mode}.` : `A ${state.themeMode} version of ${state.systemPalette.name || "your Omarchy theme"}, keeping its accent colours.`;
+    }
     $$(".theme-source-button").forEach((button) => {button.classList.toggle("active", button.dataset.themeSource === state.themeSource);button.setAttribute("aria-pressed",String(button.dataset.themeSource===state.themeSource));});
-    const sourcePalette = state.themeSource === "custom" ? (state.customPalette || editablePalette(state.systemPalette)) : editablePalette(state.systemPalette);
+    const sourcePalette = state.themeSource === "custom" ? (state.customPalette || editablePalette(shownSystemPalette())) : editablePalette(shownSystemPalette());
     els.paletteGrid.classList.toggle("system-locked", state.themeSource === "system");
     els.applyCustomTheme.disabled = state.themeSource === "system";
     els.applyCustomTheme.title = state.themeSource === "system" ? "Choose Custom, or start custom from Omarchy colours, to edit colours" : "";
@@ -1892,6 +1938,7 @@
       notificationsEnabled: state.notificationsEnabled,
       userLocation: state.userLocation,
       themeSource: state.themeSource,
+      themeMode: state.themeMode,
       customPalette: state.customPalette,
       readingScale: state.readingScale,
       timeZone: state.timeZone,
