@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "stormtrace.lightning",
   "name": "Stormtrace",
-  "version": "1.15.0",
+  "version": "1.15.1",
   "author": "Stormtrace Contributors",
   "description": "A local weather and hazard viewer with lightning alerts, radar, warnings, earthquakes, cyclones, volcano reports, tsunami bulletins and space weather.",
   "kinds": [
