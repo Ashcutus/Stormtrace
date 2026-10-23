@@ -7,6 +7,34 @@
   let zone = 'uk';
   function setTimeZone(value) { zone = value === 'system' ? 'system' : 'uk'; }
   function timeZone() { return zone; }
+  // A warning's validity period as the most prominent detail: whether it is in force,
+  // then the period itself. NSWWS requires UK-local times, so this ignores the time preference.
+  const ukPart = (value, options) => new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', ...options }).format(value);
+  function ukPeriod(from, to) {
+    const day = (v) => ukPart(v, { weekday: 'short', day: 'numeric', month: 'short' }), time = (v) => ukPart(v, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+    return day(from) === day(to) ? `${day(from)}, ${time(from)} – ${time(to)}` : `${day(from)}, ${time(from)} – ${day(to)}, ${time(to)}`;
+  }
+  function duration(ms) {
+    const hours = Math.round(ms / 3600000);
+    if (ms < 3600000) { const minutes = Math.max(1, Math.round(ms / 60000)); return `${minutes} minute${minutes === 1 ? '' : 's'}`; }
+    if (hours < 48) return `${hours} hour${hours === 1 ? '' : 's'}`;
+    const days = Math.round(ms / 86400000); return `${days} days`;
+  }
+  function validityStatus(from, to, now) {
+    if (now >= to) return { state: 'ended', text: 'Ended' };
+    if (now >= from) return { state: 'active', text: `In force now · ends in ${duration(to - now)}` };
+    return { state: 'upcoming', text: `Starts in ${duration(from - now)}` };
+  }
+  function validity(parent, from, to, now = Date.now()) {
+    const block = document.createElement('div'); block.className = 'warning-validity';
+    if (![from, to].every(Number.isFinite)) { text(block, 'strong', 'Validity period not supplied', 'warning-validity-period'); parent.append(block); return block; }
+    const status = validityStatus(from, to, now); block.dataset.state = status.state;
+    text(block, 'span', status.text, 'warning-validity-status');
+    // Keep each end of the period together so a narrow popup wraps at the dash.
+    text(block, 'strong', ukPeriod(from, to).split(' – ').map((end) => end.replace(/ /g, '\u00a0')).join(' – '), 'warning-validity-period');
+    text(block, 'span', 'UK local time', 'warning-validity-zone');
+    parent.append(block); return block;
+  }
   const fixedUkDate = (value) => value == null ? 'Time not supplied' : new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', dateStyle: 'medium', timeStyle: 'short' }).format(value) + ' UK local';
   const date = (value) => value == null ? 'Time not supplied' : zone === 'system' ? new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short' }).format(value) + ' ' + zoneName(value) : fixedUkDate(value);
   function zoneName(value) { return new Intl.DateTimeFormat('en-GB', { timeZoneName: 'short' }).formatToParts(value).find((part) => part.type === 'timeZoneName')?.value || 'local'; }
@@ -148,5 +176,5 @@
     };archive.renderArchive();
   }
   function matches(r, query) { return !query || JSON.stringify([r.sourceAuthority,r.domainPayload.title,r.domainPayload.headline,r.domainPayload.place,r.domainPayload.classification,r.domainPayload.status,r.domainPayload.centre,r.domainPayload.county,r.domainPayload.riverOrSea,r.domainPayload.badge,r.kind,r.domainPayload.classificationLabel,r.domainPayload.affectedAreas,r.domainPayload.areas,r.domainPayload.weatherTypes,r.domainPayload.details]).toLowerCase().includes(query); }
-  globalThis.StormtraceUI={date,fixedUkDate,setTimeZone,timeZone,depth,text,keyed,healthMessage,sourceStatus,popupHealth,refreshPopupHealth,scrollTo,cardActions,popupOptions,popupMaxHeight,worldMinZoom,showOnMap,vectorMapAvailable,reducedMotion,flyOptions,collection,archiveView,matches};
+  globalThis.StormtraceUI={date,fixedUkDate,setTimeZone,timeZone,depth,text,keyed,healthMessage,sourceStatus,popupHealth,refreshPopupHealth,scrollTo,cardActions,validity,validityStatus,ukPeriod,popupOptions,popupMaxHeight,worldMinZoom,showOnMap,vectorMapAvailable,reducedMotion,flyOptions,collection,archiveView,matches};
 })();

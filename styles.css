@@ -428,6 +428,16 @@ dialog > .hazard-dialog-card { width: 100%; height: 100%; max-height: none; padd
 .warning-card[data-level="AMBER"] .warning-badge { background: var(--nsww-amber); }
 .warning-card[data-level="RED"] .warning-badge { background: var(--nsww-red); color: #fff; }
 .warning-card h3 { font-size: 18px; margin: 8px 0; }
+/* Validity is the key fact of a warning: status, then the period in large type. The edge
+   uses the official level colour; text stays in the readable surface colours. */
+.warning-card { --warning-colour: var(--nsww-yellow); }
+.warning-card[data-level="AMBER"] { --warning-colour: var(--nsww-amber); }
+.warning-card[data-level="RED"] { --warning-colour: var(--nsww-red); }
+.warning-validity { display: grid; gap: 2px; margin: 10px 0; padding: 10px 12px; border-left: 5px solid var(--warning-colour, var(--violet)); background: color-mix(in srgb, var(--warning-colour, var(--violet)) 12%, transparent); border-radius: 0 6px 6px 0; }
+.warning-validity-status { font-weight: 700; font-size: calc(13px * var(--reading-scale)); letter-spacing: .02em; }
+.warning-validity[data-state="ended"] .warning-validity-status { opacity: .75; }
+.warning-validity-period { font-size: calc(19px * var(--reading-scale)); line-height: 1.3; }
+.warning-validity-zone { font-size: calc(12px * var(--reading-scale)); opacity: .75; }
 .warning-card h4 { margin: 14px 0 6px; }
 .warning-card p { margin: 7px 0; line-height: 1.5; }
 .warning-card ul { padding-left: 22px; font-size: var(--font-sm); line-height: 1.7; }

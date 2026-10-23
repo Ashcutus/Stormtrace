@@ -162,8 +162,8 @@
         text(card, "span", weatherName(p.classification), "warning-badge");
         text(card, "h3", p.weatherTypes.map(weatherName).join(" & "));
         UI.cardActions(card, { onShowMap: linkToMap(card, { level: p.classification, types: p.weatherTypes, areas: p.affectedAreas, validFrom: event.validFrom }) });
+        UI.validity(card, event.validFrom, event.validTo, controller.now());
         text(card, "p", `Issued ${ukDate(event.observedAt)} · updated ${ukDate(event.updatedAt)} · version ${p.version}`);
-        text(card, "p", `${ukDate(event.validFrom)} – ${ukDate(event.validTo)}`);
         text(card, "h4", p.headline);
         const point = getLocation();
         if (point && C.pointInPolygon([point.lon, point.lat], event.geometry)) text(card, "p", "Your saved monitoring point is within this warning area.", "warning-relevance");
@@ -203,8 +203,8 @@
           text(card, "span", weatherName(p.classification), "warning-badge");
           text(card, "h4", p.headline);
           text(card, "p", `${ukDate(event.updatedAt)} · ${p.status} · version ${p.version}`);
+          UI.validity(card, event.validFrom, event.validTo, controller.now());
           paragraph(card, "Update reason", p.updateReason);
-          text(card, "p", `${ukDate(event.validFrom)} – ${ukDate(event.validTo)}`);
           paragraph(card, "Affected areas", p.affectedAreas.map((a) => `${a.regionName}: ${a.subRegions.join(", ")}`).join("\n"));
           text(card, "h4", "What to expect"); const ul = document.createElement("ul"); card.append(ul); for (const value of p.whatToExpect) text(ul, "li", value);
           paragraph(card, "Further details", p.description); paragraph(card, "What should I do", p.instruction);
