@@ -94,6 +94,30 @@ def profile_paths(glib):
     return data_dir, cache_dir
 
 
+def hyprland_window_commands(client, monitor, default_size, min_size):
+    """Dispatches that float, size and centre one window on its Hyprland monitor.
+
+    Centre with an absolute move: Hyprland restores a floating window to the
+    position recorded by move, not by window.center, when fullscreen ends.
+    """
+    scale = max(1.0, float(monitor.get("scale") or 1))
+    reserved = monitor.get("reserved") or [0, 0, 0, 0]
+    available_width = float(monitor.get("width") or default_size[0]) / scale
+    available_height = float(monitor.get("height") or default_size[1]) / scale
+    available_width -= float(reserved[0] + reserved[2])
+    available_height -= float(reserved[1] + reserved[3])
+    width = min(default_size[0], max(min_size[0], int(available_width * 0.84)))
+    height = min(default_size[1], max(min_size[1], int(available_height * 0.84)))
+    x = int(monitor.get("x") or 0) + int(reserved[0]) + max(0, int((available_width - width) / 2))
+    y = int(monitor.get("y") or 0) + int(reserved[1]) + max(0, int((available_height - height) / 2))
+    selector = f"address:{client['address']}"
+    return [
+        f'hl.dsp.window.float({{ action = "set", window = "{selector}" }})',
+        f'hl.dsp.window.resize({{ x = {width}, y = {height}, window = "{selector}" }})',
+        f'hl.dsp.window.move({{ x = {x}, y = {y}, window = "{selector}" }})',
+    ]
+
+
 def show_notification(application, gio, notification, icon_path, app_name):
     desktop = gio.Notification.new(notification.get_title() or app_name)
     if notification.get_body():

@@ -61,6 +61,29 @@ test('Python Linux storage adapter retains original profile locations without re
   const output = execFileSync('python3', ['-c', 'import tempfile, pathlib, stormtrace_platform; root=tempfile.mkdtemp(); G=type("G",(),{"get_user_data_dir":staticmethod(lambda:root+"/data"),"get_user_cache_dir":staticmethod(lambda:root+"/cache")}); a,b=stormtrace_platform.profile_paths(G); assert a==pathlib.Path(root)/"data"/"stormtrace"; assert b==pathlib.Path(root)/"cache"/"stormtrace"; print("ok")'], { encoding: 'utf8' }); assert.equal(output.trim(), 'ok');
 });
 
+test('Python Hyprland adapter centres the native window with an absolute move so fullscreen restores in place', () => {
+  const script = `
+from stormtrace_platform import hyprland_window_commands as layout
+c={"address":"0xabc"}
+a=layout(c,{"x":0,"y":0,"width":2560,"height":1440,"scale":1,"reserved":[0,26,0,0]},(1200,780),(900,600))
+assert a[1]=='hl.dsp.window.resize({ x = 1200, y = 780, window = "address:0xabc" })', a
+assert a[2]=='hl.dsp.window.move({ x = 680, y = 343, window = "address:0xabc" })', a
+assert not any("center" in command for command in a)
+b=layout(c,{"x":2560,"y":0,"width":2560,"height":1440,"scale":1,"reserved":[0,26,0,0]},(1200,780),(900,600))
+assert "x = 3240, y = 343" in b[2], b
+s=layout(c,{"x":0,"y":0,"width":2880,"height":1800,"scale":2,"reserved":[0,26,0,0]},(1200,780),(900,600))
+assert "x = 1200, y = 734" in s[1] and "x = 120, y = 96" in s[2], s
+print("ok")
+`;
+  assert.equal(execFileSync('python3', ['-c', script], { encoding: 'utf8' }).trim(), 'ok');
+});
+
+test('native shell seeds notification permission for its own origin so restored desktop alerts still notify after restart', () => {
+  const shell = readFileSync(new URL('../stormtrace_app.py', import.meta.url), 'utf8');
+  assert.match(shell, /web_context\.connect\(\s*"initialize-notification-permissions",\s*self\._on_initialize_notification_permissions/);
+  assert.match(shell, /SecurityOrigin\.new_for_uri\(self\.app_url\)\s*\n\s*web_context\.initialize_notification_permissions\(\[origin\], \[\]\)/);
+});
+
 test('V1 application receives normalized live/backfill data and persists source revisions end to end', async () => {
   const idb = new IDBFactory();
   const app = loadApp({ indexedDB: idb, keyRange: IDBKeyRange, fetch: async () => ({ ok: true, json: async () => ({ configured: true, fetchedAt: 1800000000000, flashes: [{ id: 'provider:historic', time: 1799999999000, lat: 51, lon: -1, polarity: 0, deviation: 0 }], health: { freshness: 'fresh' } }) }) });

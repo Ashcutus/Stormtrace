@@ -195,6 +195,7 @@
   // Declared before init() runs so start-up code can never reach them uninitialized.
   let hazardAlerts = null;
   let barSignature = "", barPublishedAt = 0;
+  let zoomSteps = 0, zoomAnimating = false;
 
   init();
 
@@ -304,7 +305,8 @@
   function showHazardSelection(label) {
     $("#selectedHazardLabel").textContent = label || "Map event";
     $("#selectedHazardRow").hidden = false;
-    // Open Layers so Clear is visible; wait if a popup is using that space.
+    // Open Layers at its top, where the selection and Clear sit; wait if a popup is using that space.
+    $("#layersPanel").scrollTop = 0;
     if (state.mapPopupOpen) state.pendingLayersOpen = true; else $("#layersPanel").open = true;
     updateLayersSummary();
   }
@@ -336,6 +338,7 @@
       zoomControl: false,
       attributionControl: false,
       worldCopyJump: true,
+      maxBoundsViscosity: 1,
       preferCanvas: true,
     });
 
@@ -388,8 +391,44 @@
     // collapse Layers while a popup is open and pad auto-panning past the bars.
     state.map.on("popupopen", () => { state.mapPopupOpen = true; const panel = $("#layersPanel"); if (panel) panel.open = false; });
     state.map.on("popupclose", () => { state.mapPopupOpen = false; if (state.pendingLayersOpen) { state.pendingLayersOpen = false; $("#layersPanel").open = true; } });
+    // Bound popup height by that padded clear area, not the window, so a tall
+    // popup scrolls instead of running under the strike strip on short maps.
+    const sizeMapPopups = () => state.map.getContainer().style.setProperty("--map-popup-max", `${UI.popupMaxHeight(state.map.getSize().y)}px`);
+    // Keep the world filling the map: no panning past the Mercator edge and a
+    // minimum zoom at which the world is as tall as the map. A popup near the
+    // edge may still pan past it to stay readable; the map settles on close.
+    const world = L.latLngBounds([-85.0511, -1e6], [85.0511, 1e6]);
+    const fitWorld = () => state.map.setMinZoom(UI.worldMinZoom(state.map.getSize().y));
+    state.map.setMaxBounds(world);
+    state.map.on("autopanstart", () => state.map.setMaxBounds(null));
+    state.map.on("popupclose", () => state.map.setMaxBounds(world));
+    trackZoomAnimation(state.map);
+    state.map.on("resize", () => { sizeMapPopups(); fitWorld(); });
+    sizeMapPopups();
+    fitWorld();
     updateMapReadout();
     updateLocationLayers();
+  }
+
+  // Leaflet ignores zoom requests made during a zoom animation, so queue quick
+  // repeated presses and apply them when it ends. Steps land on whole levels
+  // even when the size-fitted minimum zoom is fractional.
+  function trackZoomAnimation(map) {
+    map.on("zoomstart", () => { zoomAnimating = true; });
+    map.on("zoomend", () => { zoomAnimating = false; applyZoomSteps(); });
+  }
+  function stepZoom(delta) {
+    if (!state.map) return;
+    zoomSteps += delta;
+    if (!zoomAnimating) applyZoomSteps();
+  }
+  function applyZoomSteps() {
+    const map = state.map, steps = zoomSteps;
+    zoomSteps = 0;
+    if (!map || !steps) return;
+    const zoom = map.getZoom(), base = steps > 0 ? Math.floor(zoom) : Math.ceil(zoom);
+    const target = Math.min(map.getMaxZoom(), Math.max(map.getMinZoom(), base + steps));
+    if (target !== zoom) map.setZoom(target);
   }
 
   function bindControls() {
@@ -438,8 +477,8 @@
     els.checkUpdateButton.addEventListener("click", checkForUpdates);
     $('#map').addEventListener('click',event=>{if(event.target.closest?.('[data-close-popup]'))state.map?.closePopup?.();});
     els.mapMessageAction.addEventListener("click", () => location.reload());
-    $("#zoomIn").addEventListener("click", () => state.map?.zoomIn());
-    $("#zoomOut").addEventListener("click", () => state.map?.zoomOut());
+    $("#zoomIn").addEventListener("click", () => stepZoom(1));
+    $("#zoomOut").addEventListener("click", () => stepZoom(-1));
     $("#worldView").addEventListener("click", () => state.map?.setView([18, 6], 2));
     $("#setHere").addEventListener("click", toggleMapLocation);
     els.locationButton.addEventListener("click", () => { requestLocation(); revealLocationFeedback(); });
@@ -547,8 +586,8 @@
         els.notificationToggle.checked = !els.notificationToggle.checked;
         toggleNotifications();
       } else if (key === "?") els.shortcutsDialog?.showModal();
-      else if (key === "+" || key === "=") state.map?.zoomIn();
-      else if (key === "-") state.map?.zoomOut();
+      else if (key === "+" || key === "=") stepZoom(1);
+      else if (key === "-") stepZoom(-1);
     });
   }
 

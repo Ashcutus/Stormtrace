@@ -223,6 +223,22 @@ test('every map layer uses the shared popup behaviour: same options, bounded scr
  assert.match(readFileSync('app.js','utf8'),/UI\.popupOptions\(\{ className: "storm-popup"/);
  const o=UI.popupOptions({minWidth:260});assert.equal(o.className,'hazard-popup flood-map-popup');assert.equal(o.minWidth,260);assert.deepEqual(o.autoPanPaddingTopLeft,[24,76]);
  assert.match(readFileSync('styles.css','utf8'),/\.hazard-popup \.leaflet-popup-content, \.storm-popup \.leaflet-popup-content \{ max-height:[^}]*overflow-y: auto/);
+ // Native 1200x780 window: a ~540px map must scroll popups inside the padded clear area, not under the strike strip.
+ assert.equal(UI.popupMaxHeight(540),348);assert.ok(UI.popupMaxHeight(540)+76+84<=540);assert.equal(UI.popupMaxHeight(200),160);
+ assert.match(readFileSync('styles.css','utf8'),/\.storm-popup \.leaflet-popup-content \{ max-height: min\(520px, var\(--map-popup-max, calc\(100dvh - 300px\)\)\)/);
+ assert.match(readFileSync('app.js','utf8'),/sizeMapPopups\(\); fitWorld\(\);/);
+});
+test('Layers shows the selected map event and its Clear button first, and popup × stays readable over scrolled text',()=>{
+ const html=readFileSync('index.html','utf8');assert.match(html,/<div class="layers-body">\s*<div class="selected-row" id="selectedHazardRow" hidden>/);
+ assert.match(readFileSync('app.js','utf8'),/\$\("#layersPanel"\)\.scrollTop = 0;/);
+ assert.match(readFileSync('styles.css','utf8'),/\.storm-popup a\.leaflet-popup-close-button \{[^}]*z-index: 1; background: var\(--popup-bg\)/);
+});
+test('the main map never shows empty space past the Mercator edge, except while a popup needs room',()=>{
+ // Mercator world is 256*2^z px tall: 540px map -> 2 (floor), 1180px fullscreen map -> about 2.2.
+ assert.equal(UI.worldMinZoom(540),2);assert.ok(Math.abs(256*2**UI.worldMinZoom(1180)-1180)<1e-6);assert.equal(UI.worldMinZoom(0),2);
+ const app=readFileSync('app.js','utf8');
+ assert.match(app,/maxBoundsViscosity: 1/);assert.match(app,/L\.latLngBounds\(\[-85\.0511, -1e6\], \[85\.0511, 1e6\]\)/);
+ assert.match(app,/on\("autopanstart", \(\) => state\.map\.setMaxBounds\(null\)\)/);assert.match(app,/on\("popupclose", \(\) => state\.map\.setMaxBounds\(world\)\)/);
 });
 test('hazard cards share one action row under the heading, and only located cyclone and volcano records offer Show on map',()=>{
  for(const f of ['client/floods.js','client/earthquakes.js','client/public-hazards.js','client/warnings.js'])assert.match(readFileSync(f,'utf8'),/UI\.cardActions\(/,f);
