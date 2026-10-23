@@ -193,9 +193,11 @@
             </div>
             <label for="radarSource">Source / region</label>
             <select id="radarSource">
-              <optgroup label="Rain rate">
+              <optgroup label="Rain and snowfall rate">
                 <option value="metoffice-radar">UK · Met Office rain rate</option>
                 <option value="opera-radar">Europe · EUMETNET rain rate</option>
+                <option value="eccc-rain">Canada · ECCC rain rate</option>
+                <option value="eccc-snow">Canada · ECCC snowfall rate</option>
               </optgroup>
               <optgroup label="Reflectivity">
                 <option value="noaa-conus">US contiguous states · NOAA reflectivity</option>
@@ -204,12 +206,13 @@
                 <option value="noaa-carib">Caribbean · NOAA reflectivity</option>
                 <option value="noaa-guam">Guam · NOAA reflectivity</option>
               </optgroup>
-              <optgroup label="Precipitation type (rain, snow, hail)">
+              <optgroup label="Precipitation type">
                 <option value="noaa-ptype-conus">US contiguous states · NOAA precipitation type</option>
                 <option value="noaa-ptype-alaska">Alaska · NOAA precipitation type</option>
                 <option value="noaa-ptype-hawaii">Hawaii · NOAA precipitation type</option>
                 <option value="noaa-ptype-carib">Caribbean · NOAA precipitation type</option>
                 <option value="noaa-ptype-guam">Guam · NOAA precipitation type</option>
+                <option value="eccc-ptype">Canada · ECCC precipitation type</option>
               </optgroup>
             </select>
             <p id="radarStatus" role="status">Not checked yet.</p>

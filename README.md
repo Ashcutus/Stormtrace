@@ -51,7 +51,7 @@ Even with the window closed, the storm icon in your Omarchy bar keeps watch: it 
 
 ### 🌧️ See the rain
 
-Turn on **Radar** to see the last three hours of rainfall for the UK and Europe, or radar reflectivity for the US. Press **Play** to watch the rain move, or scrub through the frames yourself. In the US you can also switch to **precipitation type** to tell rain, snow and hail apart.
+Turn on **Radar** to see the last three hours of rainfall for the UK, Europe and Canada, snowfall for Canada, or radar reflectivity for the US. Press **Play** to watch the rain move, or scrub through the frames yourself. In the US and Canada you can also switch to **precipitation type** to tell rain, snow and hail apart, and in Canada mixed rain and snow and freezing rain too.
 
 <table>
   <tr>
@@ -151,11 +151,11 @@ Restart Stormtrace afterwards. The [warnings guide](docs/warnings.md#setup) walk
 
 ### Radar: UK and Europe
 
-US radar works out of the box. UK and European rainfall need a small decoder on your computer: when you first choose them, press **Set up UK and Europe radar** in the radar panel and Stormtrace installs it for you (about 40 MB, a few minutes). No radar account or key is needed. The [radar guide](docs/radar.md#setup) has the manual steps if you prefer.
+US and Canadian radar work out of the box. UK and European rainfall need a small decoder on your computer: when you first choose them, press **Set up UK and Europe radar** in the radar panel and Stormtrace installs it for you (about 40 MB, a few minutes). No radar account or key is needed. The [radar guide](docs/radar.md#setup) has the manual steps if you prefer.
 
-UK and European frames arrive every 15 minutes (the Met Office can be up to 20 minutes behind), and US frames about every two minutes. US radar shows reflectivity (dBZ) while the UK and Europe show rainfall rate (mm/h), so their colours mean different things. A clear patch can mean dry weather or simply no radar coverage.
+UK and European frames arrive every 15 minutes (the Met Office can be up to 20 minutes behind), Canadian frames every 6 minutes, and US frames about every two minutes. US radar shows reflectivity (dBZ) while the UK, Europe and Canada show rainfall rate (mm/h), and Canadian snowfall is in cm/h, so their colours mean different things. Elsewhere a clear patch can mean dry weather or simply no radar coverage; Canadian radar hatches areas outside coverage so you can tell them apart.
 
-US precipitation type is a NOAA classification that uses weather models as well as radar. It has no category for sleet or freezing rain, and it can miss some snow. The UK and Europe don't publish precipitation type yet.
+US precipitation type is a NOAA classification that uses weather models as well as radar. It has no category for sleet or freezing rain, and it can miss some snow. Canadian precipitation type from Environment and Climate Change Canada combines radar with model surface temperature and does include mixed rain and snow and freezing rain. The UK and Europe don't publish precipitation type yet.
 
 ## Keyboard shortcuts
 

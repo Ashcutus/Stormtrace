@@ -84,7 +84,7 @@ export function radarWorker(root, operation, key = '', source = 'metoffice-radar
       if (!error) return resolveResult(stdout);
       let code = 'configuration';
       try { code = JSON.parse(stderr.toString()).code; } catch { if (error.killed) code = 'timeout'; }
-      reject(new globalThis.StormtraceCore.ProviderError(code, source.startsWith('noaa-') ? 'noaa-radar' : source, operation));
+      reject(new globalThis.StormtraceCore.ProviderError(code, globalThis.StormtraceCore.radarProviderId(source), operation));
     });
   });
 }

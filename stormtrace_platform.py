@@ -129,14 +129,29 @@ def show_notification(application, gio, notification, icon_path, app_name):
     return True
 
 
+WMS_RADAR = {'noaa-radar', 'eccc-radar'}
+
+
+def radar_provider_id(source):
+    """Radar selections share one provider per authority (mirrors providers/registry.js)."""
+    return 'noaa-radar' if source.startswith('noaa-') else 'eccc-radar' if source.startswith('eccc-') else source
+
+
+def resource_keys(provider, result):
+    """Renderable keys: each frame, its coverage mask where offered, and a WMS source legend."""
+    keys = {key for r in result['records'] for key in ([r['id'], r['id'] + '@coverage'] if r.get('coverage') else [r['id']])}
+    if provider in WMS_RADAR: keys.add('legend')
+    return keys
+
+
 class RadarAdapter:
     """Local worker composition shared with Node; bounded memory-only cache."""
     def __init__(self, root, source="metoffice-radar"):
         import threading
         self.root, self.lock, self.cached, self.images = root, threading.Lock(), None, {}
         self.source = source
-        self.id = "noaa-radar" if source.startswith("noaa-") else source
-        self.health = {'lastAttemptedFetch': None, 'lastSuccessfulFetch': None, 'sourceDataTimestamp': None, 'expectedUpdateInterval': 120000 if source.startswith('noaa-') else 900000, 'lastError': None, 'consecutiveFailures': 0, 'available': False, 'freshnessBasis': 'source'}
+        self.id = radar_provider_id(source)
+        self.health = {'lastAttemptedFetch': None, 'lastSuccessfulFetch': None, 'sourceDataTimestamp': None, 'expectedUpdateInterval': {'noaa-radar': 120000, 'eccc-radar': 600000}.get(self.id, 900000), 'lastError': None, 'consecutiveFailures': 0, 'available': False, 'freshnessBasis': 'source'}
 
     def invalidate(self):
         """Forget cached frames so a newly set-up decoder is used on the next check."""
@@ -167,15 +182,14 @@ class RadarAdapter:
         from providers.metoffice_radar import RadarError
         with self.lock:
             now = int(time.time() * 1000)
-            if self.cached and now - self.health['lastSuccessfulFetch'] < (60000 if self.id == 'noaa-radar' else 300000):
+            if self.cached and now - self.health['lastSuccessfulFetch'] < (60000 if self.id in WMS_RADAR else 300000):
                 return {**self.cached, 'health': {**self.health, 'freshness': self.freshness(now)}}
             self.health['lastAttemptedFetch'] = now
             try:
                 result = json.loads(self.worker('frames'))
                 self.health.update(lastSuccessfulFetch=int(time.time() * 1000), sourceDataTimestamp=result['sourceDataTimestamp'], lastError=None, consecutiveFailures=0, available=bool(result['records']))
                 self.cached = result
-                ids = {r['id'] for r in result['records']}
-                if self.id == 'noaa-radar': ids.add('legend')
+                ids = resource_keys(self.id, result)
                 self.images = {key: value for key, value in self.images.items() if key in ids}
                 return {**result, 'health': {**self.health, 'freshness': self.freshness(now)}}
             except RadarError as e:
@@ -194,10 +208,10 @@ class RadarAdapter:
     def image(self, key):
         from providers.metoffice_radar import RadarError
         result = self.frames()
-        if not (key == 'legend' and self.id == 'noaa-radar') and not any(r['id'] == key for r in result['records']): raise RadarError('unavailable')
+        if key not in resource_keys(self.id, result): raise RadarError('unavailable')
         if result['missingDependencies']: raise RadarError('configuration')
         with self.lock:
             if key not in self.images:
-                while len(self.images) >= (12 if self.source == 'metoffice-radar' else 3): self.images.pop(next(iter(self.images)))
+                while len(self.images) >= (12 if self.source == 'metoffice-radar' else 6): self.images.pop(next(iter(self.images)))
                 self.images[key] = self.worker('render', key)
             return self.images[key]

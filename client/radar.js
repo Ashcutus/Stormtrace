@@ -9,6 +9,7 @@
   function validate(result) {
     if (!result || !Array.isArray(result.records) || result.records.length > 12 || !result.health || !Array.isArray(result.missingDependencies) || !result.legend) throw new Error('Invalid radar response');
     for (const f of result.records) if (!f.id || !Number.isFinite(f.observedAt) || !Array.isArray(f.bounds) || f.bounds.length !== 4 || !f.bounds.every(Number.isFinite) || !localResource(f.resource?.url) || f.resource.format !== 'image/png') throw new Error('Invalid radar frame');
+    for (const f of result.records) if (f.coverage && (!localResource(f.coverage.url) || f.coverage.format !== 'image/png')) throw new Error('Invalid radar coverage');
     if (result.legend.image && !localResource(result.legend.image)) throw new Error('Invalid radar legend');
     if (result.legend.categories && (!Array.isArray(result.legend.categories) || result.legend.categories.length > 20 || !result.legend.categories.every((c) => typeof c?.label === 'string' && /^#[0-9a-f]{6}$/i.test(c.colour)))) throw new Error('Invalid radar legend');
     return result;
@@ -17,10 +18,13 @@
     const $ = (id) => document.getElementById(id), button = $('radarButton'), panel = $('radarPanel'), status = $('radarStatus'), slider = $('radarTimeline');
     const selection = $('radarSource');
     let source = selection?.value || 'metoffice-radar', selectionGeneration = 0;
-    const providerId = () => source.startsWith('noaa-') ? 'noaa-radar' : source;
+    const providerId = () => C.radarProviderId(source);
     const interval = () => C.getSource(providerId()).expectedUpdateInterval;
-    const isPtype = () => source.startsWith('noaa-ptype-');
-    const context = () => isPtype() ? 'Precipitation type from NOAA MRMS: radar classification assisted by model surface analyses. Categories are rain types, snow and hail; there is no sleet or freezing-rain category, and snow can be under-detected. Frames sampled across the past 3 hours. Coverage gaps do not mean dry weather.' : source.startsWith('noaa-') ? 'Observed reflectivity (dBZ); not rainfall rate. Frames sampled across the available past 3 hours. Coverage gaps do not mean dry weather.' : source === 'opera-radar' ? 'Observed rain rate · 15-minute frames. European radar coverage varies; transparent areas include no rain and missing observations.' : 'Observed rain rate · 15-minute frames, publication can lag by 20 minutes. Transparent areas include no rain and missing observations.';
+    const isWms = () => C.radarUsesWms(providerId());
+    const isPtype = () => source.startsWith('noaa-ptype-') || source === 'eccc-ptype';
+    const unit = () => isPtype() ? 'category' : source === 'eccc-snow' ? 'cm/h' : source.startsWith('noaa-') ? 'dBZ' : 'mm/h';
+    const canada = { 'eccc-rain': 'Radar rain-rate estimate (mm/h) from the North American composite of Canadian and US radars.', 'eccc-snow': 'Radar snowfall-rate estimate (cm/h) from the North American composite. It is a rate, not a precipitation-type classification; choose Canada · ECCC precipitation type for that.', 'eccc-ptype': 'Surface precipitation type from Environment and Climate Change Canada: radar particle classification with model surface temperature, including freezing rain and mixed rain/snow.' };
+    const context = () => canada[source] ? `${canada[source]} 6-minute frames sampled across the past 3 hours. Hatched areas are outside radar coverage; inside it, clear areas had no precipitation detected.` : isPtype() ? 'Precipitation type from NOAA MRMS: radar classification assisted by model surface analyses. Categories are rain types, snow and hail; there is no sleet or freezing-rain category, and snow can be under-detected. Frames sampled across the past 3 hours. Coverage gaps do not mean dry weather.' : source.startsWith('noaa-') ? 'Observed reflectivity (dBZ); not rainfall rate. Frames sampled across the available past 3 hours. Coverage gaps do not mean dry weather.' : source === 'opera-radar' ? 'Observed rain rate · 15-minute frames. European radar coverage varies; transparent areas include no rain and missing observations.' : 'Observed rain rate · 15-minute frames, publication can lag by 20 minutes. Transparent areas include no rain and missing observations.';
     // Source freshness comes from the newest available frame, not the one on screen,
     // so stepping through older frames (or playback) never changes the message.
     const freshness = () => { const latest = records.at(-1); if (!latest) return ''; const base = ({ Observed: 'Radar is up to date.', Delayed: 'Radar is running late.', Stale: 'Radar is out of date.' })[ageLabel(latest)]; return playing ? `${base} Playing the past 3 hours.` : base; };
@@ -34,9 +38,9 @@
       if ($('radarSourceLink')) $('radarSourceLink').href = metadata.homepage;
       if ($('radarCoverage')) $('radarCoverage').textContent = context();
       if ($('radarLegend')) $('radarLegend').replaceChildren();
-      if ($('radarUnit')) $('radarUnit').textContent = unitLabel(isPtype() ? 'category' : source.startsWith('noaa-') ? 'dBZ' : 'mm/h');
+      if ($('radarUnit')) $('radarUnit').textContent = unitLabel(unit());
     }
-    function unitLabel(unit) { return unit === 'category' ? 'Precipitation type' : unit === 'dBZ' ? 'Radar reflectivity (dBZ)' : 'Rainfall rate (mm/h)'; }
+    function unitLabel(value) { return value === 'category' ? 'Precipitation type' : value === 'dBZ' ? 'Radar reflectivity (dBZ)' : value === 'cm/h' ? 'Snowfall rate (cm/h)' : 'Rainfall rate (mm/h)'; }
     sourcePresentation();
     function legendPresentation(legend) {
       const container = $('radarLegend');
@@ -54,7 +58,9 @@
       }
       container.classList?.remove('radar-legend-categories');
       if (legend.image) {
-        const img = document.createElement('img'); img.src = legend.image; img.alt = 'NOAA radar reflectivity scale in dBZ';
+        const img = document.createElement('img'); img.src = legend.image; img.alt = `${C.getSource(providerId()).authority} radar scale: ${unitLabel(legend.unit)}`;
+        // Source legends come as a horizontal strip (NOAA) or a vertical bar (ECCC).
+        if (legend.layout === 'vertical') img.classList?.add('vertical');
         img.addEventListener('error', () => { if (enabled) status.textContent = 'Radar legend unavailable. ' + context(); });
         container.append(img);
       } else {
@@ -107,18 +113,24 @@
       if (pending) { map.removeLayer(pending); pending = null; }
       // During playback the status line stays steady; loading shows on the frame line.
       if (playing) $('radarFrameTime').textContent = `Loading ${stamp(frame)}…`; else status.textContent = `Loading radar observation ${stamp(frame)}…`;
-      const [west, south, east, north] = frame.bounds;
-      const next = L.imageOverlay(frame.resource.url, [[south, west], [north, east]], { pane: 'radar', opacity: .8, interactive: false }); pending = next;
+      const [west, south, east, north] = frame.bounds, area = [[south, west], [north, east]];
+      // A source coverage mask, where offered, is drawn beneath the precipitation layer.
+      const image = L.imageOverlay(frame.resource.url, area, { pane: 'radar', opacity: .8, interactive: false });
+      const coverage = frame.coverage && L.imageOverlay(frame.coverage.url, area, { pane: 'radar', opacity: .45, interactive: false });
+      const images = coverage ? [coverage, image] : [image];
+      const next = coverage ? L.layerGroup(images) : image; pending = next;
       try {
         await new Promise((resolve, reject) => {
+          let remaining = images.length, done = false;
           const finish = (failed) => {
-            clearTimeout(timeout); if (cancelPending === cancel) cancelPending = null;
+            if (done || (!failed && --remaining > 0)) return;
+            done = true; clearTimeout(timeout); if (cancelPending === cancel) cancelPending = null;
             if (failed) reject(new Error('image')); else resolve();
           };
           const cancel = () => finish(true);
           const timeout = setTimeout(() => finish(true), 60000); cancelPending = cancel;
-          next.once('load', () => finish(false));
-          next.once('error', () => finish(true)); next.addTo(map);
+          for (const layer of images) { layer.once('load', () => finish(false)); layer.once('error', () => finish(true)); }
+          next.addTo(map);
         });
         if (request !== generation || !enabled) { map.removeLayer(next); return; }
         if (overlay) map.removeLayer(overlay); overlay = next; pending = null; displayed = frame;
@@ -127,7 +139,7 @@
       } catch {
         globalThis.StormtraceDiagnostics?.count("errors");
         if (request === generation) map.removeLayer(next);
-        if (request === generation && enabled) status.textContent = `Radar image unavailable.${displayed ? ` Keeping observation ${stamp(displayed)}.` : ''} ${source.startsWith('noaa-') ? 'Try Latest frame.' : 'Check the radar setup or retry.'}`;
+        if (request === generation && enabled) status.textContent = `Radar image unavailable.${displayed ? ` Keeping observation ${stamp(displayed)}.` : ''} ${isWms() ? 'Try Latest frame.' : 'Check the radar setup or retry.'}`;
       }
     }
     async function refresh() {
@@ -163,7 +175,7 @@
       if(enabled)globalThis.StormtraceUI.scrollTo(panel);
       if (!enabled) { generation++; selectionGeneration++; cancelPending?.(); clearInterval(timer); if (overlay) map.removeLayer(overlay); if (pending) map.removeLayer(pending); overlay = pending = displayed = null; return; }
       if (demo) { status.textContent = 'Live radar is disabled in demo mode.'; return; }
-      refresh(); timer = setInterval(refresh, source.startsWith('noaa-') ? 60000 : 300000);
+      refresh(); timer = setInterval(refresh, isWms() ? 60000 : 300000);
     });
     selection?.addEventListener('change', () => {
       source = selection.value; selectionGeneration++; generation++; cancelPending?.(); stopPlayback();
@@ -171,7 +183,7 @@
       overlay = pending = displayed = null; records = []; followLatest = true;
       slider.disabled = true; $('radarFrameTime').textContent = ''; sourcePresentation();
       status.textContent = demo ? 'Live radar is disabled in demo mode.' : enabled ? 'Loading selected radar source…' : 'Turn on Radar to load this source.';
-      if (enabled) { clearInterval(timer); timer = setInterval(refresh, source.startsWith('noaa-') ? 60000 : 300000); refresh(); }
+      if (enabled) { clearInterval(timer); timer = setInterval(refresh, isWms() ? 60000 : 300000); refresh(); }
     });
     slider.addEventListener('input' , () => { stopPlayback(); followLatest = false; show(records[Number(slider.value)]); });
     $('radarPlay')?.addEventListener('click', () => {
