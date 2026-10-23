@@ -109,7 +109,7 @@ Use **Layers** in the top-left corner of the map to add flood areas or earthquak
 
 ### 🎨 Make it yours
 
-Stormtrace follows your Omarchy theme automatically, or you can pick your own colours. **Appearance** also has larger text sizes, a choice of UK or local time, and map brightness and shading. Strike-age colours come from your theme, but Stormtrace switches to a fixed yellow, orange and crimson set if a theme's colours are too close to tell apart. Official warning colours never change, so they always mean the same thing.
+Stormtrace follows your Omarchy theme automatically, or you can pick your own colours. Prefer light or dark regardless of your theme? Choose **Light** or **Dark** under **Light or dark**: Stormtrace builds a matching version of your Omarchy theme that keeps its accent colours. **Appearance** also has larger text sizes, a choice of UK or local time, and map brightness and shading. Strike-age colours come from your theme, but Stormtrace switches to a fixed yellow, orange and crimson set if a theme's colours are too close to tell apart. Official warning colours never change, so they always mean the same thing.
 
 ![The Appearance panel with text, time, colour and map settings](docs/screenshots/appearance-controls.png)
 

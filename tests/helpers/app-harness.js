@@ -11,7 +11,7 @@ const exports = [
   "timelineIndexAtOrAfter", "displayLongitude", "strikeIsInBounds", "render",
   "scheduleStats", "selectWindow", "handleVisibilityChange", "strikeDistance",
   "updateProximityStats", "loadHistory", "storeStrikes", "flushStrikes", "startDemo",
-  "startReceiver", "refreshOmarchyTheme", "selectThemeSource", "strikeAgePalette",
+  "startReceiver", "refreshOmarchyTheme", "selectThemeSource", "strikeAgePalette", "modePalette", "applyActivePalette",
   "trackZoomAnimation", "stepZoom", "locationErrorMessage", "validLocation", "locate", "requestLocation", "saveSettings", "useApproximateLocation", "setManualLocation", "toggleMapLocation", "setMapLocation",
 ];
 
