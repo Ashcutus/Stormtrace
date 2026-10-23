@@ -51,16 +51,22 @@ Even with the window closed, the storm icon in your Omarchy bar keeps watch: it 
 
 ### 🌧️ See the rain
 
-Turn on **Radar** to see the last three hours of rainfall for the UK, Europe and Canada, snowfall for Canada, or radar reflectivity for the US. Press **Play** to watch the rain move, or scrub through the frames yourself. In the US and Canada you can also switch to **precipitation type** to tell rain, snow and hail apart, and in Canada mixed rain and snow and freezing rain too.
+Turn on **Radar** to see the last three hours of radar for the UK, Europe, the US and Canada. Press **Play** to watch the weather move, or scrub through the frames yourself.
+
+- **UK and Europe:** rainfall rate from the Met Office and EUMETNET, every 15 minutes.
+- **United States:** radar reflectivity from NOAA for the contiguous states, Alaska, Hawaii, the Caribbean and Guam, every couple of minutes. Switch to **precipitation type** to tell rain, snow and hail apart.
+- **Canada:** rain and snowfall rates from Environment and Climate Change Canada, every 6 minutes. Its **precipitation type** goes further, picking out mixed rain and snow and freezing rain by intensity. Areas outside radar coverage are hatched, so a clear patch inside coverage really does mean nothing is falling.
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/screenshots/radar.png" alt="UK rain radar with the radar panel open"></td>
-    <td width="50%"><img src="docs/screenshots/precipitation-type.png" alt="US precipitation type showing rain, snow and hail categories"></td>
+    <td width="33%"><img src="docs/screenshots/radar.png" alt="UK rain radar with the radar panel open"></td>
+    <td width="33%"><img src="docs/screenshots/precipitation-type.png" alt="US precipitation type showing rain, snow and hail categories"></td>
+    <td width="33%"><img src="docs/screenshots/precipitation-type-canada.png" alt="Canadian precipitation type showing snow, mixed rain and snow and rain bands over the Prairies, with areas outside radar coverage hatched"></td>
   </tr>
   <tr>
     <td align="center"><sub>UK rainfall from the Met Office</sub></td>
     <td align="center"><sub>US rain, snow and hail from NOAA</sub></td>
+    <td align="center"><sub>Canadian snow, mixed and freezing rain from Environment Canada</sub></td>
   </tr>
 </table>
 
@@ -107,7 +113,7 @@ Stormtrace follows your Omarchy theme automatically, or you can pick your own co
 
 ![The Appearance panel with text, time, colour and map settings](docs/screenshots/appearance-controls.png)
 
-<sub>Screenshots show live data captured on 22 October 2026.</sub>
+<sub>Screenshots show live data captured on 22 and 23 October 2026.</sub>
 
 ## Install
 
@@ -138,6 +144,10 @@ No `sudo` is needed, and nothing runs at boot. The small local service starts wh
 1. **Set your location.** On a new install a short welcome walks you through this. Otherwise click **Set location** in the toolbar (or press `G`). On a wired connection, or if you'd rather not share your position, use **Pick on map** or **Enter coordinates** in the sidebar instead. If only a rough position is available, Stormtrace shows how rough it is and lets you decide.
 2. **Choose your alerts.** Pick a radius, turn on **Desktop alerts**, and tick any hazards you'd like to hear about.
 3. **Explore.** Try the **Hazards** buttons, turn on **Radar**, or press `?` to see every keyboard shortcut.
+
+![The first-run welcome, with Locate me, Pick on map and Explore first](docs/screenshots/welcome.png)
+
+The welcome appears once on a new install. If you already have saved settings, you won't see it.
 
 ### Weather warnings: full details
 
